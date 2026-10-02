@@ -49,7 +49,7 @@ interface LinkRow extends Record<string, SqlStorageValue> {
   hits: number;
   window_hits: number;
   last_hit_at: number | null;
-  state: 'pending' | 'active';
+  state: 'pending' | 'active' | 'purging';
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -290,33 +290,47 @@ export class Registry extends DurableObject<Env> {
   async purge(code: string): Promise<boolean> {
     const row = this.row(code);
     if (!row) return false;
+    // Mark first (synchronously) so nothing can refresh or serve the link while R2 is awaited.
+    this.sql.exec(`UPDATE links SET state = 'purging' WHERE code = ?`, code);
     await this.env.BUCKET.delete(row.r2_key);
-    this.sql.exec('DELETE FROM links WHERE code = ?', code);
+    this.sql.exec(`DELETE FROM links WHERE code = ? AND state = 'purging'`, code);
     await this.ensureAlarm();
     return true;
   }
 
   // ---- sweeper ----------------------------------------------------------------------
 
-  /** Delete objects and rows whose grace period (or pending window) has passed. */
+  /**
+   * Delete objects and rows whose grace period (or pending window) has passed.
+   *
+   * Due rows are first flipped to `purging` in one synchronous step, which makes them
+   * invisible to refresh/serve/commit. Only then do we await R2. Deleting rows after the await
+   * without that step would let a refresh that lands mid-sweep succeed and then be wiped out.
+   * Rows left `purging` by a failed R2 delete are retried on the next run.
+   */
   override async alarm(): Promise<void> {
     const now = Date.now();
     const graceMs = parseLimits(this.env).purgeGraceSeconds * 1000;
+    this.sql.exec(
+      `UPDATE links SET state = 'purging'
+       WHERE (state = 'active' AND expires_at + ? <= ?)
+          OR (state = 'pending' AND created_at + ? <= ?)`,
+      graceMs,
+      now,
+      PENDING_TTL_MS,
+      now,
+    );
     const due = this.sql
       .exec<{ code: string; r2_key: string }>(
-        `SELECT code, r2_key FROM links
-         WHERE (state = 'active' AND expires_at + ? <= ?)
-            OR (state = 'pending' AND created_at + ? <= ?)`,
-        graceMs,
-        now,
-        PENDING_TTL_MS,
-        now,
+        `SELECT code, r2_key FROM links WHERE state = 'purging'`,
       )
       .toArray();
     for (let i = 0; i < due.length; i += 1000) {
       const batch = due.slice(i, i + 1000);
       await this.env.BUCKET.delete(batch.map((r) => r.r2_key));
-      for (const { code } of batch) this.sql.exec('DELETE FROM links WHERE code = ?', code);
+      for (const { code } of batch) {
+        this.sql.exec(`DELETE FROM links WHERE code = ? AND state = 'purging'`, code);
+      }
     }
     // Alarms don't repeat on their own: reschedule only if something is still pending.
     const next = this.nextDue();
@@ -335,10 +349,14 @@ export class Registry extends DurableObject<Env> {
     const graceMs = parseLimits(this.env).purgeGraceSeconds * 1000;
     const { next } = this.sql
       .exec<{ next: number | null }>(
-        `SELECT MIN(CASE WHEN state = 'active' THEN expires_at + ? ELSE created_at + ? END) AS next
+        `SELECT MIN(CASE state
+                      WHEN 'active' THEN expires_at + ?
+                      WHEN 'pending' THEN created_at + ?
+                      ELSE ? END) AS next
          FROM links`,
         graceMs,
         PENDING_TTL_MS,
+        Date.now(),
       )
       .one();
     return next;
@@ -350,7 +368,7 @@ export class Registry extends DurableObject<Env> {
     return this.row(code) !== undefined;
   }
 
-  private row(code: string, state?: 'pending' | 'active'): LinkRow | undefined {
+  private row(code: string, state?: LinkRow['state']): LinkRow | undefined {
     const rows = state
       ? this.sql.exec<LinkRow>('SELECT * FROM links WHERE code = ? AND state = ?', code, state)
       : this.sql.exec<LinkRow>('SELECT * FROM links WHERE code = ?', code);

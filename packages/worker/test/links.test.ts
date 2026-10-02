@@ -428,3 +428,36 @@ describe('status and lookup', () => {
     ).toBe(400);
   });
 });
+
+describe('cache headers', () => {
+  it('marks every response no-store, including errors', async () => {
+    const link = await uploadOk('cache me not');
+    await setExpiry(link.code, -1000);
+    const live = await uploadOk('0123456789');
+    const responses: [string, Response][] = [
+      ['404 unknown', await call('/AAAAAAAA')],
+      ['404 malformed', await call('/nope')],
+      ['410 expired', await call(`/${link.code}`)],
+      ['416 range', await call(`/${live.code}`, { headers: { Range: 'bytes=50-60' } })],
+      ['200 file', await call(`/${live.code}`)],
+      ['401 api', await call('/api/status')],
+      ['404 api', await authed('/api/nothing')],
+      ['200 api', await authed('/api/status')],
+      ['201 upload', await upload('x')],
+    ];
+    for (const [label, res] of responses) {
+      expect(res.headers.get('Cache-Control'), label).toBe('no-store');
+    }
+    expect(responses.map(([, r]) => r.status)).toEqual([404, 404, 410, 416, 200, 401, 404, 200, 201]);
+  });
+
+  it('marks rate-limit and busy responses no-store too', async () => {
+    const deny: RateLimit = { limit: async () => ({ success: false }) };
+    const allow: RateLimit = { limit: async () => ({ success: true }) };
+    const limited = await run('/AbCdEfGh', { LIMIT_IP: deny });
+    const busy = await run('/AbCdEfGh', { LIMIT_IP: allow, LIMIT_GLOBAL: deny });
+    expect([limited.status, busy.status]).toEqual([429, 503]);
+    expect(limited.headers.get('Cache-Control')).toBe('no-store');
+    expect(busy.headers.get('Cache-Control')).toBe('no-store');
+  });
+});

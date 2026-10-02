@@ -38,6 +38,20 @@ function baseUrl(env: Env, requestUrl: string): string {
   return (env.PUBLIC_BASE_URL ?? new URL(requestUrl).origin).replace(/\/+$/, '');
 }
 
+/** Delete an object from a failed upload, unless a live link now owns that code. */
+async function discardUntracked(
+  env: Env,
+  registry: ReturnType<typeof registryStub>,
+  code: string,
+  r2Key: string,
+): Promise<void> {
+  try {
+    if (!(await registry.get(code))) await env.BUCKET.delete(r2Key);
+  } catch (err) {
+    console.error('could not discard untracked object', r2Key, err);
+  }
+}
+
 async function handleUpload(c: Context<{ Bindings: Env }>, code?: string) {
   const limits = parseLimits(c.env);
 
@@ -85,13 +99,22 @@ async function handleUpload(c: Context<{ Bindings: Env }>, code?: string) {
     if (stored.size !== size) throw new Error(`size mismatch: ${stored.size} != ${size}`);
   } catch (err) {
     console.error('upload failed', err);
-    await c.env.BUCKET.delete(allocated.r2Key).catch(() => {});
     await registry.abort(allocated.code);
+    await discardUntracked(c.env, registry, allocated.code, allocated.r2Key);
     return errorResponse(500, 'upload_failed', 'Upload failed; nothing was stored.');
   }
 
   const link = await registry.commit(allocated.code);
-  if (!link) return errorResponse(500, 'upload_failed', 'Upload could not be committed.');
+  if (!link) {
+    // The pending row is gone (e.g. reaped because the upload took too long), so the object we
+    // just wrote has no owner. Remove it rather than leaving it outside storage accounting.
+    await discardUntracked(c.env, registry, allocated.code, allocated.r2Key);
+    return errorResponse(
+      500,
+      'upload_failed',
+      'Upload could not be committed (it may have taken too long); nothing was stored.',
+    );
+  }
 
   const base = baseUrl(c.env, c.req.url);
   const result: UploadResult = {

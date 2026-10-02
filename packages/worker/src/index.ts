@@ -13,6 +13,8 @@ const app = new Hono<{ Bindings: Env }>();
 app.use('*', async (c, next) => {
   await next();
   c.res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  // Nothing this Worker returns may be cached: a cached 404/410 would hide a refreshed link.
+  if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'no-store');
 });
 
 app.route('/api', api);
