@@ -1,6 +1,6 @@
 ---
 id: rf-cl6p
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-02T20:05:53Z
@@ -25,7 +25,7 @@ There is no CI. Tests, typecheck, formatting and the Worker bundle can silently 
 
 ## Acceptance Criteria
 
-- [ ] Workflow runs on PRs and pushes to main and fails when any of format, typecheck, tests, build or the dry-run deploy fails (demonstrate by a deliberately failing commit on a throwaway branch, then remove it).
+- [x] Workflow runs on PRs and pushes to main and fails when any of format, typecheck, tests, build or the dry-run deploy fails (demonstrate by a deliberately failing commit on a throwaway branch, then remove it).
 - [x] CI passes on a clean checkout with no secrets configured.
 - [x] README (Development section) mentions that CI runs these checks; badge optional.
 - [x] Node version in CI comes from `.node-version` (no second source of truth).
@@ -45,3 +45,7 @@ Follow-up on PR #2 (owner request): runner changed to ubicloud-standard-2 (owner
 **2026-10-02T20:57:22Z**
 
 Correction: the README criterion was not actually ticked earlier (sed pattern mismatch); it is ticked now after verifying README Development section documents CI. Final workflow verification run is 37062253747 (ubicloud-standard-2, SHA-pinned actions).
+
+**2026-10-02T21:10:41Z**
+
+Verified post-merge: push-to-main run 37064002315 on merge commit 9cc0f19 succeeded (all steps green, ubicloud-standard-2, SHA-pinned actions). PR run 37061332611 earlier showed a deliberately failing test turns CI red. All criteria met, closing.
