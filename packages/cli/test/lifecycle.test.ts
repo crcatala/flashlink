@@ -167,6 +167,37 @@ describe('r2fl ls', () => {
     expect(byCode.AAAAAAA2!.status).toBe('purged');
   });
 
+  it('--sync marks download-capped links exhausted (not live), and refresh clears it', async () => {
+    h.server.links.get('AAAAAAA1')!.exhausted = true;
+
+    await ls({ sync: true, json: true }, h.ctx);
+    const synced = JSON.parse(h.stdout[0]!) as { code: string; status: string }[];
+    expect(synced.find((e) => e.code === 'AAAAAAA1')!.status).toBe('exhausted');
+
+    h.stdout.length = 0;
+    await ls({ sync: true, live: true }, h.ctx);
+    expect(h.stderr.join('\n')).toContain('No live links');
+
+    h.stdout.length = 0;
+    await ls({}, h.ctx);
+    expect(h.stdout[0]).toMatch(/AAAAAAA1.*exhausted · download limit reached/);
+
+    await refresh('AAAAAAA1', {}, h.ctx);
+    expect(entryStatus(h.ctx.history.find('AAAAAAA1')!, h.server.now)).toBe('live');
+    h.stdout.length = 0;
+    await ls({ sync: true, live: true, json: true }, h.ctx);
+    expect(JSON.parse(h.stdout[0]!).map((e: { code: string }) => e.code)).toEqual(['AAAAAAA1']);
+  });
+
+  it('a sync that finds the cap cleared server-side flips exhausted back to live', async () => {
+    h.server.links.get('AAAAAAA1')!.exhausted = true;
+    await ls({ sync: true, json: true }, h.ctx);
+    h.server.links.get('AAAAAAA1')!.exhausted = false; // e.g. refreshed from another machine
+    h.stdout.length = 0;
+    await ls({ sync: true, json: true }, h.ctx);
+    expect(JSON.parse(h.stdout[0]!)[0].status).toBe('live');
+  });
+
   it('prints a friendly message when there is no history', async () => {
     const fresh = makeHarness();
     await ls({}, fresh.ctx);

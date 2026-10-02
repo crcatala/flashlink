@@ -39,6 +39,7 @@ export async function ls(opts: LsOptions, ctx: Context): Promise<void> {
   const { style } = ctx;
   const paint: Record<EntryStatus, (s: string) => string> = {
     live: style.green,
+    exhausted: style.yellow,
     expired: style.dim,
     revoked: style.yellow,
     purged: style.dim,
@@ -49,9 +50,11 @@ export async function ls(opts: LsOptions, ctx: Context): Promise<void> {
     const label =
       status === 'live'
         ? `live · ${timeLeft(e.expiresAt, now)}`
-        : status === 'purged'
-          ? 'purged'
-          : `${status} · ${clock(e.expiresAt, new Date(now))}`;
+        : status === 'exhausted'
+          ? 'exhausted · download limit reached'
+          : status === 'purged'
+            ? 'purged'
+            : `${status} · ${clock(e.expiresAt, new Date(now))}`;
     rows.push([e.code, truncate(e.filename, 32), formatBytes(e.size), paint[status](label), e.url]);
   }
   ctx.out(table(rows));
@@ -70,7 +73,7 @@ async function sync(ctx: Context): Promise<void> {
   const client = ctx.client();
   try {
     for (let i = 0; i < codes.length; i += 100) {
-      ctx.history.applyServerState(await client.lookup(codes.slice(i, i + 100)));
+      ctx.history.applyServerState(await client.lookup(codes.slice(i, i + 100)), ctx.now());
     }
   } catch (err) {
     if (err instanceof ApiError) {

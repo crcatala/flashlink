@@ -12,6 +12,8 @@ export const ENDPOINT = 'https://fl.test';
 interface StoredLink extends LinkInfo {
   body: Uint8Array;
   expiresMs: number;
+  /** Simulates the download cap being reached while the time window is still open. */
+  exhausted?: boolean;
 }
 
 /** A tiny in-memory stand-in for the Worker API, enough to exercise every CLI command. */
@@ -96,6 +98,7 @@ export class FakeServer {
       if (!link) return json({ error: 'not_found', message: 'No such link.' }, 404);
       const { ttlSeconds } = JSON.parse(String(init.body)) as { ttlSeconds?: number };
       link.expiresMs = this.now + (ttlSeconds ?? 3600) * 1000;
+      link.exhausted = false;
       return json({ ...this.info(link), url: `${ENDPOINT}/${link.code}` });
     }
     if ((m = /^\/api\/links\/(\w{8})\/revoke$/.exec(p)) && method === 'POST') {
@@ -118,11 +121,11 @@ export class FakeServer {
   }
 
   private info(link: StoredLink): LinkInfo {
-    const { body: _b, expiresMs, ...rest } = link;
+    const { body: _b, expiresMs, exhausted, ...rest } = link;
     return {
       ...rest,
       expiresAt: new Date(expiresMs).toISOString(),
-      expired: this.now >= expiresMs,
+      expired: this.now >= expiresMs || Boolean(exhausted),
     };
   }
 
