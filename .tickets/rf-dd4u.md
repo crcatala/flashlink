@@ -8,7 +8,7 @@ type: bug
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, worker, deferred]
+tags: [phase-3, worker, deferred, batch-08]
 ---
 # Download-cap accounting policy for Range/416 requests
 

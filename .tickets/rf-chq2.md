@@ -8,7 +8,7 @@ type: feature
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, cli, security, idea]
+tags: [phase-3, cli, security, idea, batch-06]
 ---
 # Warn before uploading likely secrets (.env, keys, tokens)
 

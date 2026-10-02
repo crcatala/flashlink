@@ -60,3 +60,7 @@ Phases 1 and 2 tickets are closed, a real deployment has been verified end to en
 **2026-10-02T20:06:16Z**
 
 Recommended order for remaining work: (1) rf-rxkx verify on a real Cloudflare account, rf-cl6p CI, rf-cr7d license (needs owner); (2) phase 2 in dependency order: rf-hx3f -> rf-0q8c -> rf-smnk -> rf-e9az (the last needs a Mac and the owner); (3) rf-od5l npm publish (needs owner) can happen any time after CI and license; (4) phase 3 ideas only after phase 2 is verified, in rough priority: rf-chq2 secret warning, rf-4514 clipboard upload, rf-gah1 folder zip, rf-xxew agent skill/MCP, rf-dd4u download-cap policy, rf-dt1g setup script, then the P4 items. Tickets tagged needs-human require the repo owner (decisions, a real Cloudflare account or a Mac); agents should do everything else and leave precise notes.
+
+**2026-10-02T20:20:30Z**
+
+PR batching (sequential, one PR per batch; tag batch-NN on each ticket, lowest open batch goes next): 01 CI | 02 real-deploy verification runbook+script (human runs it) | 03 CLI --notify + JSON errors | 04 macOS Quick Action + picker + docs (human Mac QA) | 05 license + npm release prep (human decides/publishes) | 06 secret warning | 07 clipboard upload + folder zip | 08 download-cap policy | 09 agent skill/MCP | 10 setup script + deploy button | 11 large files | 12 edge cache | 13 history decision | 14 menubar app design. Batches 11-14 are P4 ideas: an agent should ask before starting them. Prompt: docs/AGENT_PROMPT.md.

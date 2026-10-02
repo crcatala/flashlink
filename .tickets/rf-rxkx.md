@@ -8,7 +8,7 @@ type: task
 priority: 1
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-1, verification, infra, needs-human]
+tags: [phase-1, verification, infra, needs-human, batch-02]
 ---
 # Verify the deployment on a real Cloudflare account
 
@@ -40,3 +40,9 @@ Checklist to run and record (put results in `tk add-note`, file a bug ticket und
 - [ ] docs/PLAN.md section 5 updated if real behavior or costs differ from the model; the "Not verified" caveat in the phase-1 notes is removed or restated.
 - [ ] No secrets, account IDs or tokens committed.
 
+
+## Notes
+
+**2026-10-02T20:20:30Z**
+
+SCOPE FOR AN AGENT (batch-02): an agent cannot reach a real Cloudflare account. Its deliverable is a runbook + automation the owner runs: add scripts/verify-deployment.mjs (Node, no new deps) that takes --endpoint and a token (env R2FL_TOKEN) and exercises checklist items 3-7 (uploads of several sizes, 411 without Content-Length, Range/HEAD, no-store on 200/404/410, TTL expiry + refresh, revoke/purge/re-upload, rate-limit probing) printing a pass/fail report; validate the script itself against a local wrangler dev; add docs/VERIFY_DEPLOYMENT.md with the manual-only items (dashboard checks for items 2, 8, 9, 10). The ticket stays in_progress with an AWAITING HUMAN note until the owner runs it against the real deployment and records results. Tickets rf-dd4u, rf-dt1g, rf-v39y and rf-l2ym stay blocked until this ticket is closed.

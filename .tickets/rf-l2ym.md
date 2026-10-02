@@ -8,7 +8,7 @@ type: feature
 priority: 4
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, worker, idea, cost]
+tags: [phase-3, worker, idea, cost, batch-12]
 ---
 # Optional edge cache for positive link lookups (only if measurements justify)
 

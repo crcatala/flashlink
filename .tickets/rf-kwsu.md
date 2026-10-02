@@ -8,7 +8,7 @@ type: feature
 priority: 4
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, macos, idea, needs-human]
+tags: [phase-3, macos, idea, needs-human, batch-14]
 ---
 # Native macOS menubar app (SwiftUI) - design first
 

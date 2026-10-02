@@ -8,7 +8,7 @@ type: feature
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, infra, docs, idea, needs-human]
+tags: [phase-3, infra, docs, idea, needs-human, batch-10]
 ---
 # One-command setup script and Deploy-to-Cloudflare button
 

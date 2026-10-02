@@ -8,7 +8,7 @@ type: task
 priority: 1
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-1, infra, ci]
+tags: [phase-1, infra, ci, batch-01]
 ---
 # Add CI (GitHub Actions): format, typecheck, tests, build, dry-run deploy
 

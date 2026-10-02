@@ -8,7 +8,7 @@ type: task
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-2, macos, docs, needs-human]
+tags: [phase-2, macos, docs, needs-human, batch-04]
 ---
 # Phase 2.4: macOS docs, troubleshooting and manual QA
 

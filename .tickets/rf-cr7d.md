@@ -8,7 +8,7 @@ type: task
 priority: 2
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-1, docs, needs-human]
+tags: [phase-1, docs, needs-human, batch-05]
 ---
 # Choose and add a license (owner decision)
 

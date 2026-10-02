@@ -8,7 +8,7 @@ type: feature
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, cli, idea]
+tags: [phase-3, cli, idea, batch-07]
 ---
 # Folder upload as zip: r2fl up <directory>
 

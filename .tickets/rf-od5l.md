@@ -1,14 +1,14 @@
 ---
 id: rf-od5l
 status: open
-deps: []
+deps: [rf-cl6p]
 links: []
 created: 2026-10-02T20:05:53Z
 type: task
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-1, cli, release, needs-human]
+tags: [phase-1, cli, release, needs-human, batch-05]
 ---
 # Publish the CLI to npm (r2fl)
 
@@ -29,3 +29,9 @@ The README currently tells users to clone the repo and symlink the built CLI. Pu
 - [ ] Release workflow exists and is documented; actual publish is performed by the owner (record in a note).
 - [ ] README install instructions updated; `npx r2fl --help` documented.
 
+
+## Notes
+
+**2026-10-02T20:20:30Z**
+
+SCOPE FOR AN AGENT (batch-05): do the packaging, npm pack verification and tag-triggered release workflow; do NOT publish. rf-cr7d (license) needs the owner's decision: only add LICENSE if the owner has recorded a decision in a note on rf-cr7d; otherwise leave it in_progress with an AWAITING HUMAN note that lists the options and asks for a choice.

@@ -8,7 +8,7 @@ type: task
 priority: 2
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-2, macos]
+tags: [phase-2, macos, batch-04]
 ---
 # Phase 2.2: Finder Quick Action bundle, wrapper and installer (macos/)
 

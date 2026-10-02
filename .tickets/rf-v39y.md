@@ -8,7 +8,7 @@ type: feature
 priority: 4
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, worker, cli, idea]
+tags: [phase-3, worker, cli, idea, batch-11]
 ---
 # Large files (>100 MB) via R2 multipart uploads through the Worker
 

@@ -8,7 +8,7 @@ type: task
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-2, macos]
+tags: [phase-2, macos, batch-04]
 ---
 # Phase 2.3: Quick Action lifetime picker (and no-prompt variant)
 

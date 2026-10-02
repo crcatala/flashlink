@@ -8,7 +8,7 @@ type: feature
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, agent, idea, security]
+tags: [phase-3, agent, idea, security, batch-09]
 ---
 # Agent integration: skill and/or MCP tool (and the token-scope question)
 

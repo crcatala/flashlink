@@ -8,7 +8,7 @@ type: task
 priority: 2
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-2, cli, macos]
+tags: [phase-2, cli, macos, batch-03]
 ---
 # Phase 2.1: CLI --notify (macOS notification) and machine-readable --json errors
 

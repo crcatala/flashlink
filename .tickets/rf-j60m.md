@@ -8,7 +8,7 @@ type: feature
 priority: 4
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, cli, worker, idea]
+tags: [phase-3, cli, worker, idea, batch-13]
 ---
 # Multi-machine history: decide on export/import or opt-in remote listing
 
