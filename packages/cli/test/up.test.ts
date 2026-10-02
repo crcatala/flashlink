@@ -1,0 +1,185 @@
+import fs from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { up } from '../src/commands/up.ts';
+import { CliError } from '../src/errors.ts';
+import { entryStatus } from '../src/history.ts';
+import { makeHarness, type Harness } from './harness.ts';
+
+let h: Harness;
+beforeEach(() => {
+  h = makeHarness();
+});
+afterEach(() => h.cleanup());
+
+describe('r2fl up', () => {
+  it('uploads a file, prints only the URL on stdout, and records history', async () => {
+    const file = h.file('notes.txt', 'hello');
+    await up([file], {}, h.ctx);
+
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+    expect(h.stderr.join('\n')).toContain('notes.txt');
+    const stored = h.server.links.get('AAAAAAA1')!;
+    expect(Buffer.from(stored.body).toString()).toBe('hello');
+    expect(stored.contentType).toBe('text/plain');
+
+    const [entry] = h.ctx.history.list();
+    expect(entry).toMatchObject({
+      code: 'AAAAAAA1',
+      filename: 'notes.txt',
+      size: 5,
+      sourcePath: file,
+      ttlSeconds: 3600,
+      state: 'active',
+    });
+    expect(entry!.sha256).toHaveLength(64);
+    expect(entryStatus(entry!, h.server.now)).toBe('live');
+  });
+
+  it('sends the global default TTL, and --ttl overrides it', async () => {
+    const file = h.file('a.txt', 'a');
+    await up([file], {}, h.ctx);
+    expect(h.server.requests.at(-1)!.headers.get('X-TTL-Seconds')).toBe('3600');
+
+    h.ctx.config.defaultTtl = '15m';
+    await up([file], {}, h.ctx);
+    expect(h.server.requests.at(-1)!.headers.get('X-TTL-Seconds')).toBe('900');
+
+    await up([file], { ttl: '2h' }, h.ctx);
+    expect(h.server.requests.at(-1)!.headers.get('X-TTL-Seconds')).toBe('7200');
+  });
+
+  it('rejects an invalid --ttl before contacting the server', async () => {
+    const file = h.file('a.txt', 'a');
+    await expect(up([file], { ttl: 'soon' }, h.ctx)).rejects.toThrow(/Invalid duration/);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it('passes max-downloads and detects content types', async () => {
+    const png = h.file('pic.png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+    await up([png], { maxDownloads: 3 }, h.ctx);
+    const req = h.server.requests.at(-1)!;
+    expect(req.headers.get('X-Max-Downloads')).toBe('3');
+    expect(req.headers.get('Content-Type')).toBe('image/png');
+  });
+
+  it('falls back to text/plain or octet-stream for unknown extensions', async () => {
+    await up([h.file('Makefile', 'all:\n\techo hi\n')], {}, h.ctx);
+    expect(h.server.links.get('AAAAAAA1')!.contentType).toBe('text/plain');
+    await up([h.file('blob.zzzz', Buffer.from([1, 0, 2, 0]))], {}, h.ctx);
+    expect(h.server.links.get('AAAAAAA2')!.contentType).toBe('application/octet-stream');
+  });
+
+  it('percent-encodes unicode filenames', async () => {
+    await up([h.file('héllo wörld.txt', 'x')], {}, h.ctx);
+    expect(h.server.requests.at(-1)!.headers.get('X-Filename')).toBe(
+      encodeURIComponent('héllo wörld.txt'),
+    );
+    expect(h.server.links.get('AAAAAAA1')!.filename).toBe('héllo wörld.txt');
+  });
+
+  it('uploads several files and prints one URL each', async () => {
+    await up([h.file('a.txt', 'a'), h.file('b.txt', 'b')], {}, h.ctx);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1', 'https://fl.test/AAAAAAA2']);
+    expect(h.clipboard).toEqual(['https://fl.test/AAAAAAA1\nhttps://fl.test/AAAAAAA2']);
+  });
+
+  it('--with-name appends the filename', async () => {
+    await up([h.file('my pic.png', 'x')], { withName: true }, h.ctx);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1/my%20pic.png']);
+  });
+
+  it('--json prints the full result (object for one file, array for many)', async () => {
+    await up([h.file('a.txt', 'a')], { json: true }, h.ctx);
+    const one = JSON.parse(h.stdout[0]!);
+    expect(one).toMatchObject({ code: 'AAAAAAA1', url: 'https://fl.test/AAAAAAA1' });
+    expect(h.stderr).toEqual([]);
+
+    h.stdout.length = 0;
+    await up([h.file('b.txt', 'b'), h.file('c.txt', 'c')], { json: true }, h.ctx);
+    expect(JSON.parse(h.stdout[0]!)).toHaveLength(2);
+  });
+
+  it('copies to the clipboard unless disabled', async () => {
+    const file = h.file('a.txt', 'a');
+    await up([file], {}, h.ctx);
+    expect(h.clipboard).toEqual(['https://fl.test/AAAAAAA1']);
+    await up([file], { copy: false }, h.ctx);
+    expect(h.clipboard).toHaveLength(1);
+    h.ctx.config.copy = false;
+    await up([file], {}, h.ctx);
+    expect(h.clipboard).toHaveLength(1);
+  });
+
+  it('reads stdin with a name, and picks a default name otherwise', async () => {
+    h.stdin.data = Buffer.from('piped text');
+    await up([], { name: 'out.log' }, h.ctx);
+    expect(h.server.links.get('AAAAAAA1')).toMatchObject({
+      filename: 'out.log',
+      contentType: 'text/plain',
+    });
+    expect(h.ctx.history.find('AAAAAAA1')!.sourcePath).toBeNull();
+
+    await up(['-'], {}, h.ctx);
+    expect(h.server.links.get('AAAAAAA2')!.filename).toBe('stdin.txt');
+  });
+
+  it('refuses to wait on an interactive terminal with no files', async () => {
+    h.stdin.isTTY = true;
+    await expect(up([], {}, h.ctx)).rejects.toThrow(/No files given/);
+  });
+
+  it('rejects empty files, directories and missing files with a labelled message', async () => {
+    await expect(up([h.file('empty.txt', '')], {}, h.ctx)).rejects.toThrow(
+      /empty\.txt: Empty file/,
+    );
+    h.file('dir/x.txt', 'x');
+    await expect(up([`${h.dir}/dir`], {}, h.ctx)).rejects.toThrow(/dir: Is a directory/);
+    await expect(up([`${h.dir}/nope.txt`], {}, h.ctx)).rejects.toThrow(/nope\.txt: No such file/);
+    h.stdin.data = Buffer.alloc(0);
+    await expect(up([], {}, h.ctx)).rejects.toThrow(/stdin: Empty input/);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it('enforces the client-side size limit before contacting the server', async () => {
+    h.ctx.config.maxFileBytes = 10;
+    await expect(up([h.file('big.txt', 'x'.repeat(11))], {}, h.ctx)).rejects.toThrow(
+      /big\.txt: 11 B exceeds the 10 B limit/,
+    );
+    h.stdin.data = Buffer.from('x'.repeat(11));
+    await expect(up([], {}, h.ctx)).rejects.toThrow(/stdin: 11 B exceeds/);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it('continues past a failing file, reports it, and still exits non-zero', async () => {
+    const good = h.file('good.txt', 'ok');
+    await expect(up([`${h.dir}/missing.txt`, good], {}, h.ctx)).rejects.toThrow(
+      /1 of 2 uploads failed/,
+    );
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+    expect(h.stderr.join('\n')).toContain('missing.txt: No such file');
+  });
+
+  it('surfaces server errors such as 413', async () => {
+    h.server.failUploadsWith = {
+      status: 413,
+      error: 'file_too_large',
+      message: 'File is too big.',
+    };
+    await expect(up([h.file('a.txt', 'a')], {}, h.ctx)).rejects.toThrow('File is too big.');
+    expect(h.stdout).toEqual([]);
+    expect(h.ctx.history.list()).toEqual([]);
+  });
+
+  it('rejects --name with several files', async () => {
+    await expect(
+      up([h.file('a.txt', 'a'), h.file('b.txt', 'b')], { name: 'x.txt' }, h.ctx),
+    ).rejects.toThrow(/--name only works/);
+  });
+
+  it('reads the file at upload time, not before validation (no stale bytes)', async () => {
+    const file = h.file('a.txt', 'v1');
+    fs.writeFileSync(file, 'v2');
+    await up([file], {}, h.ctx);
+    expect(Buffer.from(h.server.links.get('AAAAAAA1')!.body).toString()).toBe('v2');
+  });
+});

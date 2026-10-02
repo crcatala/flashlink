@@ -1,0 +1,32 @@
+{
+  "name": "r2fl",
+  "version": "0.0.0",
+  "description": "CLI for r2-fastlink: upload a file, get a short self-expiring link",
+  "type": "module",
+  "bin": {
+    "r2fl": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "mime": "^4.1.0"
+  },
+  "devDependencies": {
+    "@r2-fastlink/core": "workspace:*",
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.20.0",
+    "vitest": "^4.1.0"
+  }
+}
