@@ -38,7 +38,7 @@ R2 stays private. The Worker enforces expiry on every request, which is what let
 
 ## Deploy your own
 
-You need a Cloudflare account, Node 20+ and [pnpm](https://pnpm.io).
+You need a Cloudflare account, Node 22.12+ and [pnpm](https://pnpm.io).
 
 ```sh
 git clone https://github.com/crcatala/r2-fastlink && cd r2-fastlink
@@ -52,7 +52,11 @@ pnpm exec wrangler r2 bucket create r2-fastlink
 openssl rand -hex 32            # copy this value...
 pnpm exec wrangler secret put UPLOAD_TOKEN   # ...and paste it when prompted
 
-# 3. Deploy
+# 3. Safety net: delete any object older than 30 days, even if the Worker's own cleanup
+#    never ran (the Worker removes files 7 days after expiry; this only catches strays)
+pnpm exec wrangler r2 bucket lifecycle add r2-fastlink expire-strays objects/ --expire-days 30 -y
+
+# 4. Deploy
 pnpm exec wrangler deploy
 ```
 
@@ -73,7 +77,7 @@ ln -s "$PWD/packages/cli/dist/index.js" ~/.local/bin/r2fl   # or anywhere on you
 r2fl init --endpoint https://fl.example.com      # prompts for your upload token
 ```
 
-Works on macOS and Linux (Node 20+).
+Works on macOS and Linux (Node 22.12+).
 
 ## Using it
 

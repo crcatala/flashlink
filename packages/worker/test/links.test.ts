@@ -448,7 +448,9 @@ describe('cache headers', () => {
     for (const [label, res] of responses) {
       expect(res.headers.get('Cache-Control'), label).toBe('no-store');
     }
-    expect(responses.map(([, r]) => r.status)).toEqual([404, 404, 410, 416, 200, 401, 404, 200, 201]);
+    expect(responses.map(([, r]) => r.status)).toEqual([
+      404, 404, 410, 416, 200, 401, 404, 200, 201,
+    ]);
   });
 
   it('marks rate-limit and busy responses no-store too', async () => {

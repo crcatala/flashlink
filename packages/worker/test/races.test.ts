@@ -127,7 +127,8 @@ describe('late uploads', () => {
   function reapingRegistry() {
     return new Proxy(env.REGISTRY, {
       get(target, prop) {
-        if (prop !== 'get') return Reflect.get(target, prop).bind?.(target) ?? Reflect.get(target, prop);
+        if (prop !== 'get')
+          return Reflect.get(target, prop).bind?.(target) ?? Reflect.get(target, prop);
         return (id: DurableObjectId) => {
           const stub = target.get(id);
           return new Proxy(stub, {

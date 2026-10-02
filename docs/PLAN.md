@@ -76,9 +76,9 @@ Non-goals
 - Quota enforcement: total stored bytes and uploads per day.
 - A single **sweeper alarm** that deletes R2 objects and rows once `expires_at + GRACE` has passed, and reaps stale `pending` rows.
 
-**R2 bucket**: private, no public access and no custom domain on the bucket. Object key is `objects/<code>`. A lifecycle rule deletes anything older than the max retention as a backstop for orphans.
+**R2 bucket**: private, no public access and no custom domain on the bucket. Object key is `objects/<code>`. An R2 lifecycle rule (30 days, `wrangler r2 bucket lifecycle add`, documented in the README deploy steps because lifecycle rules can't live in `wrangler.jsonc`) deletes anything older than the max retention plus grace as a backstop for orphans.
 
-**CLI** (`packages/cli`, binary `r2fl`): TypeScript on Node 20+, Linux and macOS.
+**CLI** (`packages/cli`, binary `r2fl`): TypeScript on Node 22.12+, Linux and macOS.
 
 - `up`, `refresh`, `revoke`, `ls`, `status`, `config`, `init`.
 - Prints only the URL on stdout (scriptable); human-readable details go to stderr. Copies the URL to the clipboard when a clipboard tool exists.
@@ -222,5 +222,6 @@ Implementation notes, where phase 1 refined this plan:
 - **Large files:** above ~100 MB needs presigned multipart uploads direct to R2. Deferred.
 - **Cache positive lookups** at the edge for popular links to reduce DO calls. Adds revoke lag (bounded by cache TTL); deferred until there's a reason.
 - **Keyed check characters** in the code would let the Worker reject most random guesses without a DO call, but shrink the effective guess space. Not adopted with 8-character codes.
+- **Download-cap accounting (known limitation).** With `--max-downloads`, every `GET` that reaches the registry counts against the cap, including unsatisfiable `Range` requests (`416`), requests whose object turns out to be missing, and each partial request from a client that fetches in ranges (e.g. a video player). The cap is opt-in and the effect is conservative (links close early, never late). Fixing it needs an explicit policy for what counts as a download (for example, count only requests without a `Range` header or starting at offset 0) and a design that doesn't add a second Durable Object call per fetch, so it is deferred.
 - **Secret scanning** warning for files like `.env` before upload.
 - **Multi-device history** (opt-in sync) if local-only proves limiting.
