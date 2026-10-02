@@ -1,0 +1,22 @@
+{
+  "name": "@r2-fastlink/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@r2-fastlink/core": "workspace:*",
+    "hono": "^4.13.12"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20261001.1",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.147.0"
+  }
+}

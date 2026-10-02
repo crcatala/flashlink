@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "r2-fastlink",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+
+  // Landing page + robots.txt. Asset requests are served without invoking the Worker;
+  // unmatched paths (short codes, /api/*) fall through to src/index.ts.
+  "assets": { "directory": "./public" },
+
+  // Private bucket: objects are only reachable through the Worker.
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "r2-fastlink" }],
+
+  // Exactly one Registry instance is ever used (see src/stub.ts). SQLite-backed, which is
+  // also the only kind available on the free plan.
+  "durable_objects": { "bindings": [{ "name": "REGISTRY", "class_name": "Registry" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Registry"] }],
+
+  // Rate limits are per Cloudflare location and approximate (a deterrent, not accounting).
+  // `period` can only be 10 or 60 seconds.
+  "ratelimits": [
+    // Per-IP, checked before any Durable Object call. Also applies to /api.
+    { "name": "LIMIT_IP", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    // Global circuit breaker on the public fetch path.
+    { "name": "LIMIT_GLOBAL", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } },
+  ],
+
+  "vars": {
+    "MAX_FILE_BYTES": "52428800", // 50 MiB (hard ceiling: 100 MiB)
+    "MAX_TTL_SECONDS": "604800", // 7 days
+    "DEFAULT_TTL_SECONDS": "3600", // 1 hour (used when the client sends no TTL)
+    "MAX_TOTAL_BYTES": "2147483648", // 2 GiB across all stored objects
+    "MAX_UPLOADS_PER_DAY": "200",
+    "PURGE_GRACE_SECONDS": "604800", // objects are deleted this long after expiry
+    // "PUBLIC_BASE_URL": "https://fl.example.com"  // optional; defaults to the request origin
+  },
+
+  // Secret (not stored here):  wrangler secret put UPLOAD_TOKEN
+}

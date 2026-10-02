@@ -1,6 +1,6 @@
 # r2-fastlink: plan
 
-Status: draft v1, agreed in design discussion. Last updated 2026-10-02.
+Status: v1. Phase 1 implemented (see section 7); the rest is planned. Last updated 2026-10-02.
 
 ## 1. Problem and goals
 
@@ -76,9 +76,9 @@ Non-goals
 - Quota enforcement: total stored bytes and uploads per day.
 - A single **sweeper alarm** that deletes R2 objects and rows once `expires_at + GRACE` has passed, and reaps stale `pending` rows.
 
-**R2 bucket**: private, no public access and no custom domain on the bucket. Object key is `objects/<code>`. A lifecycle rule deletes anything older than the max retention as a backstop for orphans.
+**R2 bucket**: private, no public access and no custom domain on the bucket. Object key is `objects/<code>`. An R2 lifecycle rule (30 days, `wrangler r2 bucket lifecycle add`, documented in the README deploy steps because lifecycle rules can't live in `wrangler.jsonc`) deletes anything older than the max retention plus grace as a backstop for orphans.
 
-**CLI** (`packages/cli`, binary `r2fl`): TypeScript on Node 20+, Linux and macOS.
+**CLI** (`packages/cli`, binary `r2fl`): TypeScript on Node 22.12+, Linux and macOS.
 
 - `up`, `refresh`, `revoke`, `ls`, `status`, `config`, `init`.
 - Prints only the URL on stdout (scriptable); human-readable details go to stderr. Copies the URL to the clipboard when a clipboard tool exists.
@@ -108,26 +108,26 @@ Non-goals
 4. Worker streams the body to R2 (`env.BUCKET.put`).
 5. DO `commit(code)`: marks the row `active`, returns the final metadata. Two DO calls per upload; none while bytes move.
 
-**Refresh / revoke**: a single DO call each. Refresh sets `expires_at = now + ttl` (clamped to `MAX_TTL`). If the object has been purged, the CLI can re-upload from the original local path (verified by hash) using `PUT /api/links/:code`, so the short link is preserved.
+**Refresh / revoke**: a single DO call each. Refresh sets `expires_at = now + ttl`, resets the per-window download counter, and rejects a TTL above `MAX_TTL_SECONDS` with a clear error instead of silently clamping it. If the object has been purged, the CLI can re-upload from the original local path (verified by hash) using `PUT /api/links/:code`, so the short link is preserved.
 
 ## 3. Key decisions and rationale
 
-| Decision | Why |
-| --- | --- |
-| R2 bucket private; Worker serves objects | Expiry must be enforceable and **refreshable under the same short URL**. Presigned URLs are long, and change on every refresh. |
-| Expiry is server-side state, not an R2 feature | Same reason. It also allows revoke-now and download caps. |
-| Short code is 8 random base58 characters | 58⁸ ≈ 1.3×10¹⁴. At 10 live links and 1,000 guesses/s, the expected time to hit one is about 400 years, and links live about an hour. Codes are never sequential or derivable. |
-| Link served directly at `/<code>`; filename suffix optional | Agents fetch with `curl`/WebFetch; redirects and interstitials break them. The suffix is cosmetic (type hints) and ignored. |
-| One SQLite-backed Durable Object as the registry | Strongly consistent allocate/refresh/revoke (KV is eventually consistent), atomic code allocation, and alarms for cleanup. D1 would also work; the DO fits and keeps the free-plan path (SQLite-backed DOs are the only kind on the free plan). |
-| **Exactly one** DO instance, never one per link or IP | Instance count is the classic DO cost trap. One instance has a bounded duration cost (section 5). |
-| The DO returns metadata only; the Worker streams bytes | Proxying bodies through a DO burns duration and memory. |
-| Two-stage expiry: `410` at `expires_at`, purge at `expires_at + 7d` | Refresh stays possible for a week without keeping data forever. |
-| No content-addressed dedup | Refcounting on delete adds complexity for little gain at personal scale. |
-| History is local-only | The server needs no listing endpoint, which keeps the public surface minimal. The cost: each machine has its own history. |
-| Single static bearer token | Single-user by design. Token is a Wrangler secret generated at deploy time. |
-| Static landing page served by the same Worker | One deploy, one domain, and static asset requests don't invoke the Worker. |
-| TypeScript monorepo (pnpm workspaces) | One language across Worker, CLI and shared types. Swift is deferred to a possible later menubar app. |
-| Quick Action before a native app | Gives the Finder right-click experience for roughly 30 minutes of work. |
+| Decision                                                            | Why                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R2 bucket private; Worker serves objects                            | Expiry must be enforceable and **refreshable under the same short URL**. Presigned URLs are long, and change on every refresh.                                                                                                                  |
+| Expiry is server-side state, not an R2 feature                      | Same reason. It also allows revoke-now and download caps.                                                                                                                                                                                       |
+| Short code is 8 random base58 characters                            | 58⁸ ≈ 1.3×10¹⁴. At 10 live links and 1,000 guesses/s, the expected time to hit one is about 400 years, and links live about an hour. Codes are never sequential or derivable.                                                                   |
+| Link served directly at `/<code>`; filename suffix optional         | Agents fetch with `curl`/WebFetch; redirects and interstitials break them. The suffix is cosmetic (type hints) and ignored.                                                                                                                     |
+| One SQLite-backed Durable Object as the registry                    | Strongly consistent allocate/refresh/revoke (KV is eventually consistent), atomic code allocation, and alarms for cleanup. D1 would also work; the DO fits and keeps the free-plan path (SQLite-backed DOs are the only kind on the free plan). |
+| **Exactly one** DO instance, never one per link or IP               | Instance count is the classic DO cost trap. One instance has a bounded duration cost (section 5).                                                                                                                                               |
+| The DO returns metadata only; the Worker streams bytes              | Proxying bodies through a DO burns duration and memory.                                                                                                                                                                                         |
+| Two-stage expiry: `410` at `expires_at`, purge at `expires_at + 7d` | Refresh stays possible for a week without keeping data forever.                                                                                                                                                                                 |
+| No content-addressed dedup                                          | Refcounting on delete adds complexity for little gain at personal scale.                                                                                                                                                                        |
+| History is local-only                                               | The server needs no listing endpoint, which keeps the public surface minimal. The cost: each machine has its own history.                                                                                                                       |
+| Single static bearer token                                          | Single-user by design. Token is a Wrangler secret generated at deploy time.                                                                                                                                                                     |
+| Static landing page served by the same Worker                       | One deploy, one domain, and static asset requests don't invoke the Worker.                                                                                                                                                                      |
+| TypeScript monorepo (pnpm workspaces)                               | One language across Worker, CLI and shared types. Swift is deferred to a possible later menubar app.                                                                                                                                            |
+| Quick Action before a native app                                    | Gives the Finder right-click experience for roughly 30 minutes of work.                                                                                                                                                                         |
 
 ## 4. Security and abuse prevention
 
@@ -136,7 +136,7 @@ Anyone holding a link can fetch the file until it expires. The risks are guessin
 1. **Entropy.** CSPRNG (`crypto.getRandomValues`) with rejection sampling to avoid modulo bias.
 2. **Cheap rejection.** Malformed codes get `404` from a regex check, with no DO call.
 3. **Per-IP rate limit** before any DO call (default 60 requests/min, keyed on `CF-Connecting-IP`).
-4. **Global rate limit** before any DO call: a circuit breaker on total DO-bound traffic (default 300 requests/min). Trade-off: an attacker could trip it and temporarily deny real fetches; for a personal tool, cost safety wins. Tunable.
+4. **Global rate limit** before any DO call on the **public fetch path**: a circuit breaker on total anonymous DO-bound traffic (default 300 requests/min). It is not applied to authenticated `/api` calls, so a fetch flood can't lock you out of uploading. Trade-off: an attacker could trip it and temporarily deny real fetches; for a personal tool, cost safety wins. Tunable.
 5. **Upload auth.** Constant-time token comparison (both sides hashed first, so length doesn't leak). The token is high entropy (256-bit); the per-IP limit applies to `/api` too, which bounds guess rate. A separate "failed auth" limiter was considered and dropped: the rate-limit binding counts every call, so it can't gate on failures without also consuming successes.
 6. **No enumeration surface.** No list endpoint. `X-Robots-Tag: noindex`, `robots.txt`.
 7. **Per-link controls.** Optional `--max-downloads`, revoke-now, purge.
@@ -167,29 +167,36 @@ Honest caveat: because the rate limiter is per-location and approximate, the glo
 
 ## 6. Defaults and configuration
 
-| Setting | Default | Where |
-| --- | --- | --- |
-| Default TTL | 1 hour | client config (`defaultTtl`), per-upload `--ttl` |
-| Max TTL | 7 days | Worker var `MAX_TTL_SECONDS` |
-| Max file size | 50 MB (hard ceiling 100 MB, the Workers body limit) | Worker var `MAX_FILE_BYTES`; client pre-check |
-| Total stored bytes | 2 GB | Worker var `MAX_TOTAL_BYTES` |
-| Uploads per day | 200 | Worker var `MAX_UPLOADS_PER_DAY` |
-| Grace before purge | 7 days | Worker var `PURGE_GRACE_SECONDS` |
-| Per-IP limit | 60 req / 60 s | `ratelimits` in `wrangler.jsonc` |
-| Global limit | 300 req / 60 s | `ratelimits` in `wrangler.jsonc` |
-| Code length | 8 base58 chars | constant |
+| Setting            | Default                                             | Where                                            |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------ |
+| Default TTL        | 1 hour                                              | client config (`defaultTtl`), per-upload `--ttl` |
+| Max TTL            | 7 days                                              | Worker var `MAX_TTL_SECONDS`                     |
+| Max file size      | 50 MB (hard ceiling 100 MB, the Workers body limit) | Worker var `MAX_FILE_BYTES`; client pre-check    |
+| Total stored bytes | 2 GB                                                | Worker var `MAX_TOTAL_BYTES`                     |
+| Uploads per day    | 200                                                 | Worker var `MAX_UPLOADS_PER_DAY`                 |
+| Grace before purge | 7 days                                              | Worker var `PURGE_GRACE_SECONDS`                 |
+| Per-IP limit       | 60 req / 60 s                                       | `ratelimits` in `wrangler.jsonc`                 |
+| Global limit       | 300 req / 60 s                                      | `ratelimits` in `wrangler.jsonc`                 |
+| Code length        | 8 base58 chars                                      | constant                                         |
 
 Durations accept `30s`, `15m`, `2h`, `1d`.
 
 ## 7. Phased plan
 
-**Phase 1: Worker, DO, CLI, landing page**
+**Phase 1: Worker, DO, CLI, landing page** (implemented)
 
 - Worker: fetch and API routes, Registry DO (allocate/commit/resolve/refresh/revoke/purge, quotas, sweeper alarm), rate limiting, response hardening, Range/HEAD support.
 - CLI: `init`, `up` (files and stdin), `refresh`, `revoke`, `ls`, `status`, `config`; local history; clipboard copy.
 - Static landing page.
 - Tests: Worker integration tests running against real DO and R2 simulations (workerd), unit tests for core and CLI, plus an end-to-end run of the CLI against a local `wrangler dev`.
 - Docs: deploy-your-own guide in the README.
+
+Implementation notes, where phase 1 refined this plan:
+
+- Rate-limit bindings are optional in code (a missing or erroring limiter fails open), so a fork can remove them from `wrangler.jsonc`.
+- `compatibility_date` is pinned to `2026-08-01`: the bundled local runtime (workerd) rejects dates newer than it knows about. Bump it when you upgrade Wrangler.
+- Tests inject permissive limiter stubs for most cases and exercise the real binding in one dedicated test.
+- `r2fl refresh` with no argument refreshes the most recent upload; `r2fl ls --sync` reconciles local history with the server.
 
 **Phase 2: macOS Finder Quick Action**: install script, notification with the URL, TTL prompt. Notes on clipboard and PATH when run from Quick Actions.
 
@@ -215,5 +222,6 @@ Durations accept `30s`, `15m`, `2h`, `1d`.
 - **Large files:** above ~100 MB needs presigned multipart uploads direct to R2. Deferred.
 - **Cache positive lookups** at the edge for popular links to reduce DO calls. Adds revoke lag (bounded by cache TTL); deferred until there's a reason.
 - **Keyed check characters** in the code would let the Worker reject most random guesses without a DO call, but shrink the effective guess space. Not adopted with 8-character codes.
+- **Download-cap accounting (known limitation).** With `--max-downloads`, every `GET` that reaches the registry counts against the cap, including unsatisfiable `Range` requests (`416`), requests whose object turns out to be missing, and each partial request from a client that fetches in ranges (e.g. a video player). The cap is opt-in and the effect is conservative (links close early, never late). Fixing it needs an explicit policy for what counts as a download (for example, count only requests without a `Range` header or starting at offset 0) and a design that doesn't add a second Durable Object call per fetch, so it is deferred.
 - **Secret scanning** warning for files like `.env` before upload.
 - **Multi-device history** (opt-in sync) if local-only proves limiting.
