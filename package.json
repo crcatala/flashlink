@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.0.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "build": "pnpm --filter r2fl build",
