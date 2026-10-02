@@ -111,11 +111,14 @@ pnpm install
 pnpm test          # all packages (Worker tests run in workerd via @cloudflare/vitest-pool-workers)
 pnpm typecheck
 pnpm format
+pnpm build         # the r2fl CLI
 
 cd packages/worker
 echo 'UPLOAD_TOKEN=dev-token-0123456789abcdef' > .dev.vars
 pnpm exec wrangler dev             # local Worker + R2 + Durable Object on :8787
 ```
+
+CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `wrangler deploy --dry-run` for the Worker. It needs no secrets and takes its Node version from `.node-version`. Run the same checks locally before opening a PR.
 
 ```
 packages/core     shared types, duration parsing, API client

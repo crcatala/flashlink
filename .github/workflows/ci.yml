@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm comes from the `packageManager` field in package.json via corepack.
+      # It must be enabled before setup-node so the pnpm store cache can be used.
+      - run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      # No credentials needed: proves the Worker bundle and bindings resolve.
+      - name: Dry-run Worker deploy
+        run: pnpm --filter @r2-fastlink/worker exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/dryrun"
