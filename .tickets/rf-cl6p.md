@@ -27,7 +27,7 @@ There is no CI. Tests, typecheck, formatting and the Worker bundle can silently 
 
 - [ ] Workflow runs on PRs and pushes to main and fails when any of format, typecheck, tests, build or the dry-run deploy fails (demonstrate by a deliberately failing commit on a throwaway branch, then remove it).
 - [x] CI passes on a clean checkout with no secrets configured.
-- [ ] README (Development section) mentions that CI runs these checks; badge optional.
+- [x] README (Development section) mentions that CI runs these checks; badge optional.
 - [x] Node version in CI comes from `.node-version` (no second source of truth).
 
 
@@ -41,3 +41,7 @@ AWAITING HUMAN: after merging PR #2, confirm a CI run appears and passes for the
 **2026-10-02T20:41:55Z**
 
 Follow-up on PR #2 (owner request): runner changed to ubicloud-standard-2 (owner convention); actions pinned by commit SHA: actions/checkout v7.0.1 = 3d3c42e5aac5ba805825da76410c181273ba90b1, actions/setup-node v7.0.0 = 820762786026740c76f36085b0efc47a31fe5020 (latest stable releases, no published security advisories at 2026-10-02). README notes forks without Ubicloud should switch runs-on to ubuntu-latest.
+
+**2026-10-02T20:57:22Z**
+
+Correction: the README criterion was not actually ticked earlier (sed pattern mismatch); it is ticked now after verifying README Development section documents CI. Final workflow verification run is 37062253747 (ubicloud-standard-2, SHA-pinned actions).
