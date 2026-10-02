@@ -196,6 +196,7 @@ Implementation notes, where phase 1 refined this plan:
 - Rate-limit bindings are optional in code (a missing or erroring limiter fails open), so a fork can remove them from `wrangler.jsonc`.
 - `compatibility_date` is pinned to `2026-08-01`: the bundled local runtime (workerd) rejects dates newer than it knows about. Bump it when you upgrade Wrangler.
 - Tests inject permissive limiter stubs for most cases and exercise the real binding in one dedicated test.
+- Real-account verification is not done yet (ticket `rf-rxkx`). `scripts/verify-deployment.mjs` automates the HTTP-level checks against any deployment (it was validated against `wrangler dev`, where the rate limiter, sweeper alarm and `Content-Length` handling all behaved as designed), and [`VERIFY_DEPLOYMENT.md`](VERIFY_DEPLOYMENT.md) lists the dashboard-only checks. Until the owner has run both on a real account, the cost model in section 5 and the rate-limit numbers in section 4 are unverified expectations, not measurements.
 - `r2fl refresh` with no argument refreshes the most recent upload; `r2fl ls --sync` reconciles local history with the server.
 
 **Phase 2: macOS Finder Quick Action**: install script, notification with the URL, TTL prompt. Notes on clipboard and PATH when run from Quick Actions.
