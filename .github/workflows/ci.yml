@@ -37,3 +37,30 @@ jobs:
       # No credentials needed: proves the Worker bundle and bindings resolve.
       - name: Dry-run Worker deploy
         run: pnpm --filter @r2-fastlink/worker exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/dryrun"
+
+  # Catches a broken release build before a tag does: the same packaging script the release
+  # workflow runs, with the checksums verified and the linux binary actually started.
+  binaries:
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: corepack enable
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the release files (both darwin binaries)
+        run: sh scripts/package-release.sh "$RUNNER_TEMP/release"
+      - name: Checksums match
+        run: cd "$RUNNER_TEMP/release" && sha256sum -c SHA256SUMS
+      - name: The linux binary starts (same code, same build script)
+        run: |
+          sh scripts/build-binary.sh linux-x64
+          dist/bin/r2fl-linux-x64 --version
+          env -i HOME="$RUNNER_TEMP" PATH=/usr/bin:/bin dist/bin/r2fl-linux-x64 config get endpoint
