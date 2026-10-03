@@ -595,6 +595,17 @@ describe('install.sh and uninstall.sh', () => {
   });
 });
 
+describe('scripts/install-macos.sh', () => {
+  const script = path.resolve(macosDir, '..', 'scripts', 'install-macos.sh');
+
+  it('refuses to run outside macOS, before building anything', () => {
+    if (process.platform === 'darwin') return;
+    const r = run(script, []);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('macOS only');
+  });
+});
+
 describe('workflow bundles', () => {
   const read = (name: string, file: string) =>
     fs.readFileSync(path.join(macosDir, `${name}.workflow`, 'Contents', file), 'utf8');
