@@ -2,7 +2,7 @@
 id: rf-kwsu
 status: open
 deps: [rf-e9az]
-links: [rf-0q8c]
+links: []
 created: 2026-10-02T20:05:54Z
 type: feature
 priority: 4
