@@ -94,22 +94,36 @@ function insideGitRepo(dir: string): boolean {
   }
 }
 
-/** Tracked plus untracked-but-not-ignored files below `dir`; undefined if git cannot say. */
+/**
+ * Tracked plus untracked-but-not-ignored files below `dir`. Undefined outside a repository.
+ * Inside one, a git failure is an error rather than a fallback to a plain walk: the walk does
+ * not know `.gitignore`, so falling back would quietly upload files the user ignored on purpose.
+ */
 function gitFileList(dir: string): string[] | undefined {
   if (!insideGitRepo(dir)) return undefined;
   try {
     const out = execFileSync(
       'git',
       ['-C', dir, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-      { encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000 },
+      {
+        encoding: 'buffer',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30_000,
+        maxBuffer: 256 * 1024 * 1024, // the default 1 MiB is only ~10k files
+      },
     );
     return out
       .toString('utf8')
       .split('\0')
       .filter(Boolean)
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  } catch {
-    return undefined; // git missing, not a work tree, or too slow: fall back to a plain walk
+  } catch (err) {
+    const reason =
+      (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'git is not installed' : 'git failed';
+    throw new CliError(
+      `Cannot tell which files .gitignore leaves out (${reason}).`,
+      'Fix that, or pass --no-gitignore to zip every file (ignored ones included).',
+    );
   }
 }
 
@@ -144,21 +158,20 @@ export function zipFolder(dir: string, opts: FolderOptions): FolderZip {
     throw new CliError(`Cannot read the folder: ${(err as Error).message}`);
   }
 
-  // Decide what goes in. A symlink is followed only to a regular file that really lives inside
-  // the folder; anything else (links out of the folder, links to folders, sockets) is skipped.
+  // Decide what goes in. Every path is resolved first, so a symlinked parent folder cannot lead
+  // outside either (a tracked `sub/x` whose `sub` became a link is still listed by git). A symlink
+  // is followed only to a regular file that really lives inside the folder; anything else (links
+  // out of the folder, links to folders, sockets) is skipped.
   const files: { rel: string; abs: string; size: number }[] = [];
   let skipped = 0;
   let rawBytes = 0;
   for (const rel of candidates) {
-    const abs = path.join(root, rel);
+    let abs: string;
     let stat: fs.Stats;
     try {
-      const link = fs.lstatSync(abs);
-      if (link.isSymbolicLink()) {
-        const target = fs.realpathSync(abs);
-        if (target !== realRoot && !target.startsWith(realRoot + path.sep)) throw new Error('out');
-        stat = fs.statSync(abs);
-      } else stat = link;
+      abs = fs.realpathSync(path.join(root, rel));
+      if (!abs.startsWith(realRoot + path.sep)) throw new Error('outside the folder');
+      stat = fs.statSync(abs);
     } catch {
       skipped++; // broken link, link out of the folder, or deleted since `git ls-files`
       continue;

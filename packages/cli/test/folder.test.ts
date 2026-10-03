@@ -139,11 +139,12 @@ describe('exclusions', () => {
     h.file('proj/node_modules/pkg/index.js', 'x');
     h.file('proj/sub/node_modules/pkg/index.js', 'x');
     h.file('proj/sub/ok.txt', 'ok');
-    await up([path.join(h.dir, 'proj')], {}, h.ctx);
+    // (The fake .git is not a repository, so this exercises the plain walk.)
+    await up([path.join(h.dir, 'proj')], { gitignore: false }, h.ctx);
     expect([...uploadedZip().keys()].sort()).toEqual(['proj/keep.txt', 'proj/sub/ok.txt']);
 
     // Pointing at node_modules itself is the explicit way to include it.
-    await up([path.join(h.dir, 'proj/node_modules')], {}, h.ctx);
+    await up([path.join(h.dir, 'proj/node_modules')], { gitignore: false }, h.ctx);
     expect([...uploadedZip('AAAAAAA2').keys()]).toEqual(['node_modules/pkg/index.js']);
   });
 
@@ -244,6 +245,101 @@ describe('exclusions', () => {
       /p: Nothing to zip/,
     );
     expect(h.server.requests).toHaveLength(0);
+  });
+});
+
+describe('git edge cases', () => {
+  const git = (repo: string, ...args: string[]) =>
+    execFileSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+      stdio: 'ignore',
+    });
+  const withPath = async (value: string, fn: () => Promise<void>) => {
+    const saved = process.env.PATH;
+    process.env.PATH = value;
+    try {
+      await fn();
+    } finally {
+      process.env.PATH = saved;
+    }
+  };
+
+  it('fails closed, not open, when git cannot list the files of a repository', async () => {
+    const repo = path.join(h.dir, 'repo');
+    h.file('repo/.gitignore', 'private.txt\n');
+    h.file('repo/private.txt', 'PRIVATE');
+    h.file('repo/pub.txt', 'pub');
+    git(repo, 'init', '-q');
+    // A git that always fails, and no git at all: both used to fall back to a walk that
+    // ignores .gitignore and so uploaded private.txt.
+    const bin = path.join(h.dir, 'badbin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 'git'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    await withPath(bin, async () => {
+      await expect(up([repo], {}, h.ctx)).rejects.toThrow(/Cannot tell which files .gitignore/);
+    });
+    const empty = path.join(h.dir, 'emptybin');
+    fs.mkdirSync(empty);
+    await withPath(empty, async () => {
+      await expect(up([repo], {}, h.ctx)).rejects.toThrow(/git is not installed/);
+    });
+    expect(h.server.requests).toHaveLength(0);
+    // --no-gitignore is the documented way out, and needs no git.
+    await withPath(empty, async () => {
+      await up([repo], { gitignore: false }, h.ctx);
+    });
+    expect([...uploadedZip().keys()]).toContain('repo/private.txt');
+  });
+
+  it('does not need git outside a repository', async () => {
+    h.file('plain/a.txt', 'a');
+    await withPath(path.join(h.dir, 'nowhere'), async () => {
+      await up([path.join(h.dir, 'plain')], {}, h.ctx);
+    });
+    expect([...uploadedZip().keys()]).toEqual(['plain/a.txt']);
+  });
+
+  it('still honours .gitignore when the file listing is larger than 1 MiB', async () => {
+    const repo = path.join(h.dir, 'repo');
+    h.file('repo/.gitignore', 'private.txt\n');
+    h.file('repo/private.txt', 'PRIVATE');
+    const long = 'x'.repeat(100);
+    fs.mkdirSync(path.join(repo, 'd'));
+    for (let i = 0; i < 11_000; i++)
+      fs.writeFileSync(path.join(repo, 'd', `${long}_${i}.txt`), '1');
+    git(repo, 'init', '-q');
+    h.ctx.config.maxFileBytes = 50 * 1024 * 1024;
+    await up([repo], {}, h.ctx);
+    const names = [...uploadedZip().keys()];
+    expect(names).toHaveLength(11_001); // d/* plus .gitignore, without private.txt
+    expect(names).not.toContain('repo/private.txt');
+  }, 60_000);
+
+  it('does not follow a symlinked parent folder that git still lists files under', async () => {
+    const repo = path.join(h.dir, 'repo');
+    h.file('outside/pw.txt', 'TOPSECRET');
+    h.file('repo/sub/pw.txt', 'ok');
+    h.file('repo/a.txt', 'a');
+    git(repo, 'init', '-q');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-qm', 'x');
+    fs.rmSync(path.join(repo, 'sub'), { recursive: true });
+    fs.symlinkSync(path.join(h.dir, 'outside'), path.join(repo, 'sub'));
+    await up([repo], {}, h.ctx);
+    const zip = uploadedZip();
+    expect([...zip.keys()]).toEqual(['repo/a.txt']);
+    expect(Buffer.from(h.server.links.get('AAAAAAA1')!.body).includes('TOPSECRET')).toBe(false);
+    expect(h.stderr.join('\n')).toMatch(/left out 2 symlink/); // the stale index entry and the link
+  });
+
+  it('includes an ignored folder only when it is passed explicitly with --no-gitignore', async () => {
+    const repo = path.join(h.dir, 'repo');
+    h.file('repo/.gitignore', 'node_modules/\n');
+    h.file('repo/node_modules/dep/index.js', 'x');
+    git(repo, 'init', '-q');
+    const nm = path.join(repo, 'node_modules');
+    await expect(up([nm], {}, h.ctx)).rejects.toThrow(/Nothing to zip.*(\n|)/s);
+    await up([nm], { gitignore: false }, h.ctx);
+    expect([...uploadedZip().keys()]).toEqual(['node_modules/dep/index.js']);
   });
 });
 
