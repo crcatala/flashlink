@@ -148,7 +148,7 @@ The server still enforces the maximum lifetime (7 days by default); if it refuse
 - _Errors._ The notification carries the message (wrong token, file over the size cap, offline). Run the same upload in a terminal to see more: `r2fl up --notify -- file`.
 - _Where things live._ Config: `~/.config/r2fl/config.json`; history: `~/.local/share/r2fl/history.json` (see `r2fl config path`); Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/r2fl-quick`.
 
-**Manual QA checklist** (run on a real Mac; record the macOS version):
+**Manual QA checklist** (run on a real Mac; record the macOS version). `sh macos/qa.sh 2>&1 | tee ~/r2fl-qa.log` walks through nearly all of it for you and checks the links' contents; the Finder-click rows (1, 11) are by hand:
 
 | #   | Case                                                    | Expect                                                               |
 | --- | ------------------------------------------------------- | -------------------------------------------------------------------- |
