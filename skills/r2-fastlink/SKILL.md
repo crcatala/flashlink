@@ -24,7 +24,7 @@ In a sandbox, container or CI job, pass the token as an **environment variable**
 ## Rules that matter
 
 1. **A link is public to anyone who has the URL, until it expires.** Do not upload secrets (`.env` files, private keys, tokens, credentials, cookies, password databases) or anything private the user did not ask you to share. `r2fl up` refuses files that look like secrets and exits 1; that is a safety net with a small pattern list, not a guarantee that other files are safe. **Do not pass `--allow-secrets` (or `-y`, `--yes`) on your own**, and do not turn the check off with `config set warnSecrets false`. If the user explicitly tells you to share a flagged file, say what it is flagged for and use `--allow-secrets` only then.
-2. **Use the shortest lifetime that works.** The default is 1 hour. For a one-off hand-off use `--ttl 15m`; use `--max-downloads 1` (`-d 1`) when only one fetch is expected. You can always `refresh` later; you cannot take back a link that sat open for a week. The server refuses lifetimes over its maximum (7 days by default) with `ttl_too_long`.
+2. **Use the shortest lifetime that works.** The default is 1 hour. For a one-off hand-off use `--ttl 15m`; use `--max-downloads 1` (`-d 1`) when only one fetch is expected (a tidy-up, not a lock: ranged reads past byte 0 are not counted, so it does not make a secret safe). You can always `refresh` later; you cannot take back a link that sat open for a week. The server refuses lifetimes over its maximum (7 days by default) with `ttl_too_long`.
 3. **Say what you uploaded.** Tell the user the URL, the file name, and when it expires. Revoke what you no longer need.
 4. **Only touch links you made, or were told to.** The token can manage all links; that is not permission to.
 

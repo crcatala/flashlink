@@ -1,6 +1,6 @@
 ---
 id: rf-dd4u
-status: open
+status: closed
 deps: [rf-rxkx]
 links: []
 created: 2026-10-02T20:05:53Z
@@ -26,10 +26,10 @@ Tests: 416 does not consume the cap; a ranged request starting at 0 counts once;
 
 ## Acceptance Criteria
 
-- [ ] Policy decided and documented in docs/PLAN.md (replace the known-limitation entry in section 9).
-- [ ] Regression tests listed above pass and fail on the old behavior.
-- [ ] Still exactly one DO call per fetch (asserted: the fetch path test counts registry calls through a proxy).
-- [ ] README text for `--max-downloads` states what counts as a download.
+- [x] Policy decided and documented in docs/PLAN.md (replace the known-limitation entry in section 9).
+- [x] Regression tests listed above pass and fail on the old behavior.
+- [x] Still exactly one DO call per fetch (asserted: the fetch path test counts registry calls through a proxy).
+- [x] README text for `--max-downloads` states what counts as a download.
 
 
 ## Notes
@@ -37,3 +37,7 @@ Tests: 416 does not consume the cap; a ranged request starting at 0 counts once;
 **2026-10-03T21:29:57Z**
 
 2026-10-03 reorder: moved from batch-08 to batch-09, after the dogfooding checkpoint. Rationale: whether -d/--max-downloads is unreliable enough to matter is best judged after real use (especially -d 1 on screenshots/videos), and rf-bi4a (usage check) should be done first. See docs/AGENT_PROMPT.md, 'Checkpoints'.
+
+**2026-10-03T23:52:49Z**
+
+2026-10-03 (branch batch-09-download-cap-policy): policy implemented and documented in docs/PLAN.md section 9. Registry.resolve(code, count, range) counts a hit only for a GET that is satisfiable and has no usable Range or a range starting at offset 0 (countsAsDownload, using the single parseRange in http.ts). 416 and later ranges never count; HEAD never counted (unchanged); the cap still gates all requests once reached. Still one DO call per fetch (test counts stub calls). Deviations/decisions: (1) missing-object case NOT fixed, documented: no extra R2 head (the key comes from the registry, so it would also need to run after the call, costing an R2 op per fetch for an almost unreachable case). (2) Known tradeoff: ranges starting after byte 0 never consume the cap, so a link holder can read bytes 1.. of a capped link until expiry; -d is documented as a convenience, not a lock. Closing that needs per-window byte accounting (schema migration), not done. (3) -d 1 with a multi-range client fails on its 2nd request by design. Evidence: tests fail on old behavior (3 new tests fail with counting forced on), pnpm test 26+303+97 pass, exercised against wrangler dev with the built CLI.
