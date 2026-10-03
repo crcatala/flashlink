@@ -20,6 +20,27 @@ function help(...args: string[]): string {
   return res.stdout;
 }
 
+/**
+ * Every `r2fl <word> ...` inside a fenced block or an inline code span (prose such as "r2fl is
+ * not configured" is not a command), with the short and long options that follow it. A snippet
+ * ends at a pipe, `;`, `)`, a backtick, a `#` comment or a `--` terminator.
+ */
+function invocations(markdown: string): { command: string; options: string[]; snippet: string }[] {
+  const code = [
+    ...[...markdown.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]!),
+    ...[...markdown.replace(/^```[^\n]*\n[\s\S]*?^```/gm, '').matchAll(/`([^`\n]+)`/g)].map(
+      (m) => m[1]!,
+    ),
+  ].join('\n');
+  const found: { command: string; options: string[]; snippet: string }[] = [];
+  for (const m of code.matchAll(/(?<![\w-])r2fl ([a-z][\w-]*)([^\n|;)`]*)/g)) {
+    const rest = m[2]!.split(/ # | -- /)[0]!;
+    const options = [...rest.matchAll(/(?<=\s)(--?[a-zA-Z][\w-]*)(?=[\s=]|$)/g)].map((o) => o[1]!);
+    found.push({ command: m[1]!, options, snippet: m[0]!.trim() });
+  }
+  return found;
+}
+
 describe('skills/r2-fastlink/SKILL.md', () => {
   it('has the frontmatter a skill loader needs, and the name matches its folder', () => {
     const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -39,27 +60,29 @@ describe('skills/r2-fastlink/SKILL.md', () => {
   });
 
   it('only shows r2fl commands and options that exist', () => {
-    const programHelp = help();
-    const helpFor: Record<string, string> = {};
-    const used = new Map<string, Set<string>>();
-    // Every line inside a code block or span that starts with (or pipes into) `r2fl <command>`.
-    for (const m of text.matchAll(
-      /\br2fl (up|refresh|revoke|ls|status|config|init)\b([^\n`|;)]*)/g,
-    )) {
-      const command = m[1]!;
-      const flags = used.get(command) ?? new Set<string>();
-      for (const flag of m[2]!.matchAll(/(?<=\s)(--[a-z][a-z-]*)/g)) flags.add(flag[1]!);
-      used.set(command, flags);
+    // Command names (with aliases) as the real program lists them, whatever they are called.
+    const commands = new Set<string>();
+    for (const m of help()
+      .split('Commands:')[1]!
+      .matchAll(/^ {2}([a-z|-]+)(?: |$)/gm)) {
+      for (const name of m[1]!.split('|')) commands.add(name);
     }
-    expect([...used.keys()].sort()).toEqual(
-      expect.arrayContaining(['up', 'refresh', 'revoke', 'ls', 'status']),
+    expect(commands).toContain('up');
+
+    const used = invocations(text);
+    expect(new Set(used.map((u) => u.command))).toEqual(
+      new Set(['up', 'refresh', 'revoke', 'ls', 'status', 'config', 'init']),
     );
-    for (const [command, flags] of used) {
-      expect(programHelp).toContain(command);
-      helpFor[command] = help(command);
-      for (const flag of flags) {
-        // `--no-copy` is documented by commander as `--no-copy`; `--exclude` as `-x, --exclude`.
-        expect(helpFor[command], `${command} ${flag}`).toContain(flag);
+    const optionsOf = new Map<string, Set<string>>();
+    for (const { command, options, snippet } of used) {
+      expect(commands, `unknown command in: ${snippet}`).toContain(command);
+      if (!optionsOf.has(command)) {
+        // Exactly the option tokens commander prints: `-t, --ttl <duration>`, `--no-copy`.
+        const tokens = help(command).matchAll(/^ {2}((?:-[a-zA-Z], )?--?[\w-]+)/gm);
+        optionsOf.set(command, new Set([...tokens].flatMap((t) => t[1]!.split(', '))));
+      }
+      for (const option of options) {
+        expect(optionsOf.get(command), `${option} in: ${snippet}`).toContain(option);
       }
     }
   });

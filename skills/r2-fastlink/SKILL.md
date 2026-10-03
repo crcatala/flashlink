@@ -33,7 +33,7 @@ In a sandbox, container or CI job, pass the token as an **environment variable**
 - **stdout is the URL and nothing else** (one line per uploaded file). Progress, confirmations and errors go to **stderr**. So `URL=$(r2fl up report.pdf --no-copy)` is safe.
 - **Exit code:** 0 on success; 1 on any failure (bad option, file problem, server error, refused secret). With several files, the exit code is 1 if any failed, while the links that did upload are still printed.
 - **Pass `--no-copy` when scripting or running headless.** Without it, `r2fl` copies the URL to the clipboard where a clipboard tool exists. It is harmless but pointless for you, and on the user's own machine it would overwrite their clipboard.
-- **`--json` is the machine-readable mode.** `up --json` prints the full result object (`code`, `filename`, `contentType`, `size`, `createdAt`, `expiresAt`, `maxDownloads`, `hits`, `url`, `urlWithName`). With several files it prints one JSON array in argument order. On failure it prints one line `{"error":"<code>","message":"..."}` on stdout, leaves stderr empty and exits 1. `error` is the server's code for API failures (`unauthorized`, `ttl_too_long`, `file_too_large`, `not_found`, ...) and `cli_error` for local problems (missing file, bad option, secret refused, not configured). `--json` never prompts.
+- **`--json` is the machine-readable mode.** `up --json` prints the full result object (`code`, `filename`, `contentType`, `size`, `createdAt`, `expiresAt`, `maxDownloads`, `hits`, `url`, `urlWithName`). With several files `up --json` always prints a single JSON array in argument order: the result object for each file that uploaded and `{"file","error","message"}` for each that failed, with nothing on stderr. The exit code is 1 if any file failed, so on a partial failure read the array and **do not re-run the whole command**: the files that succeeded already have live links, and a re-run would upload them again under new codes. For a single failure (or any failure before the files are looked at, such as a bad option or a missing token) it prints one line `{"error":"<code>","message":"..."}` on stdout, leaves stderr empty and exits 1. `error` is the server's code for API failures (`unauthorized`, `ttl_too_long`, `file_too_large`, `not_found`, ...) and `cli_error` for local problems (missing file, bad option, secret refused, not configured). `--json` never prompts.
 - Options must come **before** `--`: after it, everything is a file name. For a file whose name starts with a dash, write `r2fl up --no-copy -- -odd.txt`.
 - Do not pipe `r2fl` into `head` or anything that may close the pipe early: Node then dies with an `EPIPE` stack trace. Capture the output in a variable or a file instead.
 - There is no prompt to answer: without a terminal, anything that would ask (the secret warning) is refused instead.
@@ -71,10 +71,10 @@ r2fl refresh https://fl.example.com/k3F9xQ2m --ttl 30m --no-copy   # a URL or ju
 
 ```sh
 r2fl revoke k3F9xQ2m             # stops serving now; refresh can re-open it
-r2fl revoke k3F9xQ2m --purge     # also deletes the stored file; the link is gone for good
+r2fl revoke k3F9xQ2m --purge     # also deletes the stored file from the server
 ```
 
-Both print a confirmation on stderr, nothing on stdout, and exit 0. Use `--purge` when the content should not stay on the server at all. Revoking an unknown code exits 1 (`no longer exists on the server`).
+Both print a confirmation on stderr, nothing on stdout, and exit 0. Use `--purge` when the content should not stay on the server at all. **A purge does not retire the URL for good:** the code stays valid, and `r2fl refresh <code>` on the machine that uploaded it re-uploads the original file under the same URL if that file is still there unchanged (a refresh from any other machine fails once the file is purged). So do not refresh a link you purged, and if the content itself is sensitive, assume anyone who already fetched it has a copy. Revoking an unknown code exits 1 (`no longer exists on the server`).
 
 ## Look things up
 
@@ -91,7 +91,7 @@ History lives only on the machine that uploaded. It is not a list of everything 
 | You see                          | Meaning and what to do                                                                                        |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `unauthorized`                   | The token is wrong or missing. Check `R2FL_TOKEN` and `R2FL_ENDPOINT`. Ask the user; do not try other values. |
-| `r2fl is not configured yet`     | Set `R2FL_ENDPOINT` and `R2FL_TOKEN`, or run `r2fl init` if the user wants it saved.                          |
+| "r2fl is not configured yet"     | Set `R2FL_ENDPOINT` and `R2FL_TOKEN`, or run `r2fl init` if the user wants it saved.                          |
 | `Looks like it contains secrets` | Rule 1. Do not override on your own. Tell the user which file and why, and let them decide.                   |
 | `file_too_large`, `Empty file`   | The file is over 50 MB or has no bytes. Do not retry.                                                         |
 | `ttl_too_long`                   | Ask for less than the server maximum (`r2fl status` shows it).                                                |
