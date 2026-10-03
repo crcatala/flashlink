@@ -88,7 +88,13 @@ Non-goals
 
 **Shared core** (`packages/core`): API types, duration parsing, API client, constants shared by CLI and Worker.
 
-**macOS Quick Action** (`macos/`, phase 2): a Shortcuts/Automator Quick Action that shells out to `r2fl up` and posts a notification with the URL.
+**macOS Quick Action** (`macos/`, phase 2): two Automator Quick Actions (services menu, Finder files and folders) whose single "Run Shell Script" action (`/bin/zsh`, input as arguments) calls the installed wrapper `~/.local/bin/r2fl-quick`; the wrapper runs `r2fl up --notify --ttl <choice> -- <files>`.
+
+- **PATH.** Quick Actions run with `/usr/bin:/bin:/usr/sbin:/sbin`. The wrapper runs every `r2fl` call through the user's login shell (`/bin/zsh -l -c 'r2fl "$@"' r2fl ...`) so Homebrew, mise or nvm are found, instead of recording an absolute path at install time that would go stale when node is upgraded. Limitation: `zsh -l` reads `~/.zprofile` and `~/.zshenv`, not `~/.zshrc`, which the troubleshooting docs say. A login shell that finds nothing exits 127; the wrapper then posts its own fixed-text notification, because `r2fl` never started and so could not.
+- **Lifetime picker.** `osascript` `choose from list` with fixed AppleScript source; the items and the preselected default (`r2fl config get defaultTtl`) are passed as osascript arguments, so config text or file names can never become AppleScript source. A non-standard default is appended to the list. Cancel exits 0 with no upload and no notification.
+- **Opt-out decision.** Finder cannot set environment variables or flags, so the opt-out is a second Quick Action, "Share via r2-fastlink (default lifetime)", that calls the wrapper with `--no-prompt`. Both are installed; users enable the one they want in System Settings. This is less annoying than an env var or a config switch that has to be edited in a file, and costs one extra checked-in bundle (a test keeps the two consistent).
+- **Files.** `install.sh` copies the two `.workflow` bundles (checked-in plists; no token, endpoint or home path inside) and the wrapper, clears quarantine, runs `pbs -flush`, and warns if a login shell cannot find `r2fl` and `node`. `uninstall.sh` removes exactly those. `r2fl up` already summarizes several files into one notification.
+- **Testing.** The wrapper, installer and bundles are tested on Linux (`packages/cli/test/macos.test.ts`) with a fake `r2fl`, `osascript` and login shell injected through `R2FL_QUICK_SHELL` / `R2FL_QUICK_OSASCRIPT`. The `.workflow` plists have not been through Automator or `plutil -lint`; they follow the structure Automator writes for a Quick Action and parse as valid property lists (`plistlib`). Real behavior needs the manual QA on a Mac (README checklist).
 
 **Landing page**: static HTML and CSS with light branding, what the tool is for, the CLI quickstart, a repo link, and "fork it and deploy your own".
 
@@ -208,7 +214,7 @@ Implementation notes, where phase 1 refined this plan:
   - Still open: DO and Worker usage after about a day of normal use against section 5, and the optional custom domain check.
 - `r2fl refresh` with no argument refreshes the most recent upload; `r2fl ls --sync` reconciles local history with the server.
 
-**Phase 2: macOS Finder Quick Action**: (2.1 done: `up --notify` and `--json` errors) install script, notification with the URL, TTL prompt. Notes on clipboard and PATH when run from Quick Actions.
+**Phase 2: macOS Finder Quick Action**: 2.1 done (`up --notify` and `--json` errors); 2.2 to 2.4 built (Quick Action bundles, wrapper, installer, lifetime picker, README section), tested on Linux. Not yet run on a real Mac: ticket `rf-e9az` stays open for that QA, after which phase 2 is done.
 
 **Phase 3: extras (ideas, not committed)**
 
