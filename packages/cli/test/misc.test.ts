@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { extractCode } from '../src/code.ts';
-import { configGet, configSet } from '../src/commands/config.ts';
+import { configGet, configSet, configShow } from '../src/commands/config.ts';
 import { init } from '../src/commands/init.ts';
 import { status } from '../src/commands/status.ts';
 import { loadConfig, maskToken, parseConfigValue, saveConfig } from '../src/config.ts';
@@ -118,7 +118,21 @@ describe('config', () => {
     expect(parseConfigValue('maxFileBytes', '10MB')).toEqual({ maxFileBytes: 10 * 1024 * 1024 });
     expect(() => parseConfigValue('maxFileBytes', '200MB')).toThrow(/100MB/);
     expect(parseConfigValue('copy', 'off')).toEqual({ copy: false });
-    expect(() => parseConfigValue('copy', 'maybe')).toThrow();
+    expect(() => parseConfigValue('copy', 'maybe')).toThrow(/copy must be true or false/);
+    expect(parseConfigValue('warnSecrets', 'false')).toEqual({ warnSecrets: false });
+    expect(parseConfigValue('warnSecrets', 'ON')).toEqual({ warnSecrets: true });
+    expect(() => parseConfigValue('warnSecrets', 'maybe')).toThrow(/warnSecrets must be/);
+  });
+
+  it('warnSecrets defaults to true, persists, and is listed by `config`', () => {
+    expect(loadConfig(h.ctx.env).warnSecrets).toBe(true);
+    configSet('warnSecrets', 'off', h.ctx);
+    h.ctx.config = loadConfig(h.ctx.env);
+    expect(h.ctx.config.warnSecrets).toBe(false);
+    configGet('warnSecrets', h.ctx);
+    expect(h.stdout).toEqual(['false']);
+    configShow(h.ctx);
+    expect(h.stdout.join('\n')).toMatch(/warnSecrets\s+false/);
   });
 
   it('masks tokens', () => {

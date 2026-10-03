@@ -1,6 +1,6 @@
 ---
 id: rf-chq2
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-02T20:05:53Z
@@ -23,8 +23,14 @@ Links are PUBLIC to anyone with the URL. The easiest way to hurt yourself is upl
 
 ## Acceptance Criteria
 
-- [ ] Each pattern has positive and negative unit tests; matches never echo the secret value.
-- [ ] TTY prompt, non-TTY refusal and the override flag are tested through the Context abstraction.
-- [ ] `warnSecrets` config key works (documented in README and `r2fl config`).
-- [ ] No measurable slowdown for large binary uploads (binary files are skipped).
+- [x] Each pattern has positive and negative unit tests; matches never echo the secret value.
+- [x] TTY prompt, non-TTY refusal and the override flag are tested through the Context abstraction.
+- [x] `warnSecrets` config key works (documented in README and `r2fl config`).
+- [x] No measurable slowdown for large binary uploads (binary files are skipped).
 
+
+## Notes
+
+**2026-10-03T21:42:48Z**
+
+Done on branch batch-06-secret-warning (PR opened from it). New packages/cli/src/secrets.ts (pure: filename rules + content rules, findings carry rule name and line numbers only), wired into 'up' via confirmSecrets(); new config key warnSecrets (default true, in 'r2fl config'); flags --allow-secrets and -y/--yes; new Context.interactive (stdin and stderr TTYs). TTY: shows what matched and asks [y/N]; non-TTY (scripts, stdin, Quick Action): refuses with an error naming the override, so the --notify notification explains it. Deviations: (1) generic api-key pattern requires a 16+ char value (a bare 'api_key:' would flag 'apiKey: string' in any source file); (2) .env.example/.sample/.template and id_*.pub are exempt; (3) 'refresh' does not rescan (it re-sends a file that already passed). Evidence: 10 new up tests fail on the old up.ts; CLI tests 263 pass; ran built CLI against wrangler dev (refuse, JSON error, override, multi-file, warnSecrets off) and a real PTY prompt capture. Perf: 50MB binary 0.4ms, 50MB text 16ms (first 2MiB only).

@@ -153,7 +153,7 @@ export interface Harness {
   stderr: string[];
   clipboard: string[];
   notifications: { subtitle: string; body: string }[];
-  stdin: { data: Buffer; isTTY: boolean };
+  stdin: { data: Buffer; isTTY: boolean; interactive: boolean };
   file(name: string, content: string | Buffer): string;
   cleanup(): void;
 }
@@ -165,7 +165,7 @@ export function makeHarness(overrides: Partial<Context['config']> = {}): Harness
   const stderr: string[] = [];
   const clipboard: string[] = [];
   const notifications: { subtitle: string; body: string }[] = [];
-  const stdin = { data: Buffer.alloc(0), isTTY: false };
+  const stdin = { data: Buffer.alloc(0), isTTY: false, interactive: false };
   const env = { R2FL_CONFIG_DIR: path.join(dir, 'config'), R2FL_DATA_DIR: path.join(dir, 'data') };
   const config = { ...DEFAULT_CONFIG, endpoint: ENDPOINT, token: 'secret-token', ...overrides };
   const ctx: Context = {
@@ -175,6 +175,9 @@ export function makeHarness(overrides: Partial<Context['config']> = {}): Harness
     env,
     get stdinIsTTY() {
       return stdin.isTTY;
+    },
+    get interactive() {
+      return stdin.interactive;
     },
     now: () => server.now,
     out: (t) => stdout.push(t),

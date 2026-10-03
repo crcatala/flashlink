@@ -8,6 +8,7 @@ import { CliError, ReportedError, errorJson, errorText } from '../errors.ts';
 import { clock, formatBytes } from '../format.ts';
 import type { HistoryEntry } from '../history.ts';
 import { sendNotification } from '../notify.ts';
+import { describeFinding, findSecrets } from '../secrets.ts';
 
 export interface UpOptions {
   ttl?: string;
@@ -20,6 +21,9 @@ export interface UpOptions {
   quiet?: boolean;
   /** Post a macOS notification with the result (for launchers without a terminal). */
   notify?: boolean;
+  /** Skip the secret check's prompt/refusal (`--allow-secrets`, or `-y/--yes`). */
+  allowSecrets?: boolean;
+  yes?: boolean;
 }
 
 interface Source {
@@ -143,6 +147,9 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
         source = readSource(target, ctx.config.maxFileBytes);
         if (opts.name) source.filename = opts.name;
       }
+      if (ctx.config.warnSecrets && !opts.allowSecrets && !opts.yes) {
+        await confirmSecrets(source, ctx);
+      }
       const contentType = detectContentType(source.filename, source.bytes);
       const result = await client.upload({
         filename: source.filename,
@@ -197,6 +204,28 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
     const state = copied ? 'copied' : 'ready';
     const subtitle = urls.length === 1 ? `Link ${state}` : `${urls.length} links ${state}`;
     await ctx.notify(subtitle, urls.join('\n'));
+  }
+}
+
+/**
+ * Stop (or ask) when the file looks like it holds secrets. A person at a terminal is asked;
+ * scripts and the Quick Action have nobody to ask, so they are refused and told how to override.
+ */
+async function confirmSecrets(source: Source, ctx: Context): Promise<void> {
+  const findings = findSecrets(source.filename, source.bytes);
+  if (findings.length === 0) return;
+  const reasons = findings.map(describeFinding);
+  const override = 'Pass --allow-secrets to upload anyway, or `r2fl config set warnSecrets false`.';
+  if (!ctx.interactive) {
+    throw new CliError(`Looks like it contains secrets: ${reasons.join('; ')}.`, override);
+  }
+  const { style } = ctx;
+  ctx.err(`${style.red('!')} ${source.filename} looks like it contains secrets:`);
+  for (const reason of reasons) ctx.err(`    ${reason}`);
+  ctx.err(style.dim('  Anyone who has the link can read this file until it expires.'));
+  const answer = await ctx.prompt('  Upload anyway? [y/N] ');
+  if (!/^y(es)?$/i.test(answer)) {
+    throw new CliError('Not uploaded.', override);
   }
 }
 

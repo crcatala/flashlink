@@ -13,15 +13,25 @@ export interface Config {
   maxFileBytes: number;
   /** Copy the resulting URL to the clipboard when a clipboard tool is available. */
   copy: boolean;
+  /** Ask before uploading a file that looks like it holds secrets (.env, private keys, tokens). */
+  warnSecrets: boolean;
 }
 
 export const DEFAULT_CONFIG: Config = {
   defaultTtl: '1h',
   maxFileBytes: DEFAULT_MAX_FILE_BYTES,
   copy: true,
+  warnSecrets: true,
 };
 
-export const CONFIG_KEYS = ['endpoint', 'token', 'defaultTtl', 'maxFileBytes', 'copy'] as const;
+export const CONFIG_KEYS = [
+  'endpoint',
+  'token',
+  'defaultTtl',
+  'maxFileBytes',
+  'copy',
+  'warnSecrets',
+] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 type Env = Record<string, string | undefined>;
@@ -42,6 +52,14 @@ export function saveConfig(patch: Partial<Config>, env: Env = process.env): Conf
   const next = { ...stored, ...patch };
   writeJsonAtomic(configPath(env), next);
   return { ...DEFAULT_CONFIG, ...next };
+}
+
+function parseBoolean(key: string, raw: string): boolean {
+  const value = raw.toLowerCase();
+  if (!['true', 'false', 'on', 'off', '1', '0'].includes(value)) {
+    throw new CliError(`${key} must be true or false.`);
+  }
+  return ['true', 'on', '1'].includes(value);
 }
 
 /** Validate and convert a raw string for a config key. */
@@ -77,10 +95,8 @@ export function parseConfigValue(key: ConfigKey, raw: string): Partial<Config> {
       return { maxFileBytes: bytes };
     }
     case 'copy':
-      if (!['true', 'false', 'on', 'off', '1', '0'].includes(raw.toLowerCase())) {
-        throw new CliError('copy must be true or false.');
-      }
-      return { copy: ['true', 'on', '1'].includes(raw.toLowerCase()) };
+    case 'warnSecrets':
+      return { [key]: parseBoolean(key, raw) };
   }
 }
 

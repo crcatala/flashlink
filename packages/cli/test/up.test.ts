@@ -302,3 +302,97 @@ describe('r2fl up --notify', () => {
     expect(h.notifications).toEqual([]);
   });
 });
+
+describe('r2fl up secret warning', () => {
+  const AWS = 'AKIAIOSFODNN7EXAMPLE';
+  const refusal = /Looks like it contains secrets: AWS access key ID \(line 1\)/;
+
+  it('refuses a file with secrets when nobody can answer, without contacting the server', async () => {
+    const file = h.file('config.txt', `key=${AWS}\n`);
+    const err = await up([file], {}, h.ctx).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CliError);
+    expect((err as CliError).message).toMatch(refusal);
+    expect((err as CliError).message).not.toContain(AWS);
+    expect((err as CliError).hint).toMatch(/--allow-secrets.*warnSecrets false/);
+    expect(h.server.requests).toHaveLength(0);
+    expect(h.stdout).toEqual([]);
+    expect(h.ctx.history.list()).toHaveLength(0);
+  });
+
+  it('refuses by file name alone', async () => {
+    await expect(up([h.file('.env', 'A=1\n')], {}, h.ctx)).rejects.toThrow(/\.env file/);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it('refuses secrets that arrive on stdin', async () => {
+    h.stdin.data = Buffer.from(`token=${AWS}`);
+    await expect(up([], { name: 'out.txt' }, h.ctx)).rejects.toThrow(refusal);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it.each([{ allowSecrets: true }, { yes: true }])('uploads when overridden with %j', async (o) => {
+    await up([h.file('.env', `key=${AWS}\n`)], o, h.ctx);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+  });
+
+  it('uploads when warnSecrets is off', async () => {
+    h.ctx.config.warnSecrets = false;
+    await up([h.file('.env', `key=${AWS}\n`)], {}, h.ctx);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+  });
+
+  it('asks on a terminal, shows what matched but not the secret, and uploads on yes', async () => {
+    h.stdin.interactive = true;
+    const questions: string[] = [];
+    h.ctx.prompt = async (q) => {
+      questions.push(q);
+      return 'y';
+    };
+    await up([h.file('.env', `key=${AWS}\n`)], {}, h.ctx);
+
+    expect(questions).toEqual(['  Upload anyway? [y/N] ']);
+    const shown = h.stderr.join('\n');
+    expect(shown).toContain('looks like a .env file');
+    expect(shown).toContain('AWS access key ID (line 1)');
+    expect(shown).not.toContain(AWS);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+  });
+
+  it.each(['', 'n', 'no', 'maybe'])('does not upload when the answer is %j', async (answer) => {
+    h.stdin.interactive = true;
+    h.ctx.prompt = async () => answer;
+    await expect(up([h.file('.env', 'A=1\n')], {}, h.ctx)).rejects.toThrow(/Not uploaded/);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it('does not ask when --allow-secrets is given', async () => {
+    h.stdin.interactive = true;
+    await up([h.file('.env', 'A=1\n')], { allowSecrets: true }, h.ctx); // default prompt throws
+    expect(h.stdout).toHaveLength(1);
+  });
+
+  it('uploads clean files untouched, and skips the content scan for binary files', async () => {
+    await up([h.file('notes.txt', 'hello')], {}, h.ctx);
+    await up(
+      [h.file('pic.bin', Buffer.concat([Buffer.from([0, 1]), Buffer.from(AWS)]))],
+      {},
+      h.ctx,
+    );
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1', 'https://fl.test/AAAAAAA2']);
+  });
+
+  it('with several files, skips only the flagged one and reports it', async () => {
+    const flagged = h.file('.env', 'A=1\n');
+    const ok = h.file('ok.txt', 'fine');
+    await expect(up([flagged, ok], {}, h.ctx)).rejects.toThrow(/1 of 2 uploads failed/);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+    expect(h.stderr.join('\n')).toMatch(/\.env.*\.env file/);
+  });
+
+  it('is reported through --notify, so the Quick Action user sees why nothing was uploaded', async () => {
+    await expect(up([h.file('.env', 'A=1\n')], { notify: true }, h.ctx)).rejects.toThrow();
+    expect(h.notifications).toHaveLength(1);
+    expect(h.notifications[0]).toMatchObject({ subtitle: 'Upload failed' });
+    expect(h.notifications[0]!.body).toMatch(/secrets.*--allow-secrets/);
+  });
+});
