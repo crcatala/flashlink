@@ -53,6 +53,13 @@ if [ "$(uname -s)" != "Darwin" ] && [ "${R2FL_INSTALL_ANY_OS:-}" != "1" ]; then
   exit 1
 fi
 
+# Finder starts Quick Actions without your shell's variables, so they always look in the default
+# place. A binary or notifier installed elsewhere would be installed but never found.
+if [ -n "${R2FL_DATA_DIR:-}" ] || [ -n "${XDG_DATA_HOME:-}" ]; then
+  echo "note: R2FL_DATA_DIR / XDG_DATA_HOME is set here, but Quick Actions do not see shell variables:" >&2
+  echo "      they look in \$HOME/.local/share/r2fl. Unset the variable and run this again to use that." >&2
+fi
+
 mkdir -p "$services" "$bin_dir"
 
 for name in "Share via r2-fastlink" "Share via r2-fastlink (default lifetime)"; do
@@ -70,6 +77,7 @@ echo "installed: $bin_dir/r2fl-quick"
 # on them opens. Ones from this applet belong to "r2-fastlink" and a click does nothing.
 if command -v osacompile >/dev/null 2>&1; then
   mkdir -p "$notify_dir/pending"
+  chmod 700 "$notify_dir/pending" # the queued messages hold links to your uploads
   rm -rf "$applet"
   if osacompile -o "$applet" "$here/notify-applet.applescript" 2>/dev/null; then
     # No Dock icon, a stable identity for the notification settings, then sign it again (ad hoc).

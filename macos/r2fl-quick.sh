@@ -126,10 +126,21 @@ ttl_for() {
 }
 
 # Which build is this? Shown in the lifetime dialog to tell a stale install from a fresh one.
+# The label says which r2fl really answered: the standalone binary, or (when that cannot start,
+# exit 126/127, exactly as for an upload) the one the login shell finds.
 build_label() {
-  ver=$(login_r2fl --version 2>/dev/null | tail -n 1 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  out=""
+  src="from PATH"
+  if have_binary; then
+    out=$("$R2FL_BIN" --version 2>/dev/null)
+    st=$?
+    if [ "$st" -ne 126 ] && [ "$st" -ne 127 ]; then src="standalone"; fi
+  fi
+  if [ "$src" != "standalone" ]; then
+    out=$(login_run 'r2fl "$@"' --version 2>/dev/null) || out=""
+  fi
+  ver=$(printf '%s\n' "$out" | tail -n 1 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
   [ -n "$ver" ] || ver="unknown version"
-  if have_binary; then src="standalone"; else src="from PATH"; fi
   echo "r2fl $ver, $src"
 }
 

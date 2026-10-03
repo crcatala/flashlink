@@ -115,6 +115,24 @@ describe('sendNotification through the notifier applet', () => {
     );
   });
 
+  it('keeps the queue private (the message holds a link) and leaves no temporary file', async () => {
+    fs.mkdirSync(app());
+    await sendNotification('s', 'https://fl.test/AAAAAAA1', 'darwin', async () => true, dir);
+    const [name] = pendingFiles();
+    expect(fs.statSync(pending()).mode & 0o777).toBe(0o700);
+    expect(fs.statSync(path.join(pending(), name!)).mode & 0o777).toBe(0o600);
+    // A dot file would be invisible to the applet's listing; none may remain after the rename.
+    expect(fs.readdirSync(pending())).toEqual([name]);
+  });
+
+  it('tightens a queue folder that an older install left open', async () => {
+    fs.mkdirSync(app());
+    fs.mkdirSync(pending(), { mode: 0o755 });
+    fs.chmodSync(pending(), 0o755);
+    await sendNotification('s', 'b', 'darwin', async () => true, dir);
+    expect(fs.statSync(pending()).mode & 0o777).toBe(0o700);
+  });
+
   it('keeps each notification on one line each and leaves text otherwise untouched', async () => {
     fs.mkdirSync(app());
     await sendNotification(

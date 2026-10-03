@@ -415,6 +415,19 @@ describe('r2fl-quick with the standalone binary', () => {
     expect(shellCalls()).toBe(true);
   });
 
+  it('labels the build "from PATH" when the binary cannot start and the login shell answered', () => {
+    install('#!/bin/sh\nexit 127\n');
+    write(path.join(dir, 'cfg', 'quick-action-path'), path.join(dir, 'bin'), 0o644);
+    run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 hour', FAKE_VERSION: '9.9.9 (path-copy)' }));
+    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl 9.9.9 (path-copy), from PATH');
+  });
+
+  it('keeps "standalone" when the binary runs but cannot say its version', () => {
+    install('#!/bin/sh\n[ "$1" = --version ] && exit 1\n[ "$1" = config ] && echo 1h\nexit 0\n');
+    run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 hour' }));
+    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl unknown version, standalone');
+  });
+
   it('ignores a binary that is not executable', () => {
     write(binPath(), FAKE_R2FL, 0o644);
     const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
@@ -537,6 +550,19 @@ describe('install.sh and uninstall.sh', () => {
     );
   });
 
+  it('says Quick Actions will not find a binary installed under a custom data directory', () => {
+    write(path.join(dir, 'built', 'r2fl'), FAKE_R2FL);
+    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
+      R2FL_INSTALL_ANY_OS: '1',
+      R2FL_DATA_DIR: path.join(dir, 'elsewhere'),
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('Quick Actions do not see shell variables');
+    // ... and the default location raises no such note.
+    const plain = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(plain.stderr).not.toContain('do not see shell variables');
+  });
+
   it('rejects a missing --binary file and unknown options without installing anything', () => {
     const missing = run(install, ['--binary', path.join(dir, 'nope')], {
       R2FL_INSTALL_ANY_OS: '1',
@@ -560,7 +586,7 @@ describe('install.sh and uninstall.sh', () => {
     expect(fs.readFileSync(path.join(applet, 'Contents', 'source.applescript'), 'utf8')).toBe(
       fs.readFileSync(path.join(macosDir, 'notify-applet.applescript'), 'utf8'),
     );
-    expect(fs.statSync(path.join(applet, '..', 'pending')).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(applet, '..', 'pending')).mode & 0o777).toBe(0o700);
 
     expect(run(uninstall, []).status).toBe(0);
     expect(fs.existsSync(path.dirname(applet))).toBe(false);

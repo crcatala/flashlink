@@ -69,10 +69,18 @@ async function viaApplet(
   if (!fs.existsSync(app)) return false;
   // One line each: the applet splits on line breaks. Control characters have no useful rendering.
   const oneLine = (text: string) => text.replace(/[\u0000-\u001f\u007f]+/g, ' ');
-  const file = path.join(dir, 'pending', `${Date.now()}-${process.pid}-${counter++}`);
+  const pendingDir = path.join(dir, 'pending');
+  const name = `${Date.now()}-${process.pid}-${counter++}`;
+  const file = path.join(pendingDir, name);
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, `${oneLine(subtitle)}\n${oneLine(body)}\n`);
+    // The message holds a link that grants access to the upload: owner only, like history.json.
+    fs.mkdirSync(pendingDir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(pendingDir, 0o700);
+    // Written under a dot name (which the applet's listing skips) and renamed, so the applet can
+    // never read half a message.
+    const tmp = path.join(pendingDir, `.${name}.tmp`);
+    fs.writeFileSync(tmp, `${oneLine(subtitle)}\n${oneLine(body)}\n`, { mode: 0o600 });
+    fs.renameSync(tmp, file);
   } catch {
     return false;
   }
