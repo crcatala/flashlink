@@ -19,6 +19,18 @@ if [ -e "$bin_dir/r2fl-quick" ]; then
   echo "removed: $bin_dir/r2fl-quick"
 fi
 
+data_dir=${R2FL_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/r2fl}
+if [ -e "$data_dir/bin/r2fl" ]; then
+  rm -f "$data_dir/bin/r2fl"
+  rmdir "$data_dir/bin" 2>/dev/null || true
+  echo "removed: $data_dir/bin/r2fl"
+fi
+
+if [ -e "$data_dir/notify" ]; then
+  rm -rf "${data_dir:?}/notify"
+  echo "removed: $data_dir/notify"
+fi
+
 config_dir=${R2FL_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/r2fl}
 if [ -e "$config_dir/quick-action-path" ]; then
   rm -f "$config_dir/quick-action-path"

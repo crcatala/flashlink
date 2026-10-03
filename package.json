@@ -8,6 +8,9 @@
   },
   "scripts": {
     "build": "pnpm --filter r2fl build",
+    "build:binary": "sh scripts/build-binary.sh",
+    "install:macos": "sh scripts/install-macos.sh",
+    "uninstall:macos": "sh macos/uninstall.sh",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "format": "prettier --write .",
