@@ -151,6 +151,18 @@ const api = (method, path, { headers, json, body, auth = true } = {}) =>
     body: json === undefined ? body : JSON.stringify(json),
   });
 
+/** A streaming request body (sent chunked, no Content-Length) made of `bytes` in 1 MiB pieces. */
+function chunked(bytes) {
+  let offset = 0;
+  return new ReadableStream({
+    pull(controller) {
+      if (offset >= bytes.length) return controller.close();
+      controller.enqueue(bytes.subarray(offset, offset + MIB));
+      offset += MIB;
+    },
+  });
+}
+
 /** Upload bytes; returns the raw response. Tracks created codes for cleanup. */
 async function upload(bytes, { name, type, ttl, maxDownloads, code } = {}) {
   const headers = { 'Content-Type': type ?? 'application/octet-stream' };
@@ -340,26 +352,54 @@ if (opts['skip-large']) {
     eq(res.status, 413, 'status');
     eq(res.json().error, 'file_too_large', 'error code');
   });
+
+  // The size cap must hold even when the client sends no Content-Length. This is slow on
+  // purpose: the whole body is sent before the edge lets the Worker answer.
+  await check('chunked upload one byte over the limit is refused with 413', async () => {
+    const limit = S.limits.maxFileBytes;
+    let res;
+    try {
+      res = await api('POST', '/links', {
+        headers: { 'Content-Type': 'application/octet-stream', 'X-TTL-Seconds': '60' },
+        body: chunked(Buffer.alloc(limit + 1)),
+      });
+    } catch (err) {
+      return { warn: `no response read (${err.message})` };
+    }
+    if (res.json().code) created.add(res.json().code);
+    // Real Cloudflare buffers the body and the Worker answers 413. A bare workerd (wrangler dev)
+    // passes the missing length through and the Worker answers 411. Either refusal is safe;
+    // storing the file (201) would be a cap bypass.
+    assert([411, 413].includes(res.status), `status: expected 411 or 413, got ${res.status}`);
+    return `refused with ${res.status} ${res.json().error}`;
+  });
 }
 
 // -- upload validation (checklist item 4: Content-Length) --
 
-await check('upload without Content-Length is refused with 411', async () => {
-  const stream = new ReadableStream({
-    start(c) {
-      c.enqueue(new TextEncoder().encode('chunked body'));
-      c.close();
-    },
-  });
-  // A stream body makes Node send Transfer-Encoding: chunked, i.e. no Content-Length.
-  const res = await api('POST', '/links', {
-    headers: { 'Content-Type': 'text/plain', 'X-TTL-Seconds': '60' },
-    body: stream,
-  });
-  if (res.json().code) created.add(res.json().code);
-  eq(res.status, 411, 'status');
-  eq(res.json().error, 'length_required', 'error code');
-});
+await check(
+  'upload without Content-Length: refused (411) or length supplied by the edge',
+  async () => {
+    // A stream body makes Node send Transfer-Encoding: chunked, i.e. no Content-Length.
+    const res = await api('POST', '/links', {
+      headers: { 'Content-Type': 'text/plain', 'X-TTL-Seconds': '60' },
+      body: chunked(Buffer.from('chunked body')),
+    });
+    const link = res.json();
+    if (link.code) created.add(link.code);
+    if (res.status === 411) {
+      eq(link.error, 'length_required', 'error code');
+      return 'the Worker refused it (411)';
+    }
+    // On real Cloudflare the edge buffers a chunked request body and gives the Worker a
+    // Content-Length, so the Worker never sees "no length". That is fine as long as the bytes
+    // are stored intact (checked here) and the size cap still holds (checked in the large block).
+    eq(res.status, 201, 'status');
+    const fetched = await hit(link, { headers: { 'Accept-Encoding': 'identity' } });
+    eq(fetched.text(), 'chunked body', 'stored bytes');
+    return 'accepted: the edge supplied a Content-Length for the chunked body; stored intact';
+  },
+);
 
 await check('empty upload is refused with 400', async () => {
   const res = await upload(Buffer.alloc(0), { name: 'empty', ttl: 60 });

@@ -51,7 +51,9 @@ export async function withinLimit(limiter: RateLimit | undefined, key: string): 
   if (!limiter) return true;
   try {
     return (await limiter.limit({ key })).success;
-  } catch {
+  } catch (err) {
+    // Fail open, but not silently: a broken binding would otherwise look like "never throttled".
+    console.error('rate limiter failed open', err);
     return true;
   }
 }
