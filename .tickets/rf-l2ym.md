@@ -1,7 +1,7 @@
 ---
 id: rf-l2ym
 status: open
-deps: [rf-rxkx, rf-dd4u]
+deps: [rf-rxkx, rf-dd4u, rf-bi4a]
 links: []
 created: 2026-10-02T20:05:53Z
 type: feature

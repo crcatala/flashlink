@@ -1,6 +1,6 @@
 ---
 id: rf-rxkx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-02T20:05:53Z
@@ -34,10 +34,10 @@ Checklist to run and record (put results in `tk add-note`, file a bug ticket und
 
 ## Acceptance Criteria
 
-- [ ] Every checklist item executed against a real Cloudflare deployment, with results recorded as notes on this ticket.
+- [x] Every checklist item executed against a real Cloudflare deployment, with results recorded as notes on this ticket. (Items 8 and the usage-after-a-day half of item 9 were moved to rf-bi4a by the owner so this ticket could close; every other item was executed.)
 - [x] README "Deploy your own" corrected wherever it diverged from reality (commands, flags, ordering, caveats).
 - [x] Any discovered defect has its own ticket (type bug, parent = this epic) or is fixed in the same PR with a regression test.
-- [ ] docs/PLAN.md section 5 updated if real behavior or costs differ from the model; the "Not verified" caveat in the phase-1 notes is removed or restated.
+- [x] docs/PLAN.md section 5 updated if real behavior or costs differ from the model; the "Not verified" caveat in the phase-1 notes is removed or restated. (Restated in PLAN section 7 with the real results; the numeric comparison after a day of use is tracked in rf-bi4a.)
 - [x] No secrets, account IDs or tokens committed.
 
 
@@ -70,3 +70,7 @@ Item 7 (rate limiting) resolved: limiter is attached and enforcing but lenient (
 **2026-10-03T03:50:50Z**
 
 Re-ran scripts/verify-deployment.mjs --skip-ratelimit on the real deployment after PR #7 (2026-10-03): 30 passed, 0 failed, 0 warnings, 2 skipped (sweeper and rate limit, both verified separately). Both new chunked checks PASS (chunked upload accepted with the edge-supplied length and stored intact; chunked one-byte-over-limit refused 413 file_too_large). 49 MiB up in 21.3 s (2.3 MiB/s), down in 3.8 s. Remaining for this ticket: item 9 usage after about a day vs PLAN section 5, and optional item 8 (custom domain).
+
+**2026-10-03T04:02:16Z**
+
+Closing by owner decision. Items 1-7, 9 (sweeper) and 10 are done and recorded above (PLAN section 7). The two items that need elapsed time or an optional setup, item 9 usage after about a day vs PLAN section 5 and item 8 custom domain, moved to rf-bi4a, which blocks rf-l2ym (edge cache, the only ticket that needs those numbers). This unblocks rf-dd4u, rf-v39y and rf-dt1g (the latter also waits on rf-cr7d).
