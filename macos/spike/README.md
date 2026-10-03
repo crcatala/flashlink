@@ -7,11 +7,10 @@ lifetime submenu and hand the selected files to a helper app?
 This spike uploads nothing. If it works, a follow-up ticket designs the real Finder-only app; if
 not, we stay with the Quick Action in `macos/` (PR #10) or try an Apple Shortcut.
 
-> Status: written on Linux. The CI Mac (macOS 26.6.2, Xcode 26.6) builds both targets ad hoc signed
-> on the first try, `pluginkit` registers and enables the extension, and the host-app half of
-> `test-handoff.sh` passes there. Still unproven, because it needs a real Finder session: that
-> Finder loads the extension and shows the root menu, and that a click hands off the selection.
-> Record everything in [`FINDINGS.md`](FINDINGS.md).
+> Status: **VIABLE** (2026-10-03, macOS 26.6.2). The extension, signed ad hoc, shows the root-level menu
+> and hands the selection to the host app; see [`FINDINGS.md`](FINDINGS.md) for the results, caveats and
+> recommendation. The steps below are how to reproduce the run. The next step is the design ticket
+> `rf-kecm`.
 
 ## What is here
 

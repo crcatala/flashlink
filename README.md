@@ -118,7 +118,7 @@ Right-click a file in Finder, choose **Quick Actions → Share via r2-fastlink**
 
 > Status: the wrapper and installer have automated tests (run on Linux in CI) and the whole flow was verified by hand on macOS 26.6.2 (Apple Silicon). The QA checklist below is how to repeat that.
 
-> Experimental: [`macos/spike/`](macos/spike/README.md) is a spike (ticket `rf-og97`) for a native Finder Sync extension that would put a **Share via r2-fastlink** menu at the top level of the right-click menu without needing `node` or a shell `PATH`. It uploads nothing and is not part of the install above.
+> Experimental: [`macos/spike/`](macos/spike/README.md) is a spike (ticket `rf-og97`) for a native Finder Sync extension that puts a **Share via r2-fastlink** menu at the top level of the right-click menu without needing `node` or a shell `PATH`. It works on macOS 26.6.2 with local (ad hoc) signing only; the real app is being designed in `rf-kecm`. It uploads nothing and is not part of the install above.
 
 **Install**
 

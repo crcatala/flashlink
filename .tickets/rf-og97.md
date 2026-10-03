@@ -65,3 +65,7 @@ Linux-side work done on branch spike/rf-og97-finder-sync (PR pending). Written a
 **2026-10-03T16:50:22Z**
 
 CI Mac result (GitHub macos-latest, macOS 26.6.2, Xcode 26.6, run 37138241482 on PR #11): both targets build ad hoc signed first try; extension is sandboxed with app-sandbox + user-selected.read-only; pluginkit -a/-e use registers it and lists it enabled (+); host app launches, URL scheme works, test-handoff.sh passes 6/6 awkward names. Notifications and the Finder menu NOT exercised (no Finder session on CI). Remaining for the owner's Mac: download the CI artifact (README Option A, no Xcode needed) and run the Finder steps in macos/spike/README.md.
+
+**2026-10-03T17:15:37Z**
+
+Mac run done by the owner on macOS 26.6.2 (CI-built ad hoc app): VIABLE. Root-level menu + lifetime submenu works with ad hoc signing only; all paths/awkward names/924 files and all four lifetimes arrive; notification titled r2-fastlink; no prompts; no killall needed; host app relaunches on click. Details: macos/spike/FINDINGS.md, screenshots in a PR #11 comment. Follow-up design ticket rf-kecm filed; rf-kwsu rescoped to a Finder-only app and now depends on rf-kecm. Left OPEN until the owner confirms closing (PR #11 merge).
