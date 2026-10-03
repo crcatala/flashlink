@@ -2,15 +2,17 @@
 id: rf-16ho
 status: open
 deps: [rf-kecm, rf-kwsu]
-links: []
+links: [rf-od5l, rf-kphq]
 created: 2026-10-03T17:19:03Z
 type: task
-priority: 3
+priority: 4
 assignee: cc-vps
 parent: rf-yofr  # Epic: native Finder-only macOS app
-tags: [phase-3, macos, release, needs-human, batch-17]
+tags: [phase-3, macos, release, needs-human, deferred]
 ---
 # macOS app releases and self-serve updates (GitHub Releases, no auto-update)
+
+**UPDATE 2026-10-03 (deferred):** PR #12 settled the engine question (rf-kecm decision 13): the Quick Action now runs a standalone r2fl binary (Bun --compile), so there is ONE code path (the TypeScript CLI) and no node/PATH dependency. The Swift client (Option A, rf-dgve) is dropped. A root-level Finder menu is still possible, but only as a thin Finder Sync shell that spawns that binary (Option B); that is deferred until the owner misses the root-level menu after living with the Quick Action. This ticket stays open for that case and its batch tag was removed so the batch picker does not start it. The real next step is binary distribution: rf-kphq.
 
 Make the Finder-only app (rf-kwsu) easy to install and update for someone who does not want Xcode: a tagged GitHub Release with a prebuilt, ad hoc signed zip, an installer that fetches it, and an easy way to see the installed version and whether a newer one exists. Update is user-initiated (a command), never automatic. Part of epic rf-yofr; depends on the app shell (rf-kwsu) and the design in rf-kecm; the spike already proves the building blocks (macos/spike/build.sh, install.sh, .github/workflows/macos-spike.yml uploading a ditto zip).
 

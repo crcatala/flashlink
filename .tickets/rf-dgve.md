@@ -1,6 +1,6 @@
 ---
 id: rf-dgve
-status: open
+status: closed
 deps: [rf-kecm]
 links: []
 created: 2026-10-03T17:27:31Z
@@ -29,3 +29,9 @@ Tests: unit tests for config/duration/error mapping/handoff; integration tests t
 - [ ] No token is ever logged or written outside the config file; a test asserts error messages do not contain the token.
 - [ ] README or macos/R2FLCore/README.md explains how to run the tests locally.
 
+
+## Notes
+
+**2026-10-03T19:49:38Z**
+
+Closed as obsolete. Decision 13 in rf-kecm chose Option B (compile the CLI into a standalone binary, PR #12) over a Swift reimplementation, so there is no Swift core to build and no parity fixtures to maintain. If the Finder Sync app is ever built it spawns the binary (rf-kwsu).

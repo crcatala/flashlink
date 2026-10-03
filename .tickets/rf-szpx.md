@@ -5,12 +5,14 @@ deps: [rf-kwsu, rf-16ho]
 links: []
 created: 2026-10-03T17:27:31Z
 type: task
-priority: 2
+priority: 4
 assignee: cc-vps
 parent: rf-yofr
-tags: [phase-3, macos, needs-human, batch-18]
+tags: [phase-3, macos, needs-human, deferred]
 ---
 # Mac QA and sign-off for the Finder-only app (human, on a real Mac)
+
+**UPDATE 2026-10-03 (deferred):** PR #12 settled the engine question (rf-kecm decision 13): the Quick Action now runs a standalone r2fl binary (Bun --compile), so there is ONE code path (the TypeScript CLI) and no node/PATH dependency. The Swift client (Option A, rf-dgve) is dropped. A root-level Finder menu is still possible, but only as a thin Finder Sync shell that spawns that binary (Option B); that is deferred until the owner misses the root-level menu after living with the Quick Action. This ticket stays open for that case and its batch tag was removed so the batch picker does not start it. The real next step is binary distribution: rf-kphq.
 
 Run the released/CI-built app end to end on the owner's Mac and record the result. Runs by hand with the owner; an agent prepares the checklist and script, the owner executes the Finder steps. Needs the app shell (rf-kwsu) and the release flow (rf-16ho) done.
 

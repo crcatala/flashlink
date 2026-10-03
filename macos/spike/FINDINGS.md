@@ -61,6 +61,15 @@ dropped from the real app, unless a later reason to narrow the watched set appea
 
 ## Recommendation
 
+**Update 2026-10-03:** the spike stands as proof that the root-level menu is possible. The recommendation below
+(a real app with its own upload code) was overtaken by PR #12: the Quick Action now runs a standalone `r2fl`
+binary, which removes the PATH and node dependency without a second client. A native app is therefore
+**deferred**. If the root-level menu is wanted later, build it as a thin Finder Sync shell that spawns that
+binary (`rf-kecm` decision 13, Option B), reusing this spike's extension and hand-off. The Quick Action stays
+the primary integration.
+
+Original recommendation (kept for the record):
+
 **Design the real Finder-only app** (follow-up ticket `rf-kecm`, and `rf-kwsu` rescoped around it). It
 removes the PATH, node and shell dependency that made the Quick Action fragile, and puts the menu at the
 root with a native lifetime submenu. Keep the Quick Action (`macos/`) as the fallback until the app ships.

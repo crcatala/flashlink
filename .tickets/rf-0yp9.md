@@ -5,12 +5,14 @@ deps: [rf-szpx]
 links: []
 created: 2026-10-03T17:27:31Z
 type: task
-priority: 3
+priority: 4
 assignee: cc-vps
 parent: rf-yofr
-tags: [phase-3, macos, batch-19]
+tags: [phase-3, macos, deferred]
 ---
 # Docs, Quick Action decision and closing the macOS app epic
+
+**UPDATE 2026-10-03 (deferred):** PR #12 settled the engine question (rf-kecm decision 13): the Quick Action now runs a standalone r2fl binary (Bun --compile), so there is ONE code path (the TypeScript CLI) and no node/PATH dependency. The Swift client (Option A, rf-dgve) is dropped. A root-level Finder menu is still possible, but only as a thin Finder Sync shell that spawns that binary (Option B); that is deferred until the owner misses the root-level menu after living with the Quick Action. This ticket stays open for that case and its batch tag was removed so the batch picker does not start it. The real next step is binary distribution: rf-kphq. The 'Quick Action decision' below is made: the Quick Action stays the primary Finder integration.
 
 Make the repo describe reality after the app ships: README 'Finder integration' presents the app as the primary integration (install, update, version, uninstall, troubleshooting, what it needs and does not need); docs/PLAN.md gets the final design and drops the 'spike' wording; the Quick Action is kept as a documented fallback or retired and removed, as decided in rf-kecm; docs/AGENT_PROMPT.md batch table is current; macos/spike/ is either kept with a README banner saying it is reference only, or removed if the app fully supersedes it.
 

@@ -2,7 +2,7 @@
 id: rf-od5l
 status: open
 deps: [rf-cl6p]
-links: []
+links: [rf-kphq, rf-16ho]
 created: 2026-10-02T20:05:53Z
 type: task
 priority: 3

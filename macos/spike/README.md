@@ -9,8 +9,8 @@ not, we stay with the Quick Action in `macos/` (PR #10) or try an Apple Shortcut
 
 > Status: **VIABLE** (2026-10-03, macOS 26.6.2). The extension, signed ad hoc, shows the root-level menu
 > and hands the selection to the host app; see [`FINDINGS.md`](FINDINGS.md) for the results, caveats and
-> recommendation. The steps below are how to reproduce the run. The next step is the design ticket
-> `rf-kecm`.
+> recommendation. The steps below are how to reproduce the run. A native app is deferred (see the
+> update in `FINDINGS.md`); this folder stays as the reference for it.
 
 ## What is here
 
