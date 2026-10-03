@@ -51,6 +51,7 @@ function write(file: string, content: string, mode = 0o755): void {
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-macos-'));
   write(path.join(dir, 'bin', 'r2fl'), FAKE_R2FL);
+  write(path.join(dir, 'bin', 'node'), '#!/bin/sh\nexit 0\n'); // only has to be found
   write(path.join(dir, 'fake-osascript'), FAKE_OSASCRIPT);
   write(path.join(dir, 'fake-shell'), FAKE_SHELL);
   fs.mkdirSync(path.join(dir, 'log'));
@@ -287,7 +288,10 @@ describe('install.sh and uninstall.sh', () => {
     write(path.join(home, 'Library', 'Services', 'Other.workflow', 'Contents', 'Info.plist'), 'x');
     const before = files(home);
 
-    const i = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    const i = run(install, [], {
+      R2FL_INSTALL_ANY_OS: '1',
+      R2FL_QUICK_MINIMAL_PATH: `${path.join(dir, 'bin')}:/usr/bin:/bin`,
+    });
     expect(i.status).toBe(0);
     const added = files(home).filter((f) => !before.includes(f));
     expect(added).toEqual(
@@ -313,6 +317,14 @@ describe('install.sh and uninstall.sh', () => {
     expect(files(home)).toEqual(before);
     // Running it again is harmless.
     expect(run(uninstall, []).status).toBe(0);
+  });
+
+  it('checks with the Quick Action environment, not the terminal PATH', () => {
+    // r2fl is on the terminal's PATH (run() adds it) but not on the minimal one a Quick Action gets.
+    const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('WARNING');
+    expect(r.stdout).not.toContain('found by a login shell');
   });
 
   it('warns, but still installs, when a login shell cannot find r2fl', () => {

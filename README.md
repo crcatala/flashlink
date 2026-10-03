@@ -141,7 +141,7 @@ The server still enforces the maximum lifetime (7 days by default); if it refuse
 
 **Troubleshooting**
 
-- _"Could not run r2fl" notification, or `r2fl: command not found` / `node: command not found`._ A login shell cannot find them. Check with `/bin/zsh -l -c 'command -v r2fl node'`. Set `PATH` in `~/.zprofile` or `~/.zshenv`: Quick Actions do not read `~/.zshrc` (which is where many version managers are activated).
+- _"Could not run r2fl" notification, or `r2fl: command not found` / `node: command not found`._ A login shell cannot find them. Check what a Quick Action sees (your terminal has a fuller `PATH`, so a plain `zsh -l` test there can mislead): `env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/zsh -l -c 'command -v r2fl node'`; it must print two paths. Note that `~/.local/bin` is not on the default macOS `PATH`. Set `PATH` in `~/.zprofile` or `~/.zshenv`: Quick Actions do not read `~/.zshrc` (which is where many version managers are activated).
 - _The action is missing from the Quick Actions menu._ Enable it in System Settings → Keyboard → Keyboard Shortcuts → Services → Files and Folders. Then run `/System/Library/CoreServices/pbs -flush`, or log out and back in. It only appears when you right-click a file or folder in Finder.
 - _No notification appears._ Allow notifications for **Script Editor** (the notifications are posted through `osascript`) in System Settings → Notifications. The link is still copied to the clipboard.
 - _macOS blocks the workflow as downloaded or from an unidentified developer._ Remove the quarantine flag: `xattr -dr com.apple.quarantine ~/Library/Services/Share\ via\ r2-fastlink*.workflow` (the installer already does this for what it copies).

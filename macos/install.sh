@@ -14,6 +14,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 services="$HOME/Library/Services"
 bin_dir="$HOME/.local/bin"
 login_shell=${R2FL_QUICK_SHELL:-/bin/zsh}
+# What a Quick Action starts with. Your Terminal already has a full PATH, so testing there would
+# find r2fl even when the Quick Action cannot. Overridable only so tests can use a fake r2fl.
+minimal_path=${R2FL_QUICK_MINIMAL_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 pbs=/System/Library/CoreServices/pbs
 
 if [ "$(uname -s)" != "Darwin" ] && [ "${R2FL_INSTALL_ANY_OS:-}" != "1" ]; then
@@ -41,16 +44,24 @@ else
   echo "note: pbs not found; log out and back in if the Quick Actions do not appear."
 fi
 
-# The Quick Actions find r2fl through a login shell. Check that works the way they will use it.
+# The Quick Actions find r2fl through a login shell started from a minimal environment. Check
+# that works the way they will use it, not the way your terminal does.
+in_quick_action_env() {
+  env -i HOME="$HOME" USER="${USER:-}" PATH="$minimal_path" "$login_shell" -l -c "$1"
+}
+
 echo
-if ! "$login_shell" -l -c 'command -v r2fl >/dev/null 2>&1 && command -v node >/dev/null 2>&1'; then
+if ! in_quick_action_env 'command -v r2fl >/dev/null 2>&1 && command -v node >/dev/null 2>&1'; then
   cat >&2 <<'MSG'
 WARNING: a login shell cannot find both `r2fl` and `node`, so the Quick Actions would fail.
   - Install the CLI (see "Install the CLI" in the README) and make sure `node` is on PATH.
-  - Set PATH in ~/.zprofile or ~/.zshenv. Quick Actions do not read ~/.zshrc.
+  - Set PATH in ~/.zprofile or ~/.zshenv. Quick Actions do not read ~/.zshrc, and ~/.local/bin
+    is not on PATH by default on macOS.
+  - See what a Quick Action sees:
+      env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/zsh -l -c 'command -v r2fl node'
   Then re-run macos/install.sh (or just try the Quick Action).
 MSG
-elif [ "$("$login_shell" -l -c 'r2fl config get endpoint' 2>/dev/null | tail -n 1)" = "(not set)" ]; then
+elif [ "$(in_quick_action_env 'r2fl config get endpoint' 2>/dev/null | tail -n 1)" = "(not set)" ]; then
   echo "r2fl is installed but not configured yet: run \`r2fl init\` first." >&2
 else
   echo "r2fl and node are found by a login shell."
