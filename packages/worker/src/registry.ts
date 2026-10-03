@@ -9,6 +9,7 @@ import {
 import { generateCode } from './code.ts';
 import { parseLimits } from './config.ts';
 import type { Env } from './env.ts';
+import { parseRange } from './http.ts';
 
 /** How long an allocated-but-uncommitted upload may sit before it is reaped. */
 const PENDING_TTL_MS = 15 * 60 * 1000;
@@ -32,6 +33,12 @@ export type ResolveResult =
   | { status: 'ok'; link: LinkInfo; r2Key: string }
   | { status: 'expired' | 'exhausted'; link: LinkInfo }
   | { status: 'notfound' };
+
+/** Whether a GET with this `Range` header (or none) is a download for the cap and hit count. */
+export function countsAsDownload(rangeHeader: string | null, size: number): boolean {
+  const range = parseRange(rangeHeader, size);
+  return range === null || (range !== 'unsatisfiable' && range.start === 0);
+}
 
 export type MutateResult =
   { ok: true; link: LinkInfo } | { ok: false; error: ApiErrorCode; message: string };
@@ -188,8 +195,14 @@ export class Registry extends DurableObject<Env> {
 
   // ---- reads ------------------------------------------------------------------------
 
-  /** Resolve a code for serving. With `count`, atomically records the hit. */
-  async resolve(code: string, count: boolean): Promise<ResolveResult> {
+  /**
+   * Resolve a code for serving. With `count`, atomically records the hit when the request is
+   * a download under the cap policy (PLAN section 9): a GET that is satisfiable and is either
+   * not ranged or starts at offset 0. `range` is the raw `Range` header, so the one registry
+   * call per fetch both decides and records. Later ranges of a ranged client, and 416s, never
+   * consume the cap (the cap still gates them: an exhausted link serves nothing).
+   */
+  async resolve(code: string, count: boolean, range?: string | null): Promise<ResolveResult> {
     const now = Date.now();
     const row = this.row(code, 'active');
     if (!row) return { status: 'notfound' };
@@ -197,7 +210,7 @@ export class Registry extends DurableObject<Env> {
     if (row.max_downloads !== null && row.window_hits >= row.max_downloads) {
       return { status: 'exhausted', link: this.info(row, now) };
     }
-    if (count) {
+    if (count && countsAsDownload(range ?? null, row.size)) {
       this.sql.exec(
         `UPDATE links SET hits = hits + 1, window_hits = window_hits + 1, last_hit_at = ?
          WHERE code = ?`,

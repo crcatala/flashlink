@@ -33,7 +33,8 @@ export async function serveLink(c: AppContext): Promise<Response> {
   }
 
   const isHead = c.req.method === 'HEAD';
-  const resolved = await registryStub(c.env).resolve(code, !isHead);
+  const rangeHeader = c.req.header('Range') ?? null;
+  const resolved = await registryStub(c.env).resolve(code, !isHead, rangeHeader);
   switch (resolved.status) {
     case 'notfound':
       return errorResponse(404, 'not_found', 'No such link.');
@@ -55,7 +56,7 @@ export async function serveLink(c: AppContext): Promise<Response> {
   });
   if (isActiveContent(contentType)) headers.set('Content-Security-Policy', 'sandbox');
 
-  const range = parseRange(c.req.header('Range') ?? null, link.size);
+  const range = parseRange(rangeHeader, link.size);
   if (range === 'unsatisfiable') {
     headers.set('Content-Range', `bytes */${link.size}`);
     return new Response(null, { status: 416, headers });

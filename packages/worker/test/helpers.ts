@@ -7,7 +7,7 @@ import type { UploadResult } from '@r2-fastlink/core';
 export const TOKEN = 'test-token-test-token-test-token-0123';
 export const BASE = 'https://fl.test';
 
-const allowAll: RateLimit = { limit: async () => ({ success: true }) };
+export const allowAll: RateLimit = { limit: async () => ({ success: true }) };
 
 /** Call the Worker with the real bindings, except the rate limiters (see ratelimit.test.ts). */
 export function call(path: string, init: RequestInit = {}): Promise<Response> {
