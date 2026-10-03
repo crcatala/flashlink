@@ -135,9 +135,11 @@ The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to
 
 The server still enforces the maximum lifetime (7 days by default); if it refuses the choice the notification shows the error.
 
-**Uninstall:** `sh macos/uninstall.sh` removes both Quick Actions and the wrapper. Your config and history are left alone.
+**Standalone binary (experimental; no node or PATH needed).** Compile the CLI into one executable with [Bun](https://bun.sh) (`pnpm build:binary`, or `sh scripts/build-binary.sh darwin-arm64`; about 60 to 70 MB; it cross-compiles, so it can be built on Linux too), copy `dist/bin/r2fl-darwin-arm64` to the Mac, and install with `sh macos/install.sh --binary ./r2fl-darwin-arm64`. The installer copies it to `~/.local/share/r2fl/bin/r2fl`, ad hoc signs it (`codesign -s -`, no developer account) and runs it with an empty environment to prove it starts. The Quick Actions then run that file directly. If it is missing, or cannot start (exit 126/127), they fall back to the login-shell lookup described below. It is a second copy of `r2fl`, used only by the Quick Actions: your own `r2fl` is untouched. Re-run the installer with `--binary` to update it.
 
-**How it works.** Quick Actions run with a minimal `PATH` that has neither `r2fl` nor `node`. `install.sh` therefore records the folders where **your Terminal** finds them in `~/.config/r2fl/quick-action-path` (one line of colon-separated folders; edit it by hand if you like), and the wrapper puts them in front of `PATH`. Everything runs in your login shell (`/bin/zsh -l`); if `r2fl` is still not found, for example after mise or nvm moved to a new Node version, it retries once in an interactive login shell, which also reads `~/.zshrc`. The actual work is `r2fl up --notify --ttl <choice> -- <files>`; the token and endpoint come from the normal r2fl config file, never from the Quick Action. Run `macos/install.sh` from a Terminal where `r2fl --version` works, and run it again after changing how `r2fl` is installed.
+**Uninstall:** `sh macos/uninstall.sh` removes both Quick Actions, the wrapper and the standalone binary. Your config and history are left alone.
+
+**How it works.** (Without the standalone binary.) Quick Actions run with a minimal `PATH` that has neither `r2fl` nor `node`. `install.sh` therefore records the folders where **your Terminal** finds them in `~/.config/r2fl/quick-action-path` (one line of colon-separated folders; edit it by hand if you like), and the wrapper puts them in front of `PATH`. Everything runs in your login shell (`/bin/zsh -l`); if `r2fl` is still not found, for example after mise or nvm moved to a new Node version, it retries once in an interactive login shell, which also reads `~/.zshrc`. The actual work is `r2fl up --notify --ttl <choice> -- <files>`; the token and endpoint come from the normal r2fl config file, never from the Quick Action. Run `macos/install.sh` from a Terminal where `r2fl --version` works, and run it again after changing how `r2fl` is installed.
 
 **Troubleshooting**
 
@@ -146,7 +148,7 @@ The server still enforces the maximum lifetime (7 days by default); if it refuse
 - _No notification appears._ Allow notifications for **Script Editor** (the notifications are posted through `osascript`) in System Settings → Notifications. The link is still copied to the clipboard.
 - _macOS blocks the workflow as downloaded or from an unidentified developer._ Remove the quarantine flag: `xattr -dr com.apple.quarantine ~/Library/Services/Share\ via\ r2-fastlink*.workflow` (the installer already does this for what it copies).
 - _Errors._ The notification carries the message (wrong token, file over the size cap, offline). Run the same upload in a terminal to see more: `r2fl up --notify -- file`.
-- _Where things live._ Config: `~/.config/r2fl/config.json`; history: `~/.local/share/r2fl/history.json` (see `r2fl config path`); Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/r2fl-quick`.
+- _Where things live._ Config: `~/.config/r2fl/config.json`; history: `~/.local/share/r2fl/history.json` (see `r2fl config path`); Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/r2fl-quick`; standalone binary (if installed): `~/.local/share/r2fl/bin/r2fl`.
 
 **Manual QA checklist** (run on a real Mac; record the macOS version). `sh macos/qa.sh 2>&1 | tee ~/r2fl-qa.log` walks through nearly all of it for you and checks the links' contents; the Finder-click rows (1, 11) are by hand:
 

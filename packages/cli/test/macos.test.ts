@@ -332,6 +332,80 @@ describe('r2fl-quick lifetime picker', () => {
   });
 });
 
+describe('r2fl-quick with the standalone binary', () => {
+  // A bare PATH (the fake r2fl is not on it) and no recorded directories: only the binary can work.
+  const binPath = () => path.join(dir, 'data', 'bin', 'r2fl');
+  const bareEnv = (extra: Record<string, string> = {}) => ({
+    PATH: '/usr/bin:/bin',
+    R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
+    R2FL_DATA_DIR: path.join(dir, 'data'),
+    ...extra,
+  });
+  const shellCalls = () => fs.existsSync(path.join(dir, 'log', 'shell.calls'));
+  const install = (content = FAKE_R2FL) => write(binPath(), content);
+
+  it('runs the binary directly: no login shell, no PATH, no node', () => {
+    install();
+    const r = run(wrapper, ['--no-prompt', 'a b.txt'], bareEnv());
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--', 'a b.txt']]);
+    expect(shellCalls()).toBe(false);
+  });
+
+  it('uses it for the lifetime picker and the upload', () => {
+    install();
+    const r = run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '7 days' }));
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--ttl', '7d', '--', 'a.txt']]);
+    expect(shellCalls()).toBe(false);
+  });
+
+  it('is found at R2FL_QUICK_BIN too', () => {
+    write(path.join(dir, 'elsewhere', 'r2fl'), FAKE_R2FL);
+    const r = run(
+      wrapper,
+      ['--no-prompt', 'a.txt'],
+      bareEnv({ R2FL_QUICK_BIN: path.join(dir, 'elsewhere', 'r2fl') }),
+    );
+    expect(r.status).toBe(0);
+    expect(upCalls()).toHaveLength(1);
+  });
+
+  it('does not run the upload a second time when the binary fails', () => {
+    install();
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv({ FAKE_UP_EXIT: '1' }));
+    expect(r.status).toBe(1);
+    expect(upCalls()).toHaveLength(1);
+    expect(shellCalls()).toBe(false);
+    expect(notifications()).toEqual([]);
+  });
+
+  it('falls back to the login shell when the binary cannot start (127)', () => {
+    install('#!/bin/sh\nexit 127\n');
+    write(path.join(dir, 'cfg', 'quick-action-path'), path.join(dir, 'bin'), 0o644);
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--', 'a.txt']]);
+    expect(shellCalls()).toBe(true);
+  });
+
+  it('ignores a binary that is not executable', () => {
+    write(binPath(), FAKE_R2FL, 0o644);
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
+    expect(r.status).toBe(127);
+    expect(upCalls()).toEqual([]);
+  });
+
+  it('--check passes with only the binary, and fails when it does not run', () => {
+    install();
+    const ok = run(wrapper, ['--check'], bareEnv());
+    expect(ok.status).toBe(0);
+    expect(ok.stdout).toContain(binPath());
+    install('#!/bin/sh\nexit 1\n');
+    expect(run(wrapper, ['--check'], bareEnv()).status).toBe(127);
+  });
+});
+
 describe('install.sh and uninstall.sh', () => {
   const install = path.join(macosDir, 'install.sh');
   const uninstall = path.join(macosDir, 'uninstall.sh');
@@ -390,6 +464,60 @@ describe('install.sh and uninstall.sh', () => {
     expect(files(home)).toEqual(before);
     // Running it again is harmless.
     expect(run(uninstall, []).status).toBe(0);
+  });
+
+  it('--binary installs the standalone r2fl under the data dir; uninstall removes only it', () => {
+    const home = path.join(dir, 'home');
+    write(path.join(dir, 'built', 'r2fl-darwin-arm64'), FAKE_R2FL);
+    write(path.join(home, '.local', 'share', 'r2fl', 'history.json'), '[]', 0o644);
+    const before = files(home);
+
+    const i = run(install, ['--binary', path.join(dir, 'built', 'r2fl-darwin-arm64')], {
+      R2FL_INSTALL_ANY_OS: '1',
+    });
+    expect(i.status).toBe(0);
+    const bin = path.join(home, '.local', 'share', 'r2fl', 'bin', 'r2fl');
+    expect(fs.statSync(bin).mode & 0o111).not.toBe(0);
+    expect(i.stdout).toContain(`installed: ${bin}`);
+    expect(i.stderr).not.toContain('WARNING');
+
+    const u = run(uninstall, []);
+    expect(u.status).toBe(0);
+    expect(u.stdout).toContain(`removed: ${bin}`);
+    expect(files(home)).toEqual(before); // history.json is still there
+    expect(fs.existsSync(path.dirname(bin))).toBe(false);
+  });
+
+  it('--binary alone is enough: no node or r2fl needed in the terminal', () => {
+    write(path.join(dir, 'built', 'r2fl'), FAKE_R2FL);
+    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
+      R2FL_INSTALL_ANY_OS: '1',
+      PATH: '/usr/bin:/bin',
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain('WARNING');
+    expect(r.stdout).toContain('found the way a Quick Action will look for them');
+  });
+
+  it('removes a binary that does not start and warns', () => {
+    write(path.join(dir, 'built', 'r2fl'), '#!/bin/sh\nexit 1\n');
+    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
+      R2FL_INSTALL_ANY_OS: '1',
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('does not start');
+    expect(fs.existsSync(path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl'))).toBe(
+      false,
+    );
+  });
+
+  it('rejects a missing --binary file and unknown options without installing anything', () => {
+    const missing = run(install, ['--binary', path.join(dir, 'nope')], {
+      R2FL_INSTALL_ANY_OS: '1',
+    });
+    expect(missing.status).toBe(2);
+    expect(run(install, ['--bogus'], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(2);
+    expect(files(path.join(dir, 'home'))).toEqual([]);
   });
 
   it('works even though a Quick Action has a bare PATH (the terminal PATH is recorded)', () => {

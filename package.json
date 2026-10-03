@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "pnpm --filter r2fl build",
+    "build:binary": "sh scripts/build-binary.sh",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "format": "prettier --write .",

@@ -5,8 +5,11 @@
 #        r2fl-quick --check        (are r2fl and node found? used by install.sh)
 #
 # Finder Quick Actions run with a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin), so `r2fl` and
-# `node` (Homebrew, mise, nvm...) are not found. Every r2fl call therefore runs in the user's
-# login shell, with the directories recorded by install.sh added to PATH:
+# `node` (Homebrew, mise, nvm...) are not found. Two ways around that, in this order:
+#   A. the standalone r2fl binary that install.sh --binary put at <data dir>/bin/r2fl (no node,
+#      PATH or shell involved); R2FL_QUICK_BIN overrides the location;
+#   B. otherwise (no binary, or it exits 126/127) every r2fl call runs in the user's login shell,
+#      with the directories recorded by install.sh added to PATH:
 #   1. the file <config dir>/quick-action-path (colon-separated directories; written by
 #      install.sh from the Terminal it ran in, editable by hand) is put in front of PATH;
 #   2. if r2fl is still not found (stale directory, PATH set up only in ~/.zshrc), the same
@@ -24,6 +27,8 @@ set -u
 LOGIN_SHELL=${R2FL_QUICK_SHELL:-/bin/zsh}
 OSASCRIPT=${R2FL_QUICK_OSASCRIPT:-/usr/bin/osascript}
 CONFIG_DIR=${R2FL_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/r2fl}
+DATA_DIR=${R2FL_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/r2fl}
+R2FL_BIN=${R2FL_QUICK_BIN:-$DATA_DIR/bin/r2fl}
 PATH_FILE=$CONFIG_DIR/quick-action-path
 NOT_FOUND_HINT="r2fl or node was not found. Run macos/install.sh again from a Terminal where r2fl works. See the README (Finder integration)."
 
@@ -82,8 +87,20 @@ login_run() {
   return "$status"
 }
 
-# Run `r2fl ARGS...`.
+have_binary() {
+  [ -f "$R2FL_BIN" ] && [ -x "$R2FL_BIN" ]
+}
+
+# Run `r2fl ARGS...`: the standalone binary if installed, else (or if it cannot start at all) the
+# user's own r2fl through the login shell.
 login_r2fl() {
+  if have_binary; then
+    "$R2FL_BIN" "$@"
+    status=$?
+    if [ "$status" -ne 126 ] && [ "$status" -ne 127 ]; then
+      return "$status"
+    fi
+  fi
   login_run 'r2fl "$@"' "$@"
 }
 
@@ -134,6 +151,10 @@ choose_ttl() {
 }
 
 if [ "$check" -eq 1 ]; then
+  if have_binary && "$R2FL_BIN" --version >/dev/null 2>&1; then
+    echo "$R2FL_BIN"
+    exit 0
+  fi
   login_run 'command -v r2fl && command -v node || exit 127'
   exit $?
 fi
