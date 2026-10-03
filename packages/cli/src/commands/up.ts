@@ -17,6 +17,8 @@ export interface UpOptions {
   /** Commander sets this to false for `--no-copy`. */
   copy?: boolean;
   quiet?: boolean;
+  /** Post a macOS notification with the result (for launchers without a terminal). */
+  notify?: boolean;
 }
 
 interface Source {
@@ -70,6 +72,22 @@ function readSource(file: string, maxBytes: number): Source {
 }
 
 export async function up(files: string[], opts: UpOptions, ctx: Context): Promise<void> {
+  try {
+    await uploadAll(files, opts, ctx);
+  } catch (err) {
+    // The error still propagates (stderr/JSON + exit code); the notification is the only
+    // feedback a launcher with no terminal gets.
+    if (opts.notify) await ctx.notify('Upload failed', errorText(err));
+    throw err;
+  }
+}
+
+function errorText(err: unknown): string {
+  if (err instanceof CliError) return err.hint ? `${err.message} ${err.hint}` : err.message;
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promise<void> {
   const useStdin = files.length === 0 || (files.length === 1 && files[0] === '-');
   if (useStdin && ctx.stdinIsTTY) {
     throw new CliError(
@@ -139,12 +157,21 @@ export async function up(files: string[], opts: UpOptions, ctx: Context): Promis
   } else {
     for (const url of urls) ctx.out(url);
   }
-  if (urls.length > 0 && opts.copy !== false && ctx.config.copy) {
-    const copied = await ctx.copy(urls.join('\n'));
+  // --notify implies a clipboard copy (the notification says so) unless --no-copy.
+  const wantCopy = opts.copy !== false && (ctx.config.copy || Boolean(opts.notify));
+  let copied = false;
+  if (urls.length > 0 && wantCopy) {
+    copied = await ctx.copy(urls.join('\n'));
     if (copied && !opts.quiet && !opts.json) ctx.err(style.dim('  copied to clipboard'));
   }
   if (failures > 0) {
+    // up() posts the single failure notification; successful links are still on stdout.
     throw new CliError(`${failures} of ${targets.length} uploads failed.`);
+  }
+  if (opts.notify) {
+    const state = copied ? 'copied' : 'ready';
+    const subtitle = urls.length === 1 ? `Link ${state}` : `${urls.length} links ${state}`;
+    await ctx.notify(subtitle, urls.join('\n'));
   }
 }
 

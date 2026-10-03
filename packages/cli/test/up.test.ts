@@ -183,3 +183,74 @@ describe('r2fl up', () => {
     expect(Buffer.from(h.server.links.get('AAAAAAA1')!.body).toString()).toBe('v2');
   });
 });
+
+describe('r2fl up --notify', () => {
+  it('notifies once with the URL, copies it, and keeps stdout URL-only', async () => {
+    const file = h.file('notes.txt', 'hello');
+    await up([file], { notify: true }, h.ctx);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+    expect(h.clipboard).toEqual(['https://fl.test/AAAAAAA1']);
+    expect(h.notifications).toEqual([
+      { subtitle: 'Link copied', body: 'https://fl.test/AAAAAAA1' },
+    ]);
+  });
+
+  it('copies even when the config disables copying, but not with --no-copy', async () => {
+    h.ctx.config.copy = false;
+    const file = h.file('a.txt', 'a');
+    await up([file], { notify: true }, h.ctx);
+    expect(h.clipboard).toHaveLength(1);
+
+    await up([file], { notify: true, copy: false }, h.ctx);
+    expect(h.clipboard).toHaveLength(1);
+    expect(h.notifications.at(-1)).toMatchObject({ subtitle: 'Link ready' });
+  });
+
+  it('sends one summarizing notification for several files', async () => {
+    const a = h.file('a.txt', 'a');
+    const b = h.file('b.txt', 'b');
+    await up([a, b], { notify: true }, h.ctx);
+    expect(h.notifications).toEqual([
+      { subtitle: '2 links copied', body: 'https://fl.test/AAAAAAA1\nhttps://fl.test/AAAAAAA2' },
+    ]);
+  });
+
+  it('notifies with the error (and hint) on failure, and still throws', async () => {
+    const empty = h.file('empty.txt', '');
+    await expect(up([empty], { notify: true }, h.ctx)).rejects.toThrow('empty.txt: Empty file.');
+    expect(h.notifications).toEqual([{ subtitle: 'Upload failed', body: `${empty}: Empty file.` }]);
+
+    h.server.failUploadsWith = { status: 429, error: 'rate_limited', message: 'Slow down.' };
+    const ok = h.file('ok.txt', 'x');
+    await expect(up([ok], { notify: true }, h.ctx)).rejects.toThrow('Slow down.');
+    expect(h.notifications.at(-1)).toEqual({ subtitle: 'Upload failed', body: 'Slow down.' });
+    expect(h.notifications).toHaveLength(2);
+  });
+
+  it('notifies about failures that happen before any upload (bad --ttl, not configured)', async () => {
+    const file = h.file('a.txt', 'a');
+    await expect(up([file], { notify: true, ttl: 'soon' }, h.ctx)).rejects.toThrow();
+    expect(h.notifications).toHaveLength(1);
+    expect(h.notifications[0]!.subtitle).toBe('Upload failed');
+    expect(h.notifications[0]!.body).toMatch(/Invalid duration/);
+  });
+
+  it('posts a single failure notification when only some files fail', async () => {
+    const good = h.file('good.txt', 'g');
+    const empty = h.file('empty.txt', '');
+    await expect(up([good, empty], { notify: true }, h.ctx)).rejects.toThrow(
+      '1 of 2 uploads failed.',
+    );
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+    expect(h.notifications).toEqual([
+      { subtitle: 'Upload failed', body: '1 of 2 uploads failed.' },
+    ]);
+  });
+
+  it('does not notify without --notify', async () => {
+    const file = h.file('a.txt', 'a');
+    await up([file], {}, h.ctx);
+    await expect(up([h.file('e.txt', '')], {}, h.ctx)).rejects.toThrow();
+    expect(h.notifications).toEqual([]);
+  });
+});
