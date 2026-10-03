@@ -25,6 +25,7 @@ Tests: unit tests for config/duration/error mapping/handoff; integration tests t
 - [ ] swift build and swift test pass on Linux in CI (ubicloud-standard-2), path-filtered, with a pinned toolchain.
 - [ ] Integration test uploads through a locally running Worker and the returned link serves the same bytes.
 - [ ] Config, duration and error behavior match the CLI for the same inputs (table-driven tests against the same fixtures where possible).
+- [ ] Parity is enforced, not hoped for: duration parsing, config loading and API error mapping are tested in BOTH the TypeScript suite and the Swift suite from the same checked-in JSON fixtures (e.g. packages/core/test/fixtures/*.json), so a behavior change in one fails the other's CI. (Skipped if rf-kecm chose to bundle the CLI instead of reimplementing it, in which case this ticket is replaced.)
 - [ ] No token is ever logged or written outside the config file; a test asserts error messages do not contain the token.
 - [ ] README or macos/R2FLCore/README.md explains how to run the tests locally.
 

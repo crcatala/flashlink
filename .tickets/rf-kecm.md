@@ -32,6 +32,7 @@ Questions the design note must answer:
 9. Compatibility: only macOS 26.6.2 was tested; decide the minimum supported version (the spike targets 13.0) and how to word that.
 10. Errors and progress for large uploads (notification only, or a small progress panel), and cancel.
 11. Icon: notifications show the app icon. An interim icon (the landing page favicon in the macOS icon grid) lives in macos/spike/App/Assets.xcassets; decide whether to keep it, and the macOS 26 icon format (Icon Composer) question.
+13. One code path or two? Option A (default): a Swift reimplementation of the client slice in macos/R2FLCore, kept honest by shared JSON fixtures and integration tests against the real Worker (see the core ticket). Option B: bundle a compiled r2fl (Node single-executable or Bun compile, roughly 60-100 MB) inside the .app and have the helper call it by absolute path with --json, so the CLI stays the only implementation and every CLI fix or feature is available automatically, at the cost of app size, a more involved macOS build and process/output handling. Decide, and list which CLI features (secret warning rf-chq2, clipboard rf-4514, folder zip rf-gah1) the app deliberately does or does not have.
 12. Versioning, releases and self-serve updates: see `rf-16ho`; the design note must say how the app reports its version.
 
 ## Acceptance Criteria
