@@ -2,10 +2,15 @@
 # r2fl-quick: wrapper behind the "Share via r2-fastlink" Finder Quick Actions.
 #
 # Usage: r2fl-quick [--no-prompt] FILE...
+#        r2fl-quick --check        (are r2fl and node found? used by install.sh)
 #
 # Finder Quick Actions run with a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin), so `r2fl` and
-# `node` (Homebrew, mise, nvm...) are not found. Every r2fl call therefore goes through the
-# user's login shell, which sets up PATH the way a terminal would.
+# `node` (Homebrew, mise, nvm...) are not found. Every r2fl call therefore runs in the user's
+# login shell, with the directories recorded by install.sh added to PATH:
+#   1. the file <config dir>/quick-action-path (colon-separated directories; written by
+#      install.sh from the Terminal it ran in, editable by hand) is put in front of PATH;
+#   2. if r2fl is still not found (stale directory, PATH set up only in ~/.zshrc), the same
+#      call is retried once in an interactive login shell, which also reads ~/.zshrc.
 #
 # Unless --no-prompt is given, a "Link lifetime" list is shown first, with the configured
 # default (`r2fl config get defaultTtl`) preselected. Cancelling uploads nothing and exits 0.
@@ -18,14 +23,28 @@ set -u
 
 LOGIN_SHELL=${R2FL_QUICK_SHELL:-/bin/zsh}
 OSASCRIPT=${R2FL_QUICK_OSASCRIPT:-/usr/bin/osascript}
+CONFIG_DIR=${R2FL_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/r2fl}
+PATH_FILE=$CONFIG_DIR/quick-action-path
+NOT_FOUND_HINT="r2fl or node was not found. Run macos/install.sh again from a Terminal where r2fl works. See the README (Finder integration)."
+
+# Directories recorded by install.sh (first line only).
+recorded_path=""
+if [ -r "$PATH_FILE" ]; then
+  recorded_path=$(sed -n '1{s/^[[:space:]]*//;s/[[:space:]]*$//;p;}' "$PATH_FILE")
+fi
 
 prompt=1
+check=0
+if [ "${1-}" = "--check" ]; then
+  check=1
+  shift
+fi
 if [ "${1-}" = "--no-prompt" ]; then
   prompt=0
   shift
 fi
 
-if [ "$#" -eq 0 ]; then
+if [ "$#" -eq 0 ] && [ "$check" -eq 0 ]; then
   echo "usage: r2fl-quick [--no-prompt] FILE..." >&2
   exit 2
 fi
@@ -42,9 +61,30 @@ notify_problem() {
   return 0
 }
 
-# Run `r2fl ARGS...` in a login shell. Arguments reach r2fl untouched ("$@" inside the -c script).
+# Runs inside the login shell (hence single quotes): recorded directories first on PATH.
+# shellcheck disable=SC2016
+PATH_PREFIX='[ -z "$R2FL_QUICK_PATH" ] || PATH="$R2FL_QUICK_PATH:$PATH"; '
+
+# Run a shell command in the login shell, recorded directories first on PATH. $1 is the command
+# text; the remaining arguments reach it untouched as "$@".
+login_run() {
+  script=$1
+  shift
+  env R2FL_QUICK_PATH="$recorded_path" "$LOGIN_SHELL" -l -c \
+    "$PATH_PREFIX$script" r2fl "$@"
+  status=$?
+  # 126/127: nothing usable was found. Try once more where ~/.zshrc is read too.
+  if [ "$status" -eq 126 ] || [ "$status" -eq 127 ]; then
+    env R2FL_QUICK_PATH="$recorded_path" "$LOGIN_SHELL" -l -i -c \
+      "$PATH_PREFIX$script" r2fl "$@"
+    status=$?
+  fi
+  return "$status"
+}
+
+# Run `r2fl ARGS...`.
 login_r2fl() {
-  "$LOGIN_SHELL" -l -c 'r2fl "$@"' r2fl "$@"
+  login_run 'r2fl "$@"' "$@"
 }
 
 # `choose from list` item for a TTL, and back.
@@ -93,6 +133,11 @@ choose_ttl() {
   ttl_for "$picked"
 }
 
+if [ "$check" -eq 1 ]; then
+  login_run 'command -v r2fl && command -v node || exit 127'
+  exit $?
+fi
+
 if [ "$prompt" -eq 1 ]; then
   errfile=$(mktemp "${TMPDIR:-/tmp}/r2fl-quick.XXXXXX") || exit 1
   trap 'rm -f "$errfile"' EXIT
@@ -100,7 +145,7 @@ if [ "$prompt" -eq 1 ]; then
   status=$?
   if [ "$status" -ne 0 ]; then
     if [ "$status" -eq 126 ] || [ "$status" -eq 127 ]; then
-      notify_problem "Could not run r2fl" "r2fl or node was not found by your login shell. See the README (Finder integration)."
+      notify_problem "Could not run r2fl" "$NOT_FOUND_HINT"
     else
       # r2fl ran and refused (for example a corrupt config file): show what it said, not a PATH hint.
       reason=$(grep . "$errfile" | tail -n 1 | cut -c1-200)
@@ -135,6 +180,6 @@ status=$?
 # 126/127: the shell found no usable r2fl (or no node for its shebang). r2fl itself never exits
 # with these, and it cannot post the notification when it never started.
 if [ "$status" -eq 126 ] || [ "$status" -eq 127 ]; then
-  notify_problem "Could not run r2fl" "r2fl or node was not found by your login shell. See the README (Finder integration)."
+  notify_problem "Could not run r2fl" "$NOT_FOUND_HINT"
 fi
 exit "$status"

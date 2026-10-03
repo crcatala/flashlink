@@ -46,3 +46,7 @@ Branch batch-04-macos-quick-action (PR for that branch). Added macos/: r2fl-quic
 **2026-10-03T05:06:50Z**
 
 Mac QA finding (owner, first run): the Quick Action loads and the wrapper runs (so the hand-written workflow is accepted), but it reported 'r2fl or node was not found by your login shell'. Cause: install.sh's PATH check ran the login shell with the Terminal's full PATH inherited, so it passed falsely. install.sh now checks with env -i and a minimal PATH (what a Quick Action gets); regression test added. The owner's own PATH setup (probably in ~/.zshrc or ~/.local/bin not on PATH) still needs fixing on the Mac.
+
+**2026-10-03T14:45:08Z**
+
+Mac QA finding 2 (owner): after the installer fix the real cause was mise: r2fl lived in ~/.local/share/mise/installs/node/<ver>/bin, not on a Quick Action's PATH (PATH setup only in ~/.zshrc; ~/.local/bin/node was Hermes' node). Replaced the login-shell-only design: install.sh records where the installing Terminal finds r2fl and node in <config dir>/quick-action-path (hand-editable), the wrapper prepends it, retries once in an interactive login shell on 126/127, and the installer verifies with 'r2fl-quick --check' in a bare env -i environment. 14 new tests (38 in macos.test.ts); mutation-checked (ignoring the record or the retry fails tests); also exercised with a real r2fl in a non-PATH folder using bash as the login shell. Native alternative being explored in rf-og97.

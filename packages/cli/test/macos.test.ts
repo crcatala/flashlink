@@ -36,10 +36,16 @@ case "$*" in
 esac
 `;
 
-// Stands in for `/bin/zsh -l`: drops -l and runs the -c script with sh, so "$@" handling is real.
+// Stands in for `/bin/zsh -l [-i]`: drops the flags and runs the -c script with sh, so "$@" handling
+// is real. Records whether it was interactive. FAKE_ONLY_INTERACTIVE=1 makes a non-interactive run
+// find nothing (exit 127), like a PATH that is set up only in ~/.zshrc.
 const FAKE_SHELL = `#!/bin/sh
 [ "$1" = -l ] || { echo "fake-shell: expected -l first" >&2; exit 64; }
 shift
+interactive=0
+if [ "$1" = -i ]; then interactive=1; shift; fi
+[ -z "\${FAKE_LOG-}" ] || echo "$interactive" >> "$FAKE_LOG/shell.calls"
+if [ "\${FAKE_ONLY_INTERACTIVE-}" = 1 ] && [ "$interactive" = 0 ]; then exit 127; fi
 exec /bin/sh "$@"
 `;
 
@@ -144,6 +150,71 @@ describe('r2fl-quick --no-prompt', () => {
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('usage');
     expect(upCalls()).toEqual([]);
+  });
+});
+
+describe('r2fl-quick finding r2fl', () => {
+  const bareEnv = (extra: Record<string, string> = {}) => ({
+    PATH: '/usr/bin:/bin', // like a Quick Action: the fake r2fl is not on it
+    R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
+    ...extra,
+  });
+  const shellCalls = () =>
+    fs.existsSync(path.join(dir, 'log', 'shell.calls'))
+      ? fs
+          .readFileSync(path.join(dir, 'log', 'shell.calls'), 'utf8')
+          .trim()
+          .split('\n')
+      : [];
+  const record = (line: string) => write(path.join(dir, 'cfg', 'quick-action-path'), line, 0o644);
+
+  it('finds r2fl and node through the directories recorded by the installer', () => {
+    record(`${path.join(dir, 'bin')}\n`);
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--', 'a.txt']]);
+    expect(shellCalls()).toEqual(['0']); // no need for the interactive retry
+  });
+
+  it('uses the recorded directories for the lifetime picker too', () => {
+    record(path.join(dir, 'bin'));
+    const r = run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 day' }));
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--ttl', '1d', '--', 'a.txt']]);
+  });
+
+  it('retries once in an interactive login shell when the first try finds nothing', () => {
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], {
+      FAKE_ONLY_INTERACTIVE: '1',
+      R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
+    });
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--', 'a.txt']]);
+    expect(shellCalls()).toEqual(['0', '1']);
+  });
+
+  it('says to re-run the installer when nothing finds r2fl', () => {
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
+    expect(r.status).toBe(127);
+    expect(shellCalls()).toEqual(['0', '1']);
+    expect(upCalls()).toEqual([]);
+    expect(notifications()[0]!.join(' ')).toContain('Run macos/install.sh again');
+  });
+
+  it('--check succeeds only when r2fl and node are both found', () => {
+    expect(run(wrapper, ['--check'], bareEnv()).status).toBe(127);
+    record(path.join(dir, 'bin'));
+    const ok = run(wrapper, ['--check'], bareEnv());
+    expect(ok.status).toBe(0);
+    expect(ok.stdout).toContain(path.join(dir, 'bin', 'r2fl'));
+    expect(ok.stdout).toContain(path.join(dir, 'bin', 'node'));
+  });
+
+  it('ignores a missing or empty record and surrounding whitespace', () => {
+    record(`  ${path.join(dir, 'bin')}  \n`);
+    expect(run(wrapper, ['--check'], bareEnv()).status).toBe(0);
+    record('\n');
+    expect(run(wrapper, ['--check'], bareEnv()).status).toBe(127);
   });
 });
 
@@ -288,15 +359,13 @@ describe('install.sh and uninstall.sh', () => {
     write(path.join(home, 'Library', 'Services', 'Other.workflow', 'Contents', 'Info.plist'), 'x');
     const before = files(home);
 
-    const i = run(install, [], {
-      R2FL_INSTALL_ANY_OS: '1',
-      R2FL_QUICK_MINIMAL_PATH: `${path.join(dir, 'bin')}:/usr/bin:/bin`,
-    });
+    const i = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
     expect(i.status).toBe(0);
     const added = files(home).filter((f) => !before.includes(f));
     expect(added).toEqual(
       [
         '.local/bin/r2fl-quick',
+        '.config/r2fl/quick-action-path',
         ...WORKFLOWS.flatMap((w) => [
           `Library/Services/${w}.workflow/Contents/Info.plist`,
           `Library/Services/${w}.workflow/Contents/document.wflow`,
@@ -306,8 +375,12 @@ describe('install.sh and uninstall.sh', () => {
     const installed = path.join(home, '.local', 'bin', 'r2fl-quick');
     expect(fs.statSync(installed).mode & 0o111).not.toBe(0);
     expect(fs.readFileSync(installed, 'utf8')).toBe(fs.readFileSync(wrapper, 'utf8'));
-    // Found by the (fake) login shell, so no warning.
+    // Where r2fl and node were found in the installing terminal is recorded for the wrapper.
+    expect(fs.readFileSync(path.join(home, '.config', 'r2fl', 'quick-action-path'), 'utf8')).toBe(
+      `${path.join(dir, 'bin')}\n`,
+    );
     expect(i.stderr).not.toContain('WARNING');
+    expect(i.stdout).toContain('found the way a Quick Action will look for them');
 
     // Installing again over an existing install works (an upgrade).
     expect(run(install, [], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(0);
@@ -319,15 +392,14 @@ describe('install.sh and uninstall.sh', () => {
     expect(run(uninstall, []).status).toBe(0);
   });
 
-  it('checks with the Quick Action environment, not the terminal PATH', () => {
-    // r2fl is on the terminal's PATH (run() adds it) but not on the minimal one a Quick Action gets.
+  it('works even though a Quick Action has a bare PATH (the terminal PATH is recorded)', () => {
     const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
-    expect(r.stderr).toContain('WARNING');
-    expect(r.stdout).not.toContain('found by a login shell');
+    expect(r.stderr).not.toContain('WARNING');
+    expect(r.stdout).toContain('recorded:');
   });
 
-  it('warns, but still installs, when a login shell cannot find r2fl', () => {
+  it('warns, records nothing, but still installs, when r2fl is not found in the terminal', () => {
     const r = run(install, [], {
       R2FL_INSTALL_ANY_OS: '1',
       // No fake r2fl on PATH: the login shell cannot resolve it.
@@ -336,6 +408,9 @@ describe('install.sh and uninstall.sh', () => {
     expect(r.status).toBe(0);
     expect(r.stderr).toContain('WARNING');
     expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'r2fl-quick'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'home', '.config', 'r2fl', 'quick-action-path'))).toBe(
+      false,
+    );
   });
 });
 
