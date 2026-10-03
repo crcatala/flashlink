@@ -33,6 +33,7 @@ Read the result like this:
 
 - `FAIL`: a defect. File a bug ticket under epic `rf-dek6` (`tk create "..." -t bug --parent rf-dek6`) with the check name and detail, or fix it in the PR with a regression test.
 - `WARN`: something to look at, not necessarily a bug. The rate-limit probe warns if it saw no 429 within `--probe-requests` requests. The limiter is per Cloudflare location and approximate, so try `--probe-requests 400` before calling it broken. Note the threshold you observe either way; it is the number for PLAN section 4.
+- The rate-limit probe usually WARNs on a real account: the binding is lenient (it admitted about 3 to 10 times the configured rate in the owner's test) and a short burst finishes before its counters sync. To check that it is attached and enforcing, temporarily lower the limit and look for some 429s: in `packages/worker`, `cp wrangler.jsonc wrangler.test.jsonc`, change `LIMIT_IP` to `"limit": 3, "period": 10` in the copy, `pnpm exec wrangler deploy -c wrangler.test.jsonc`, run `for i in $(seq 1 40); do curl -s -o /dev/null -w '%{http_code}\n' https://<your-worker>/AAAAAAAA; done | sort | uniq -c`, then restore with a plain `pnpm exec wrangler deploy` and delete the copy. Any 429 means it works.
 - The rate-limit probe runs last and leaves your IP throttled on the Worker (`/api` and `/<code>`) for up to a minute. Wait before running anything else against the deployment.
 - Replace your Worker hostname with `<worker-url>` before pasting output into a ticket note if you do not want it in the repo history.
 

@@ -696,7 +696,7 @@ if (opts['skip-ratelimit']) {
     const secs = ((Date.now() - start) / 1000).toFixed(1);
     if (firstThrottle === null) {
       return {
-        warn: `no 429 in ${probeRequests} requests over ${secs}s (${summary}). The limiter is per Cloudflare location and approximate; try --probe-requests 400, or check the ratelimits block`,
+        warn: `no 429 in ${probeRequests} requests over ${secs}s (${summary}). Cloudflare's binding is lenient by design, so this WARN is expected on a real account; see docs/VERIFY_DEPLOYMENT.md (rate limiting) for a stricter check`,
       };
     }
     eq(sample.status, 429, 'throttle status (503 means the global breaker tripped first)');
