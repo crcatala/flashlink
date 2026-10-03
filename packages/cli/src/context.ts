@@ -14,6 +14,8 @@ export interface Context {
   style: Style;
   env: NodeJS.ProcessEnv;
   stdinIsTTY: boolean;
+  /** Whether a person can see and answer a prompt (stdin and stderr are both terminals). */
+  interactive: boolean;
   now(): number;
   /** Write a line to stdout (reserved for machine-readable results such as URLs). */
   out(text: string): void;
@@ -36,6 +38,7 @@ export function createContext(env: NodeJS.ProcessEnv = process.env): Context {
     style: createStyle(color),
     env,
     stdinIsTTY: Boolean(process.stdin.isTTY),
+    interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY),
     now: () => Date.now(),
     out: (text) => process.stdout.write(`${text}\n`),
     err: (text) => process.stderr.write(`${text}\n`),

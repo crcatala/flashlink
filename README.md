@@ -95,6 +95,7 @@ r2fl up a.png b.png                   # one link per file
 r2fl up big.zip -d 3                  # stop serving after 3 downloads
 cat trace.txt | r2fl up --name trace.txt   # from stdin
 r2fl up shot.png --with-name          # https://…/k3F9xQ2m/shot.png
+r2fl up .env --allow-secrets          # override the secret warning (see below)
 
 r2fl ls                               # local history (add --live, --all, --sync, --json)
 r2fl refresh k3F9xQ2m --ttl 30m       # same link, new window (no argument: the latest upload)
@@ -106,6 +107,8 @@ r2fl config                           # view settings; `config set defaultTtl 2h
 ```
 
 Only the URL goes to stdout, so it composes: `curl -s "$(r2fl up shot.png --no-copy)"`. Add `--json` for the full result.
+
+**Secret warning.** Anyone with the link can read the file, so `up` checks before uploading and stops if the file looks like it holds secrets: a file name such as `.env`, `.env.production`, `*.env`, `*.pem`, `*.key`, `*.p12`, `id_rsa` / `id_ed25519` (not the `.pub` files), `credentials*`, `.npmrc`, `.netrc` or `*.kdbx` (`.env.example`, `.env.sample` and `.env.template` are fine), or, in a text file, a private key header (`-----BEGIN … PRIVATE KEY-----`), an AWS access key ID, a GitHub or Slack token, or an `api_key = <16+ characters>` assignment. Only the first 2 MB of a text file is scanned and binary files are not scanned at all (their names still are). The warning names the rule and line numbers but never prints the matched text. At a terminal you are asked `Upload anyway? [y/N]`; with no terminal to ask (a script, stdin, the Finder Quick Action, where the error notification says why) or with `--json` (which never prompts and keeps stderr empty) the upload is refused. The real file name is checked even if you rename the upload with `--name`. `--allow-secrets` (or `-y` / `--yes`) uploads anyway, and `r2fl config set warnSecrets false` turns the check off. With several files only the flagged ones are skipped. It is a safety net with a deliberately small pattern list: a clean result does not prove a file is safe, and false positives are possible. `r2fl refresh` does not check again (it re-sends a file you already uploaded).
 
 **`--json` failures.** With `--json` (on `up`, `refresh`, `ls`, `status`) a failed command prints one compact line to stdout, nothing to stderr, and exits 1: `{"error":"<code>","message":"..."}`. `error` is the server's error code for API failures (for example `unauthorized` or `ttl_too_long`) and `cli_error` for problems detected locally (missing file, bad option, not configured). This includes option errors caught by the parser (`up --json --bogus`). When `up --json` is given several files it always prints a single JSON array, in argument order: a result object for each success and `{"file","error","message"}` for each failure. The exit code is 1 if any failed, with nothing on stderr and no extra error line.
 
@@ -172,6 +175,7 @@ Uninstalling removes both Quick Actions, the wrapper, the notifier and the stand
 - _Clicking a notification opens Script Editor._ The notifier app is missing: run `sh macos/install.sh` again (it needs `osacompile`, which ships with macOS). It lives in `~/.local/share/r2fl/notify/r2-fastlink.app`.
 - _macOS asks to access your Downloads (or Desktop, Documents) folder._ That is macOS's privacy protection, asked once per folder the first time a Quick Action reads a file from there. Choose Allow.
 - _macOS blocks the workflow as downloaded or from an unidentified developer._ Remove the quarantine flag: `xattr -dr com.apple.quarantine ~/Library/Services/Share\ via\ r2-fastlink*.workflow` (the installer already does this for what it copies).
+- _"Looks like it contains secrets"._ The [secret warning](#using-it) refuses files such as `.env` or private keys because a Quick Action has no terminal to ask in. Upload it from a terminal with `r2fl up --allow-secrets -- file` if you really mean to share it.
 - _Errors._ The notification carries the message (wrong token, file over the size cap, offline). Run the same upload in a terminal to see more: `r2fl up --notify -- file`.
 - _Where things live._ Config: `~/.config/r2fl/config.json`; history: `~/.local/share/r2fl/history.json` (see `r2fl config path`); Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/r2fl-quick`; standalone binary (if installed): `~/.local/share/r2fl/bin/r2fl`; notifier: `~/.local/share/r2fl/notify/`.
 

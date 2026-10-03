@@ -67,6 +67,8 @@ function buildProgram(ctx: () => Context, quiet: boolean): Command {
     .option('--json', 'print the full result as JSON')
     .option('--no-copy', 'do not copy the URL to the clipboard')
     .option('--notify', 'post a macOS notification with the result (and copy the URL)')
+    .option('--allow-secrets', 'upload even if the file looks like it holds secrets')
+    .option('-y, --yes', 'same as --allow-secrets (skip the secret-warning prompt)')
     .option('-q, --quiet', 'print only URLs')
     .action((files: string[], opts) => upWithContext(files, opts, ctx));
 
@@ -109,7 +111,7 @@ function buildProgram(ctx: () => Context, quiet: boolean): Command {
     .action((key: string) => configGet(key, ctx()));
   config
     .command('set <key> <value>')
-    .description('Change a setting (endpoint, token, defaultTtl, maxFileBytes, copy)')
+    .description('Change a setting (endpoint, token, defaultTtl, maxFileBytes, copy, warnSecrets)')
     .action((key: string, value: string) => configSet(key, value, ctx()));
   config
     .command('path')
