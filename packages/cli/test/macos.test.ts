@@ -13,6 +13,10 @@ let dir: string;
 // A fake `r2fl`: answers `config get defaultTtl`, and records the arguments of `up` (NUL separated
 // so that a newline inside an argument stays visible).
 const FAKE_R2FL = `#!/bin/sh
+if [ "$1" = --version ]; then
+  printf '%s\\n' "\${FAKE_VERSION-0.0.0 (fake123)}"
+  exit 0
+fi
 if [ "$1" = config ] && [ "$2" = get ] && [ "$3" = defaultTtl ]; then
   [ "\${FAKE_CONFIG_EXIT:-0}" = 0 ] || { [ -z "\${FAKE_CONFIG_ERR-}" ] || echo "$FAKE_CONFIG_ERR" >&2; exit "$FAKE_CONFIG_EXIT"; }
   printf '%s\\n' "\${FAKE_DEFAULT_TTL-1h}"
@@ -218,6 +222,8 @@ describe('r2fl-quick finding r2fl', () => {
   });
 });
 
+const BUILD = 'r2fl 0.0.0 (fake123), from PATH';
+
 describe('r2fl-quick lifetime picker', () => {
   const cases: [string, string][] = [
     ['15 minutes', '15m'],
@@ -237,7 +243,7 @@ describe('r2fl-quick lifetime picker', () => {
     const [call] = pickerCalls();
     // The script comes first as -e options; the list arguments follow: default, then the items.
     const list = call!.slice(call!.lastIndexOf('end run') + 1);
-    expect(list).toEqual(['1 day', '15 minutes', '1 hour', '1 day', '7 days']);
+    expect(list).toEqual(['1 day', '15 minutes', '1 hour', '1 day', '7 days', BUILD]);
   });
 
   it('preselects 1 hour for the default config', () => {
@@ -257,6 +263,7 @@ describe('r2fl-quick lifetime picker', () => {
       '1 day',
       '7 days',
       '45m',
+      BUILD,
     ]);
     expect(upCalls()).toEqual([['up', '--notify', '--ttl', '45m', '--', 'a.txt']]);
   });
@@ -284,6 +291,25 @@ describe('r2fl-quick lifetime picker', () => {
       expect(notifications()[0]).toContain('Invalid default lifetime');
     },
   );
+
+  it('shows which build is running as the last list argument, and where it came from', () => {
+    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', FAKE_VERSION: '1.2.3 (abc1234-dirty)' });
+    const [call] = pickerCalls();
+    expect(call![call!.length - 1]).toBe('r2fl 1.2.3 (abc1234-dirty), from PATH');
+  });
+
+  it('says "standalone" for the installed binary and survives a version that cannot be read', () => {
+    const bin = path.join(dir, 'data', 'bin', 'r2fl');
+    write(bin, FAKE_R2FL);
+    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', R2FL_DATA_DIR: path.join(dir, 'data') });
+    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl 0.0.0 (fake123), standalone');
+    run(wrapper, ['a.txt'], {
+      FAKE_PICK: '1 hour',
+      FAKE_VERSION: '',
+      R2FL_DATA_DIR: path.join(dir, 'data'),
+    });
+    expect(pickerCalls()[1]!.at(-1)).toBe('r2fl unknown version, standalone');
+  });
 
   it('keeps the AppleScript fixed: config text and file names travel only as arguments', () => {
     run(wrapper, ['"; do shell script "x".txt'], { FAKE_PICK: '1 hour', FAKE_DEFAULT_TTL: '45m' });
@@ -329,6 +355,93 @@ describe('r2fl-quick lifetime picker', () => {
     expect(pickerCalls()).toEqual([]);
     expect(upCalls()).toEqual([]);
     expect(notifications()[0]).toContain('Could not run r2fl');
+  });
+});
+
+describe('r2fl-quick with the standalone binary', () => {
+  // A bare PATH (the fake r2fl is not on it) and no recorded directories: only the binary can work.
+  const binPath = () => path.join(dir, 'data', 'bin', 'r2fl');
+  const bareEnv = (extra: Record<string, string> = {}) => ({
+    PATH: '/usr/bin:/bin',
+    R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
+    R2FL_DATA_DIR: path.join(dir, 'data'),
+    ...extra,
+  });
+  const shellCalls = () => fs.existsSync(path.join(dir, 'log', 'shell.calls'));
+  const install = (content = FAKE_R2FL) => write(binPath(), content);
+
+  it('runs the binary directly: no login shell, no PATH, no node', () => {
+    install();
+    const r = run(wrapper, ['--no-prompt', 'a b.txt'], bareEnv());
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--', 'a b.txt']]);
+    expect(shellCalls()).toBe(false);
+  });
+
+  it('uses it for the lifetime picker and the upload', () => {
+    install();
+    const r = run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '7 days' }));
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--ttl', '7d', '--', 'a.txt']]);
+    expect(shellCalls()).toBe(false);
+  });
+
+  it('is found at R2FL_QUICK_BIN too', () => {
+    write(path.join(dir, 'elsewhere', 'r2fl'), FAKE_R2FL);
+    const r = run(
+      wrapper,
+      ['--no-prompt', 'a.txt'],
+      bareEnv({ R2FL_QUICK_BIN: path.join(dir, 'elsewhere', 'r2fl') }),
+    );
+    expect(r.status).toBe(0);
+    expect(upCalls()).toHaveLength(1);
+  });
+
+  it('does not run the upload a second time when the binary fails', () => {
+    install();
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv({ FAKE_UP_EXIT: '1' }));
+    expect(r.status).toBe(1);
+    expect(upCalls()).toHaveLength(1);
+    expect(shellCalls()).toBe(false);
+    expect(notifications()).toEqual([]);
+  });
+
+  it('falls back to the login shell when the binary cannot start (127)', () => {
+    install('#!/bin/sh\nexit 127\n');
+    write(path.join(dir, 'cfg', 'quick-action-path'), path.join(dir, 'bin'), 0o644);
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
+    expect(r.status).toBe(0);
+    expect(upCalls()).toEqual([['up', '--notify', '--', 'a.txt']]);
+    expect(shellCalls()).toBe(true);
+  });
+
+  it('labels the build "from PATH" when the binary cannot start and the login shell answered', () => {
+    install('#!/bin/sh\nexit 127\n');
+    write(path.join(dir, 'cfg', 'quick-action-path'), path.join(dir, 'bin'), 0o644);
+    run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 hour', FAKE_VERSION: '9.9.9 (path-copy)' }));
+    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl 9.9.9 (path-copy), from PATH');
+  });
+
+  it('keeps "standalone" when the binary runs but cannot say its version', () => {
+    install('#!/bin/sh\n[ "$1" = --version ] && exit 1\n[ "$1" = config ] && echo 1h\nexit 0\n');
+    run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 hour' }));
+    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl unknown version, standalone');
+  });
+
+  it('ignores a binary that is not executable', () => {
+    write(binPath(), FAKE_R2FL, 0o644);
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
+    expect(r.status).toBe(127);
+    expect(upCalls()).toEqual([]);
+  });
+
+  it('--check passes with only the binary, and fails when it does not run', () => {
+    install();
+    const ok = run(wrapper, ['--check'], bareEnv());
+    expect(ok.status).toBe(0);
+    expect(ok.stdout).toContain(binPath());
+    install('#!/bin/sh\nexit 1\n');
+    expect(run(wrapper, ['--check'], bareEnv()).status).toBe(127);
   });
 });
 
@@ -392,6 +505,100 @@ describe('install.sh and uninstall.sh', () => {
     expect(run(uninstall, []).status).toBe(0);
   });
 
+  it('--binary installs the standalone r2fl under the data dir; uninstall removes only it', () => {
+    const home = path.join(dir, 'home');
+    write(path.join(dir, 'built', 'r2fl-darwin-arm64'), FAKE_R2FL);
+    write(path.join(home, '.local', 'share', 'r2fl', 'history.json'), '[]', 0o644);
+    const before = files(home);
+
+    const i = run(install, ['--binary', path.join(dir, 'built', 'r2fl-darwin-arm64')], {
+      R2FL_INSTALL_ANY_OS: '1',
+    });
+    expect(i.status).toBe(0);
+    const bin = path.join(home, '.local', 'share', 'r2fl', 'bin', 'r2fl');
+    expect(fs.statSync(bin).mode & 0o111).not.toBe(0);
+    expect(i.stdout).toContain(`installed: ${bin}`);
+    expect(i.stderr).not.toContain('WARNING');
+
+    const u = run(uninstall, []);
+    expect(u.status).toBe(0);
+    expect(u.stdout).toContain(`removed: ${bin}`);
+    expect(files(home)).toEqual(before); // history.json is still there
+    expect(fs.existsSync(path.dirname(bin))).toBe(false);
+  });
+
+  it('--binary alone is enough: no node or r2fl needed in the terminal', () => {
+    write(path.join(dir, 'built', 'r2fl'), FAKE_R2FL);
+    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
+      R2FL_INSTALL_ANY_OS: '1',
+      PATH: '/usr/bin:/bin',
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain('WARNING');
+    expect(r.stdout).toContain('found the way a Quick Action will look for them');
+  });
+
+  it('removes a binary that does not start and warns', () => {
+    write(path.join(dir, 'built', 'r2fl'), '#!/bin/sh\nexit 1\n');
+    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
+      R2FL_INSTALL_ANY_OS: '1',
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('does not start');
+    expect(fs.existsSync(path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl'))).toBe(
+      false,
+    );
+  });
+
+  it('says Quick Actions will not find a binary installed under a custom data directory', () => {
+    write(path.join(dir, 'built', 'r2fl'), FAKE_R2FL);
+    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
+      R2FL_INSTALL_ANY_OS: '1',
+      R2FL_DATA_DIR: path.join(dir, 'elsewhere'),
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('Quick Actions do not see shell variables');
+    // ... and the default location raises no such note.
+    const plain = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(plain.stderr).not.toContain('do not see shell variables');
+  });
+
+  it('rejects a missing --binary file and unknown options without installing anything', () => {
+    const missing = run(install, ['--binary', path.join(dir, 'nope')], {
+      R2FL_INSTALL_ANY_OS: '1',
+    });
+    expect(missing.status).toBe(2);
+    expect(run(install, ['--bogus'], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(2);
+    expect(files(path.join(dir, 'home'))).toEqual([]);
+  });
+
+  it('builds and installs the notifier applet when osacompile exists; uninstall removes it', () => {
+    const home = path.join(dir, 'home');
+    const applet = path.join(home, '.local', 'share', 'r2fl', 'notify', 'r2-fastlink.app');
+    // A fake osacompile: `osacompile -o OUT SOURCE` creates the bundle and keeps the source.
+    write(
+      path.join(dir, 'bin', 'osacompile'),
+      '#!/bin/sh\nmkdir -p "$2/Contents" && cp "$3" "$2/Contents/source.applescript"\n',
+    );
+    const i = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(i.status).toBe(0);
+    expect(i.stdout).toContain(`installed: ${applet}`);
+    expect(fs.readFileSync(path.join(applet, 'Contents', 'source.applescript'), 'utf8')).toBe(
+      fs.readFileSync(path.join(macosDir, 'notify-applet.applescript'), 'utf8'),
+    );
+    expect(fs.statSync(path.join(applet, '..', 'pending')).mode & 0o777).toBe(0o700);
+
+    expect(run(uninstall, []).status).toBe(0);
+    expect(fs.existsSync(path.dirname(applet))).toBe(false);
+  });
+
+  it('says so, but still installs, when the notifier cannot be built', () => {
+    write(path.join(dir, 'bin', 'osacompile'), '#!/bin/sh\nexit 1\n');
+    const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('open Script Editor');
+  });
+
   it('works even though a Quick Action has a bare PATH (the terminal PATH is recorded)', () => {
     const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
@@ -411,6 +618,44 @@ describe('install.sh and uninstall.sh', () => {
     expect(fs.existsSync(path.join(dir, 'home', '.config', 'r2fl', 'quick-action-path'))).toBe(
       false,
     );
+  });
+});
+
+describe('scripts/install-macos.sh', () => {
+  const script = path.resolve(macosDir, '..', 'scripts', 'install-macos.sh');
+
+  it('refuses to run outside macOS, before building anything', () => {
+    if (process.platform === 'darwin') return;
+    const r = run(script, []);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('macOS only');
+  });
+});
+
+describe('scripts/build-binary.sh without Bun', () => {
+  const script = path.resolve(macosDir, '..', 'scripts', 'build-binary.sh');
+  const barePath = '/usr/bin:/bin';
+  const bunOnBarePath =
+    spawnSync('/bin/sh', ['-c', 'command -v bun'], {
+      env: { PATH: barePath },
+    }).status === 0;
+
+  it.skipIf(bunOnBarePath)('explains why Bun is needed and what to do, then stops cleanly', () => {
+    const r = run(script, [], { PATH: barePath });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('Bun is needed');
+    expect(r.stderr).toContain('Why:');
+    expect(r.stderr).toContain('brew install oven-sh/bun/bun');
+    expect(r.stderr).toContain('sh macos/install.sh'); // the no-Bun alternative
+    expect(r.stdout).toBe('');
+  });
+
+  it('rejects an unknown target, naming it', () => {
+    // A fake bun, so only the argument handling is exercised.
+    write(path.join(dir, 'bin', 'bun'), '#!/bin/sh\nexit 0\n');
+    const r = run(script, ['windows-x64']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("unknown target 'windows-x64'");
   });
 });
 

@@ -13,6 +13,15 @@ import { sendNotification } from './notify.ts';
 import { configPath } from './paths.ts';
 import { reportFailure } from './report.ts';
 
+/** Set by scripts/build-binary.sh (the git commit); absent when running from source or npm. */
+declare const __R2FL_BUILD__: string | undefined;
+
+/** `0.0.0`, or `0.0.0 (a1b2c3d)` for a standalone build, so a stale install is easy to spot. */
+const VERSION =
+  typeof __R2FL_BUILD__ === 'string' && __R2FL_BUILD__
+    ? `${pkg.version} (${__R2FL_BUILD__})`
+    : pkg.version;
+
 function positiveInt(value: string): number {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 1) throw new InvalidArgumentError('must be a positive integer.');
@@ -32,7 +41,7 @@ function optionArgs(argv: string[]): string[] {
 function buildProgram(ctx: () => Context, quiet: boolean): Command {
   const program = new Command('r2fl')
     .description('Upload a file and get a short link that expires on its own.')
-    .version(pkg.version)
+    .version(VERSION)
     .showHelpAfterError('(run with --help for usage)')
     .exitOverride();
   // Applies to commands created below, which inherit it. Help and --version use writeOut.
