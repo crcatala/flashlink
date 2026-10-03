@@ -6,6 +6,7 @@ import { parseDuration, type UploadResult } from '@r2-fastlink/core';
 import type { Context } from '../context.ts';
 import { CliError, ReportedError, errorJson, errorText } from '../errors.ts';
 import { clock, formatBytes } from '../format.ts';
+import { zipFolder } from '../folder.ts';
 import type { HistoryEntry } from '../history.ts';
 import { sendNotification } from '../notify.ts';
 import { checkContent, checkFilename, describeFinding, type SecretFinding } from '../secrets.ts';
@@ -24,12 +25,23 @@ export interface UpOptions {
   /** Skip the secret check's prompt/refusal (`--allow-secrets`, or `-y/--yes`). */
   allowSecrets?: boolean;
   yes?: boolean;
+  /** Folder uploads: glob patterns to leave out (repeatable). */
+  exclude?: string[];
+  /** Folder uploads: commander sets this to false for `--no-gitignore`. */
+  gitignore?: boolean;
 }
 
 interface Source {
   filename: string;
   bytes: Buffer;
   sourcePath: string | null;
+  kind: HistoryEntry['sourceKind'];
+  /** Set for folders, which are always zips whatever `--name` says. */
+  contentType?: string;
+  /** Folder uploads: secret findings per member file, collected while zipping. */
+  secrets?: { file: string; findings: SecretFinding[] }[];
+  /** Folder uploads: left-out symlinks and special files, to tell the user. */
+  skipped?: number;
 }
 
 export function parseTtl(value: string): number {
@@ -51,7 +63,8 @@ export function detectContentType(filename: string, bytes: Buffer): string {
   );
 }
 
-function readSource(file: string, maxBytes: number): Source {
+function readSource(file: string, opts: UpOptions, ctx: Context): Source {
+  const maxBytes = ctx.config.maxFileBytes;
   let stat: fs.Stats;
   try {
     stat = fs.statSync(file);
@@ -59,7 +72,21 @@ function readSource(file: string, maxBytes: number): Source {
     throw new CliError('No such file.');
   }
   if (stat.isDirectory()) {
-    throw new CliError('Is a directory.', 'Zip it first: zip -r archive.zip <dir>');
+    const zipped = zipFolder(file, {
+      exclude: opts.exclude ?? [],
+      gitignore: opts.gitignore !== false,
+      maxBytes,
+      scanSecrets: ctx.config.warnSecrets && !opts.allowSecrets && !opts.yes,
+    });
+    return {
+      filename: `${zipped.name}.zip`,
+      bytes: zipped.bytes,
+      sourcePath: path.resolve(file),
+      kind: 'dir',
+      contentType: 'application/zip',
+      secrets: zipped.secrets,
+      skipped: zipped.skipped,
+    };
   }
   if (!stat.isFile()) throw new CliError('Not a regular file.');
   if (stat.size === 0) throw new CliError('Empty file.');
@@ -73,6 +100,7 @@ function readSource(file: string, maxBytes: number): Source {
     filename: path.basename(file),
     bytes: fs.readFileSync(file),
     sourcePath: path.resolve(file),
+    kind: 'file',
   };
 }
 
@@ -143,15 +171,16 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
           filename: opts.name ?? (looksLikeText(bytes) ? 'stdin.txt' : 'stdin.bin'),
           bytes,
           sourcePath: null,
+          kind: 'stdin',
         };
       } else {
-        source = readSource(target, ctx.config.maxFileBytes);
+        source = readSource(target, opts, ctx);
         if (opts.name) source.filename = opts.name;
       }
       if (ctx.config.warnSecrets && !opts.allowSecrets && !opts.yes) {
         await confirmSecrets(source, opts, ctx);
       }
-      const contentType = detectContentType(source.filename, source.bytes);
+      const contentType = source.contentType ?? detectContentType(source.filename, source.bytes);
       const result = await client.upload({
         filename: source.filename,
         contentType,
@@ -167,6 +196,11 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
           `${style.green('✓')} ${source.filename} ${style.dim(`(${formatBytes(result.size)})`)} ` +
             `${style.dim('· expires')} ${clock(result.expiresAt, new Date(ctx.now()))}`,
         );
+        if (source.skipped) {
+          ctx.err(
+            style.dim(`  left out ${source.skipped} symlink(s) that do not point to a file inside`),
+          );
+        }
       }
     } catch (err) {
       // A single failure is reported once, by the top-level handler.
@@ -218,31 +252,50 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
  * scripts and the Quick Action have nobody to ask, so they are refused and told how to override.
  */
 async function confirmSecrets(source: Source, opts: UpOptions, ctx: Context): Promise<void> {
-  // `--name` must not rename a flagged file past the check, so look at the real name as well.
-  const names = new Set([source.filename]);
-  if (source.sourcePath) names.add(path.basename(source.sourcePath));
-  const findings: SecretFinding[] = [];
-  for (const name of names) {
-    for (const f of checkFilename(name))
-      if (!findings.some((o) => o.rule === f.rule)) findings.push(f);
+  // One entry per file that looks sensitive; a folder has one per member.
+  const flagged: { file: string | null; reasons: string[] }[] = [];
+  if (source.kind === 'dir') {
+    // The zip's own name says nothing; its members were checked while zipping.
+    for (const { file, findings } of source.secrets ?? []) {
+      flagged.push({ file, reasons: findings.map(describeFinding) });
+    }
+  } else {
+    // `--name` must not rename a flagged file past the check, so look at the real name as well.
+    const names = new Set([source.filename]);
+    if (source.sourcePath) names.add(path.basename(source.sourcePath));
+    const findings: SecretFinding[] = [];
+    for (const name of names) {
+      for (const f of checkFilename(name))
+        if (!findings.some((o) => o.rule === f.rule)) findings.push(f);
+    }
+    findings.push(...checkContent(source.bytes));
+    if (findings.length > 0) flagged.push({ file: null, reasons: findings.map(describeFinding) });
   }
-  findings.push(...checkContent(source.bytes));
-  if (findings.length === 0) return;
-  const reasons = findings.map(describeFinding);
+  if (flagged.length === 0) return;
   const override = 'Pass --allow-secrets to upload anyway, or `r2fl config set warnSecrets false`.';
+  const shown = flagged.slice(0, MAX_FLAGGED_SHOWN);
+  const more = flagged.length - shown.length;
+  const summary = (f: (typeof flagged)[number]) =>
+    f.file ? `${f.file}: ${f.reasons.join(', ')}` : f.reasons.join('; ');
   // --json is for programs: it never prompts, and stderr stays quiet (the error is the JSON line).
   if (!ctx.interactive || opts.json) {
-    throw new CliError(`Looks like it contains secrets: ${reasons.join('; ')}.`, override);
+    const list = shown.map(summary).join('; ') + (more > 0 ? `; and ${more} more` : '');
+    throw new CliError(`Looks like it contains secrets: ${list}.`, override);
   }
   const { style } = ctx;
   ctx.err(`${style.red('!')} ${source.filename} looks like it contains secrets:`);
-  for (const reason of reasons) ctx.err(`    ${reason}`);
+  for (const f of shown) {
+    ctx.err(f.file ? `    ${f.file}: ${f.reasons.join(', ')}` : `    ${f.reasons.join('\n    ')}`);
+  }
+  if (more > 0) ctx.err(`    …and ${more} more file(s)`);
   ctx.err(style.dim('  Anyone who has the link can read this file until it expires.'));
   const answer = await ctx.prompt('  Upload anyway? [y/N] ');
   if (!/^y(es)?$/i.test(answer)) {
     throw new CliError('Not uploaded.', override);
   }
 }
+
+const MAX_FLAGGED_SHOWN = 5;
 
 /** Prefix a CLI error with the file it concerns (e.g. "notes.txt: Empty file."). */
 function labelled(err: unknown, label: string): unknown {
@@ -258,6 +311,7 @@ function toEntry(result: UploadResult, source: Source, ttlSeconds: number): Hist
     contentType: result.contentType,
     sha256: createHash('sha256').update(source.bytes).digest('hex'),
     sourcePath: source.sourcePath,
+    sourceKind: source.kind,
     createdAt: result.createdAt,
     expiresAt: result.expiresAt,
     ttlSeconds,
