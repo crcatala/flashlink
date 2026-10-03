@@ -18,6 +18,13 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
+# The git commit goes into `r2fl --version` (and the Quick Action's lifetime dialog), so you can
+# tell which build is installed. "-dirty" marks uncommitted changes.
+build_id=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || true)
+if [ -n "$build_id" ] && [ -n "$(git -C "$root" status --porcelain 2>/dev/null)" ]; then
+  build_id="$build_id-dirty"
+fi
+
 [ "$#" -gt 0 ] || set -- darwin-arm64 darwin-x64
 mkdir -p "$out"
 
@@ -30,6 +37,6 @@ for target in "$@"; do
       ;;
   esac
   bun build --compile "--target=bun-$target" "$root/packages/cli/src/index.ts" \
-    --outfile "$out/r2fl-$target"
+    --define "__R2FL_BUILD__=\"${build_id:-unknown}\"" --outfile "$out/r2fl-$target"
   echo "built: dist/bin/r2fl-$target"
 done

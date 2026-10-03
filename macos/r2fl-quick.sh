@@ -125,9 +125,17 @@ ttl_for() {
   esac
 }
 
+# Which build is this? Shown in the lifetime dialog to tell a stale install from a fresh one.
+build_label() {
+  ver=$(login_r2fl --version 2>/dev/null | tail -n 1 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  [ -n "$ver" ] || ver="unknown version"
+  if have_binary; then src="standalone"; else src="from PATH"; fi
+  echo "r2fl $ver, $src"
+}
+
 # Show the lifetime list and print the chosen TTL (nothing at all if cancelled).
 # $1 is the configured default, which is preselected and added to the list when it is not one
-# of the standard items. List items travel as osascript arguments, so config text can never
+# of the standard items; the last argument is the build label. List items travel as osascript arguments, so config text can never
 # become AppleScript source; the script itself is fixed.
 choose_ttl() {
   default_label=$(label_for "$1")
@@ -136,10 +144,11 @@ choose_ttl() {
     "15 minutes" | "1 hour" | "1 day" | "7 days") ;;
     *) set -- "$@" "$1" ;;
   esac
+  set -- "$@" "$(build_label)"
   picked=$("$OSASCRIPT" \
     -e 'on run argv' \
-    -e 'set theItems to items 2 thru -1 of argv' \
-    -e 'set picked to choose from list theItems with title "r2-fastlink" with prompt "Link lifetime" default items {item 1 of argv}' \
+    -e 'set theItems to items 2 thru -2 of argv' \
+    -e 'set picked to choose from list theItems with title "r2-fastlink" with prompt ("Link lifetime" & return & (item -1 of argv)) default items {item 1 of argv}' \
     -e 'if picked is false then return ""' \
     -e 'return item 1 of picked' \
     -e 'end run' \

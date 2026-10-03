@@ -13,6 +13,10 @@ let dir: string;
 // A fake `r2fl`: answers `config get defaultTtl`, and records the arguments of `up` (NUL separated
 // so that a newline inside an argument stays visible).
 const FAKE_R2FL = `#!/bin/sh
+if [ "$1" = --version ]; then
+  printf '%s\\n' "\${FAKE_VERSION-0.0.0 (fake123)}"
+  exit 0
+fi
 if [ "$1" = config ] && [ "$2" = get ] && [ "$3" = defaultTtl ]; then
   [ "\${FAKE_CONFIG_EXIT:-0}" = 0 ] || { [ -z "\${FAKE_CONFIG_ERR-}" ] || echo "$FAKE_CONFIG_ERR" >&2; exit "$FAKE_CONFIG_EXIT"; }
   printf '%s\\n' "\${FAKE_DEFAULT_TTL-1h}"
@@ -218,6 +222,8 @@ describe('r2fl-quick finding r2fl', () => {
   });
 });
 
+const BUILD = 'r2fl 0.0.0 (fake123), from PATH';
+
 describe('r2fl-quick lifetime picker', () => {
   const cases: [string, string][] = [
     ['15 minutes', '15m'],
@@ -237,7 +243,7 @@ describe('r2fl-quick lifetime picker', () => {
     const [call] = pickerCalls();
     // The script comes first as -e options; the list arguments follow: default, then the items.
     const list = call!.slice(call!.lastIndexOf('end run') + 1);
-    expect(list).toEqual(['1 day', '15 minutes', '1 hour', '1 day', '7 days']);
+    expect(list).toEqual(['1 day', '15 minutes', '1 hour', '1 day', '7 days', BUILD]);
   });
 
   it('preselects 1 hour for the default config', () => {
@@ -257,6 +263,7 @@ describe('r2fl-quick lifetime picker', () => {
       '1 day',
       '7 days',
       '45m',
+      BUILD,
     ]);
     expect(upCalls()).toEqual([['up', '--notify', '--ttl', '45m', '--', 'a.txt']]);
   });
@@ -284,6 +291,25 @@ describe('r2fl-quick lifetime picker', () => {
       expect(notifications()[0]).toContain('Invalid default lifetime');
     },
   );
+
+  it('shows which build is running as the last list argument, and where it came from', () => {
+    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', FAKE_VERSION: '1.2.3 (abc1234-dirty)' });
+    const [call] = pickerCalls();
+    expect(call![call!.length - 1]).toBe('r2fl 1.2.3 (abc1234-dirty), from PATH');
+  });
+
+  it('says "standalone" for the installed binary and survives a version that cannot be read', () => {
+    const bin = path.join(dir, 'data', 'bin', 'r2fl');
+    write(bin, FAKE_R2FL);
+    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', R2FL_DATA_DIR: path.join(dir, 'data') });
+    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl 0.0.0 (fake123), standalone');
+    run(wrapper, ['a.txt'], {
+      FAKE_PICK: '1 hour',
+      FAKE_VERSION: '',
+      R2FL_DATA_DIR: path.join(dir, 'data'),
+    });
+    expect(pickerCalls()[1]!.at(-1)).toBe('r2fl unknown version, standalone');
+  });
 
   it('keeps the AppleScript fixed: config text and file names travel only as arguments', () => {
     run(wrapper, ['"; do shell script "x".txt'], { FAKE_PICK: '1 hour', FAKE_DEFAULT_TTL: '45m' });
