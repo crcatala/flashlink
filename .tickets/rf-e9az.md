@@ -1,6 +1,6 @@
 ---
 id: rf-e9az
-status: in_progress
+status: closed
 deps: [rf-smnk]
 links: []
 created: 2026-10-02T20:05:53Z
@@ -22,8 +22,8 @@ README section "Finder integration (macOS)": install (npm install of the CLI, th
 ## Acceptance Criteria
 
 - [x] README Finder section exists with install, usage, uninstall and the troubleshooting items above.
-- [ ] Manual QA checklist executed on a real Mac (macOS version recorded): single file, multiple files, filename with spaces/unicode/quotes, file over the 50 MB cap (error notification), wrong token (error notification), offline (error notification), cancel in the lifetime picker.
-- [ ] docs/PLAN.md and the README status table mark phase 2 done.
+- [x] Manual QA checklist executed on a real Mac (macOS version recorded): single file, multiple files, filename with spaces/unicode/quotes, file over the 50 MB cap (error notification), wrong token (error notification), offline (error notification), cancel in the lifetime picker.
+- [x] docs/PLAN.md and the README status table mark phase 2 done.
 
 
 ## Notes
@@ -31,3 +31,7 @@ README section "Finder integration (macOS)": install (npm install of the CLI, th
 **2026-10-03T04:21:56Z**
 
 Branch batch-04-macos-quick-action. README now has 'Finder integration (macOS)': install, enabling in System Settings, usage, the two actions, uninstall, troubleshooting (login-shell PATH incl. zprofile vs zshrc, missing action/pbs -flush, notification permission for Script Editor, quarantine/xattr, config/history locations) and an 11-row manual QA table. docs/PLAN.md has the Finder design and decisions. The README status table says 'built, awaiting Mac QA' and PLAN says phase 2 is built; I did NOT mark phase 2 done because that depends on QA I cannot run on Linux. AWAITING HUMAN: on a real Mac run the README 'Manual QA checklist' (rows 1-11: single file, several files, awkward names, >50 MB, wrong token, offline, cancel, 45m default, default-lifetime action, uninstall, picker in front). Record the macOS version and a pass/fail per row in a note here, fix wrapper/PATH problems found, tick criterion 2; then change the README status row and docs/PLAN.md Phase 2 to done (criterion 3) and close rf-0q8c, rf-smnk and this ticket.
+
+**2026-10-03T15:04:53Z**
+
+Mac QA PASSED (owner, macOS 26.6.2, Apple Silicon). README Finder section, troubleshooting and the QA table are in; PATH troubleshooting now describes the recorded-path design (found during QA). Results by checklist row: 1 single file with picker: pass, link serves file; 2 several files: pass, 4 links, one notification; 3 spaces/quote/unicode/leading dash: pass; 4 over 50 MB: pass (error 60 MB exceeds the 50 MB limit); 5 wrong token: pass (Missing or invalid token); 6 offline: pass (Could not reach ...); 7 cancel: pass; 8 45m default: pass; 9 default-lifetime action: pass; 10 uninstall: pass; 11 picker in front of Finder: pass per owner. Row 4-6 errors were driven from Terminal with R2FL_TOKEN/R2FL_ENDPOINT overrides in a bare environment, the rest also from Finder. README and docs/PLAN.md now mark phase 2 done. Closing.

@@ -17,13 +17,13 @@ https://fl.example.com/k3F9xQ2m
 
 ## Status
 
-Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. Phase 2 (the Finder Quick Action) is written and tested on Linux, but has not been run on a real Mac yet. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
+Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. Phase 2 (the Finder Quick Action) is implemented and has been verified on macOS 26. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
 
-| Phase | Scope                                                             | Status                 |
-| ----- | ----------------------------------------------------------------- | ---------------------- |
-| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page            | done                   |
-| 2     | macOS Finder Quick Action                                         | built, awaiting Mac QA |
-| 3+    | Extras (clipboard/screenshot upload, zip of folders, agent skill) | ideas                  |
+| Phase | Scope                                                             | Status |
+| ----- | ----------------------------------------------------------------- | ------ |
+| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page            | done   |
+| 2     | macOS Finder Quick Action                                         | done   |
+| 3+    | Extras (clipboard/screenshot upload, zip of folders, agent skill) | ideas  |
 
 ## How it works
 
@@ -116,7 +116,7 @@ Settings live in `~/.config/r2fl/config.json` and history in `~/.local/share/r2f
 
 Right-click a file in Finder, choose **Quick Actions → Share via r2-fastlink**, pick how long the link should live, and a notification shows the short link, which is also on your clipboard. Select several files and you get one link each and one summarizing notification.
 
-> Status: written and tested on Linux (the wrapper and installer have automated tests), not yet verified on a real Mac. The manual QA checklist below is how to do that.
+> Status: the wrapper and installer have automated tests (run on Linux in CI) and the whole flow was verified by hand on macOS 26.6.2 (Apple Silicon). The QA checklist below is how to repeat that.
 
 **Install**
 

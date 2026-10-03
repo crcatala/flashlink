@@ -1,6 +1,6 @@
 ---
 id: rf-0q8c
-status: in_progress
+status: closed
 deps: [rf-hx3f]
 links: [rf-og97]
 created: 2026-10-02T20:05:53Z
@@ -31,8 +31,8 @@ Known constraints (decide with these in mind):
 
 - [x] `macos/` contains the workflow bundle sources, `r2fl-quick.sh`, `install.sh` and `uninstall.sh`; scripts are `shellcheck`-clean (record the command and result).
 - [x] A test (runs on Linux in CI) invokes `r2fl-quick.sh` with a fake `r2fl` on PATH and proves: arguments with spaces, quotes and leading dashes arrive intact; a failing `r2fl` exit code propagates.
-- [ ] `plutil -lint` passes on the plists (manual on a Mac; record the output).
-- [ ] Owner verifies on a real Mac: right-click a file in Finder -> Quick Actions -> "Share via r2-fastlink" -> notification with URL appears, URL is on the clipboard, the URL serves the file. Record the result as a note; fix wrapper/PATH issues found.
+- [x] `plutil -lint` passes on the plists (manual on a Mac; record the output).
+- [x] Owner verifies on a real Mac: right-click a file in Finder -> Quick Actions -> "Share via r2-fastlink" -> notification with URL appears, URL is on the clipboard, the URL serves the file. Record the result as a note; fix wrapper/PATH issues found.
 - [x] Uninstall removes everything install created.
 - [x] Multiple selected files produce one link each and one summarized notification.
 
@@ -50,3 +50,7 @@ Mac QA finding (owner, first run): the Quick Action loads and the wrapper runs (
 **2026-10-03T14:45:08Z**
 
 Mac QA finding 2 (owner): after the installer fix the real cause was mise: r2fl lived in ~/.local/share/mise/installs/node/<ver>/bin, not on a Quick Action's PATH (PATH setup only in ~/.zshrc; ~/.local/bin/node was Hermes' node). Replaced the login-shell-only design: install.sh records where the installing Terminal finds r2fl and node in <config dir>/quick-action-path (hand-editable), the wrapper prepends it, retries once in an interactive login shell on 126/127, and the installer verifies with 'r2fl-quick --check' in a bare env -i environment. 14 new tests (38 in macos.test.ts); mutation-checked (ignoring the record or the retry fails tests); also exercised with a real r2fl in a non-PATH folder using bash as the login shell. Native alternative being explored in rf-og97.
+
+**2026-10-03T15:04:53Z**
+
+Mac QA PASSED (owner, macOS 26.6.2 / Apple Silicon, zsh 5.9, mise-managed node 22.23.2). Evidence from macos/qa.sh log: plutil -lint OK on all four plists; install recorded the mise folder and the bare-environment check (r2fl-quick --check) found r2fl and node; links served the right content for one file and for four files with spaces/quote/accent/leading-dash names (one summarized notification); uninstall removed both workflows, the wrapper and the recorded path file. Right-click -> Quick Actions -> Share via r2-fastlink works from Finder. Closing. Follow-ups: PATH robustness (recorded path + interactive-shell retry) was added after the first QA run failed under mise; a native Finder Sync alternative is spiked in rf-og97.

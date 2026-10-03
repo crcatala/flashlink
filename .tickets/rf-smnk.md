@@ -1,6 +1,6 @@
 ---
 id: rf-smnk
-status: in_progress
+status: closed
 deps: [rf-0q8c]
 links: []
 created: 2026-10-02T20:05:53Z
@@ -29,7 +29,7 @@ The default 1h lifetime is right most of the time, but the whole point of per-sh
 - [x] The configured default lifetime is preselected; a non-standard default (e.g. 45m) appears in the list.
 - [x] Cancelling uploads nothing and exits 0.
 - [x] A no-prompt variant or opt-out exists and is documented.
-- [ ] Owner manual check on a Mac recorded in a note.
+- [x] Owner manual check on a Mac recorded in a note.
 
 
 ## Notes
@@ -41,3 +41,7 @@ Branch batch-04-macos-quick-action. Picker is in macos/r2fl-quick.sh (choose_ttl
 **2026-10-03T04:54:59Z**
 
 Review follow-up: (1) a defaultTtl with surrounding whitespace (r2fl accepts ' 15m') used to fall back silently to the 1h preselection, and any non-duration default did too; now the value is trimmed and anything else aborts with an 'Invalid default lifetime' notification, never a guessed (possibly longer) lifetime. (2) 'config get defaultTtl' failures other than 126/127 (e.g. corrupt config.json) now show r2fl's own message instead of the 'r2fl or node not found' PATH hint. 8 regression tests added (they fail on the previous wrapper). Mac QA still outstanding.
+
+**2026-10-03T15:04:53Z**
+
+Mac QA PASSED (owner, macOS 26.6.2). Via macos/qa.sh and Finder: the 'Link lifetime' picker appears with the configured default highlighted; a 45m default shows up as an extra item and is highlighted; Cancel uploads nothing and exits 0 with no new history entry; the '(default lifetime)' action uploads with no dialog (links expire after the configured default). Closing.

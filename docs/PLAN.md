@@ -95,7 +95,7 @@ Non-goals
 - **No guessing.** If `r2fl config get defaultTtl` fails with anything other than 126/127, the notification carries `r2fl`'s own message (for example a corrupt config) rather than a PATH hint. A `defaultTtl` that is not a duration (after trimming whitespace, which `r2fl` accepts) aborts with a notification instead of falling back to `1h`: silently choosing a longer lifetime than configured would keep a file public for longer than intended.
 - **Opt-out decision.** Finder cannot set environment variables or flags, so the opt-out is a second Quick Action, "Share via r2-fastlink (default lifetime)", that calls the wrapper with `--no-prompt`. Both are installed; users enable the one they want in System Settings. This is less annoying than an env var or a config switch that has to be edited in a file, and costs one extra checked-in bundle (a test keeps the two consistent).
 - **Files.** `install.sh` copies the two `.workflow` bundles (checked-in plists; no token, endpoint or home path inside) and the wrapper, clears quarantine, runs `pbs -flush`, and warns if a login shell cannot find `r2fl` and `node`. `uninstall.sh` removes exactly those. `r2fl up` already summarizes several files into one notification.
-- **Testing.** The wrapper, installer and bundles are tested on Linux (`packages/cli/test/macos.test.ts`) with a fake `r2fl`, `osascript` and login shell injected through `R2FL_QUICK_SHELL` / `R2FL_QUICK_OSASCRIPT`. The `.workflow` plists have not been through Automator or `plutil -lint`; they follow the structure Automator writes for a Quick Action and parse as valid property lists (`plistlib`). Real behavior needs the manual QA on a Mac (README checklist).
+- **Testing.** The wrapper, installer and bundles are tested on Linux (`packages/cli/test/macos.test.ts`) with a fake `r2fl`, `osascript` and login shell injected through `R2FL_QUICK_SHELL` / `R2FL_QUICK_OSASCRIPT`. The hand-written `.workflow` plists pass `plutil -lint` on macOS 26.6.2 and Finder loads and runs them. The guided `macos/qa.sh` (README checklist) was run on that Mac with all automatic checks passing; see the notes on `rf-0q8c`, `rf-smnk` and `rf-e9az`.
 
 **Landing page**: static HTML and CSS with light branding, what the tool is for, the CLI quickstart, a repo link, and "fork it and deploy your own".
 
@@ -215,7 +215,7 @@ Implementation notes, where phase 1 refined this plan:
   - Still open: DO and Worker usage after about a day of normal use against section 5, and the optional custom domain check.
 - `r2fl refresh` with no argument refreshes the most recent upload; `r2fl ls --sync` reconciles local history with the server.
 
-**Phase 2: macOS Finder Quick Action**: 2.1 done (`up --notify` and `--json` errors); 2.2 to 2.4 built (Quick Action bundles, wrapper, installer, lifetime picker, README section), tested on Linux. Not yet run on a real Mac: ticket `rf-e9az` stays open for that QA, after which phase 2 is done.
+**Phase 2: macOS Finder Quick Action**: 2.1 done (`up --notify` and `--json` errors); 2.2 to 2.4 done (Quick Action bundles, wrapper, installer, lifetime picker, README section), tested on Linux and verified by hand on macOS 26.6.2. A native Finder Sync alternative that removes the PATH dependency is being evaluated in `rf-og97`.
 
 **Phase 3: extras (ideas, not committed)**
 
