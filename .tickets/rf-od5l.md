@@ -1,6 +1,6 @@
 ---
 id: rf-od5l
-status: open
+status: in_progress
 deps: [rf-cl6p]
 links: [rf-kphq, rf-16ho]
 created: 2026-10-02T20:05:53Z
