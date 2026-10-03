@@ -54,3 +54,10 @@ A throwaway SPIKE to answer one question cheaply before any design work: does a 
 - This ticket intentionally has no `batch-NN` tag so the automated batch picker does not take it; it is run by hand with a fresh agent on the owner's Mac.
 - Any code that stays in the repo needs README/PLAN updates per the epic's invariants; a pure spike that is deleted afterwards only needs the findings recorded in a note here and, if useful, a short paragraph in docs/PLAN.md.
 
+
+**2026-10-03T15:16:45Z**
+
+Linux-side work done on branch spike/rf-og97-finder-sync (PR pending). Written and checked without a Mac:
+- macos/spike/: XcodeGen project (host app + sandboxed Finder Sync extension), run.sh (ad hoc build, install, pluginkit enable), test-handoff.sh, README (Mac test script), FINDINGS.md template.
+- Verified on Linux: HandOff.swift compiles and passes SelfTest with swiftc 6.1.2; the app and extension sources parse and typecheck only against hand-written stubs (NOT against AppKit/FinderSync, never built by Xcode); plists parse; shell encoder agrees with the Swift parser; vitest macos-spike.test.ts.
+- NOT done (needs the Mac): every acceptance criterion. Ticket stays open; fill macos/spike/FINDINGS.md on the Mac.
