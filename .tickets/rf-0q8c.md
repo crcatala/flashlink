@@ -1,8 +1,8 @@
 ---
 id: rf-0q8c
-status: open
+status: closed
 deps: [rf-hx3f]
-links: []
+links: [rf-og97]
 created: 2026-10-02T20:05:53Z
 type: task
 priority: 2
@@ -29,10 +29,28 @@ Known constraints (decide with these in mind):
 
 ## Acceptance Criteria
 
-- [ ] `macos/` contains the workflow bundle sources, `r2fl-quick.sh`, `install.sh` and `uninstall.sh`; scripts are `shellcheck`-clean (record the command and result).
-- [ ] A test (runs on Linux in CI) invokes `r2fl-quick.sh` with a fake `r2fl` on PATH and proves: arguments with spaces, quotes and leading dashes arrive intact; a failing `r2fl` exit code propagates.
-- [ ] `plutil -lint` passes on the plists (manual on a Mac; record the output).
-- [ ] Owner verifies on a real Mac: right-click a file in Finder -> Quick Actions -> "Share via r2-fastlink" -> notification with URL appears, URL is on the clipboard, the URL serves the file. Record the result as a note; fix wrapper/PATH issues found.
-- [ ] Uninstall removes everything install created.
-- [ ] Multiple selected files produce one link each and one summarized notification.
+- [x] `macos/` contains the workflow bundle sources, `r2fl-quick.sh`, `install.sh` and `uninstall.sh`; scripts are `shellcheck`-clean (record the command and result).
+- [x] A test (runs on Linux in CI) invokes `r2fl-quick.sh` with a fake `r2fl` on PATH and proves: arguments with spaces, quotes and leading dashes arrive intact; a failing `r2fl` exit code propagates.
+- [x] `plutil -lint` passes on the plists (manual on a Mac; record the output).
+- [x] Owner verifies on a real Mac: right-click a file in Finder -> Quick Actions -> "Share via r2-fastlink" -> notification with URL appears, URL is on the clipboard, the URL serves the file. Record the result as a note; fix wrapper/PATH issues found.
+- [x] Uninstall removes everything install created.
+- [x] Multiple selected files produce one link each and one summarized notification.
 
+
+## Notes
+
+**2026-10-03T04:21:56Z**
+
+Branch batch-04-macos-quick-action (PR for that branch). Added macos/: r2fl-quick.sh wrapper (runs r2fl via the login shell, '--' before files, propagates exit codes, own fixed notification on 126/127), install.sh/uninstall.sh, and two .workflow bundles (checked-in Info.plist + document.wflow). Evidence: shellcheck 0.11.0 'shellcheck macos/*.sh' = clean. packages/cli/test/macos.test.ts (24 tests, run on Linux) covers spaces/quotes/leading dashes/newline-free unicode/glob/empty arg passing, exit-code propagation, install+uninstall leaving $HOME exactly as before. Mutation-checked (dropping '--', swallowing the exit code, cancel exiting 1 each fail tests). Real-CLI run: built r2fl against wrangler dev through the installed wrapper with two files -> two links, both served; wrong token and missing file exit 1. Plists parse with python plistlib; they were written by hand to Automator's Quick Action structure, NOT produced by Automator. Deviations: none from the design; wrapper test hooks R2FL_QUICK_SHELL/R2FL_QUICK_OSASCRIPT and installer R2FL_INSTALL_ANY_OS exist only so Linux can test it. AWAITING HUMAN: (1) on a Mac run 'plutil -lint' on the four plists in macos/*.workflow/Contents/ and tick criterion 3 with the output; (2) run sh macos/install.sh, enable the action in System Settings -> Keyboard -> Keyboard Shortcuts -> Services -> Files and Folders, right-click a file in Finder -> Quick Actions -> 'Share via r2-fastlink': expect a notification with the URL, URL on the clipboard, URL serves the file; record the macOS version and tick criterion 4. If Automator rejects or ignores the hand-written workflow, re-create it in Automator (Quick Action, files/folders in Finder, Run Shell Script, zsh, pass input as arguments) and copy the generated files back into macos/.
+
+**2026-10-03T05:06:50Z**
+
+Mac QA finding (owner, first run): the Quick Action loads and the wrapper runs (so the hand-written workflow is accepted), but it reported 'r2fl or node was not found by your login shell'. Cause: install.sh's PATH check ran the login shell with the Terminal's full PATH inherited, so it passed falsely. install.sh now checks with env -i and a minimal PATH (what a Quick Action gets); regression test added. The owner's own PATH setup (probably in ~/.zshrc or ~/.local/bin not on PATH) still needs fixing on the Mac.
+
+**2026-10-03T14:45:08Z**
+
+Mac QA finding 2 (owner): after the installer fix the real cause was mise: r2fl lived in ~/.local/share/mise/installs/node/<ver>/bin, not on a Quick Action's PATH (PATH setup only in ~/.zshrc; ~/.local/bin/node was Hermes' node). Replaced the login-shell-only design: install.sh records where the installing Terminal finds r2fl and node in <config dir>/quick-action-path (hand-editable), the wrapper prepends it, retries once in an interactive login shell on 126/127, and the installer verifies with 'r2fl-quick --check' in a bare env -i environment. 14 new tests (38 in macos.test.ts); mutation-checked (ignoring the record or the retry fails tests); also exercised with a real r2fl in a non-PATH folder using bash as the login shell. Native alternative being explored in rf-og97.
+
+**2026-10-03T15:04:53Z**
+
+Mac QA PASSED (owner, macOS 26.6.2 / Apple Silicon, zsh 5.9, mise-managed node 22.23.2). Evidence from macos/qa.sh log: plutil -lint OK on all four plists; install recorded the mise folder and the bare-environment check (r2fl-quick --check) found r2fl and node; links served the right content for one file and for four files with spaces/quote/accent/leading-dash names (one summarized notification); uninstall removed both workflows, the wrapper and the recorded path file. Right-click -> Quick Actions -> Share via r2-fastlink works from Finder. Closing. Follow-ups: PATH robustness (recorded path + interactive-shell retry) was added after the first QA run failed under mise; a native Finder Sync alternative is spiked in rf-og97.

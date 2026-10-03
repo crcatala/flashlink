@@ -17,13 +17,13 @@ https://fl.example.com/k3F9xQ2m
 
 ## Status
 
-Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
+Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. Phase 2 (the Finder Quick Action) is implemented and has been verified on macOS 26. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
 
-| Phase | Scope                                                             | Status  |
-| ----- | ----------------------------------------------------------------- | ------- |
-| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page            | done    |
-| 2     | macOS Finder Quick Action                                         | planned |
-| 3+    | Extras (clipboard/screenshot upload, zip of folders, agent skill) | ideas   |
+| Phase | Scope                                                             | Status |
+| ----- | ----------------------------------------------------------------- | ------ |
+| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page            | done   |
+| 2     | macOS Finder Quick Action                                         | done   |
+| 3+    | Extras (clipboard/screenshot upload, zip of folders, agent skill) | ideas  |
 
 ## How it works
 
@@ -106,11 +106,63 @@ Only the URL goes to stdout, so it composes: `curl -s "$(r2fl up shot.png --no-c
 
 **`--json` failures.** With `--json` (on `up`, `refresh`, `ls`, `status`) a failed command prints one compact line to stdout, nothing to stderr, and exits 1: `{"error":"<code>","message":"..."}`. `error` is the server's error code for API failures (for example `unauthorized` or `ttl_too_long`) and `cli_error` for problems detected locally (missing file, bad option, not configured). This includes option errors caught by the parser (`up --json --bogus`). When `up --json` is given several files it always prints a single JSON array, in argument order: a result object for each success and `{"file","error","message"}` for each failure. The exit code is 1 if any failed, with nothing on stderr and no extra error line.
 
-**`--notify` (macOS).** `r2fl up --notify file` posts a macOS notification with the link (one notification summarizing all files), or with the error if the upload fails (including an unreadable config file), and copies the URL to the clipboard even if `copy` is off in your config (unless you pass `--no-copy`). stdout, stderr and the exit code are unchanged, so it also works in scripts. It exists for launchers that have no terminal, such as the Finder Quick Action planned for phase 2. On other platforms it does nothing. A notification cannot be clicked to open the link; use the clipboard.
+**`--notify` (macOS).** `r2fl up --notify file` posts a macOS notification with the link (one notification summarizing all files), or with the error if the upload fails (including an unreadable config file), and copies the URL to the clipboard even if `copy` is off in your config (unless you pass `--no-copy`). stdout, stderr and the exit code are unchanged, so it also works in scripts. It exists for launchers that have no terminal, such as the [Finder Quick Action](#finder-integration-macos). On other platforms it does nothing. A notification cannot be clicked to open the link; use the clipboard.
 
 If the server has already deleted a link's file (7 days past expiry by default), `r2fl refresh` re-uploads the original local file under the **same code**, as long as it is unchanged.
 
 Settings live in `~/.config/r2fl/config.json` and history in `~/.local/share/r2fl/history.json` (both honor `XDG_*`). `R2FL_ENDPOINT`, `R2FL_TOKEN` and `R2FL_TTL` override the config.
+
+## Finder integration (macOS)
+
+Right-click a file in Finder, choose **Quick Actions → Share via r2-fastlink**, pick how long the link should live, and a notification shows the short link, which is also on your clipboard. Select several files and you get one link each and one summarizing notification.
+
+> Status: the wrapper and installer have automated tests (run on Linux in CI) and the whole flow was verified by hand on macOS 26.6.2 (Apple Silicon). The QA checklist below is how to repeat that.
+
+**Install**
+
+```sh
+# from a clone of this repo, with the CLI installed and configured as in "Install the CLI" above
+r2fl init --endpoint https://fl.example.com
+sh macos/install.sh
+```
+
+The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to `~/.local/bin/r2fl-quick`, checks that a login shell can find `r2fl` and `node`, and refreshes the Services menu. Then enable them once in **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders**.
+
+| Quick Action                               | Behavior                                                                                                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Share via r2-fastlink`                    | Asks for the lifetime (15 minutes, 1 hour, 1 day, 7 days). Your `defaultTtl` is preselected, so the common case is Return. A non-standard default such as `45m` is added to the list. Cancel does nothing and says nothing. |
+| `Share via r2-fastlink (default lifetime)` | No question: uses your configured `defaultTtl`. Enable only this one if the picker annoys you.                                                                                                                              |
+
+The server still enforces the maximum lifetime (7 days by default); if it refuses the choice the notification shows the error.
+
+**Uninstall:** `sh macos/uninstall.sh` removes both Quick Actions and the wrapper. Your config and history are left alone.
+
+**How it works.** Quick Actions run with a minimal `PATH` that has neither `r2fl` nor `node`. `install.sh` therefore records the folders where **your Terminal** finds them in `~/.config/r2fl/quick-action-path` (one line of colon-separated folders; edit it by hand if you like), and the wrapper puts them in front of `PATH`. Everything runs in your login shell (`/bin/zsh -l`); if `r2fl` is still not found, for example after mise or nvm moved to a new Node version, it retries once in an interactive login shell, which also reads `~/.zshrc`. The actual work is `r2fl up --notify --ttl <choice> -- <files>`; the token and endpoint come from the normal r2fl config file, never from the Quick Action. Run `macos/install.sh` from a Terminal where `r2fl --version` works, and run it again after changing how `r2fl` is installed.
+
+**Troubleshooting**
+
+- _"Could not run r2fl" notification, or the installer's WARNING._ A Quick Action could not find `r2fl` or `node`. Run `r2fl --version` in your Terminal; if that works, run `sh macos/install.sh` from that same Terminal so it records the right folders. To test the way a Quick Action starts: `env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin ~/.local/bin/r2fl-quick --check` prints the two paths it found. If you use a version manager, check that the recorded folder still exists (`cat ~/.config/r2fl/quick-action-path`); you can also write the folders in that file yourself.
+- _The action is missing from the Quick Actions menu._ Enable it in System Settings → Keyboard → Keyboard Shortcuts → Services → Files and Folders. Then run `/System/Library/CoreServices/pbs -flush`, or log out and back in. It only appears when you right-click a file or folder in Finder.
+- _No notification appears._ Allow notifications for **Script Editor** (the notifications are posted through `osascript`) in System Settings → Notifications. The link is still copied to the clipboard.
+- _macOS blocks the workflow as downloaded or from an unidentified developer._ Remove the quarantine flag: `xattr -dr com.apple.quarantine ~/Library/Services/Share\ via\ r2-fastlink*.workflow` (the installer already does this for what it copies).
+- _Errors._ The notification carries the message (wrong token, file over the size cap, offline). Run the same upload in a terminal to see more: `r2fl up --notify -- file`.
+- _Where things live._ Config: `~/.config/r2fl/config.json`; history: `~/.local/share/r2fl/history.json` (see `r2fl config path`); Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/r2fl-quick`.
+
+**Manual QA checklist** (run on a real Mac; record the macOS version). `sh macos/qa.sh 2>&1 | tee ~/r2fl-qa.log` walks through nearly all of it for you and checks the links' contents; the Finder-click rows (1, 11) are by hand:
+
+| #   | Case                                                    | Expect                                                               |
+| --- | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| 1   | One file, picker, choose "1 hour" (the default)         | Notification with the URL, URL on the clipboard, URL serves the file |
+| 2   | Several files selected                                  | One link each, one summarizing notification                          |
+| 3   | File name with spaces, unicode, a quote, a leading dash | Uploads; the link serves the right file                              |
+| 4   | File over the 50 MB cap                                 | Error notification, no link                                          |
+| 5   | Wrong token (`r2fl config set token ...`)               | Error notification                                                   |
+| 6   | Offline                                                 | Error notification                                                   |
+| 7   | Cancel in the lifetime picker                           | Nothing uploaded, no notification                                    |
+| 8   | `defaultTtl` = `45m`                                    | The picker lists "45m" and preselects it                             |
+| 9   | "(default lifetime)" action                             | No picker; link expires after the configured default                 |
+| 10  | `macos/uninstall.sh`                                    | Both actions disappear from the menu                                 |
+| 11  | The picker window                                       | Appears in front of Finder (not hidden behind other windows)         |
 
 ## Development
 

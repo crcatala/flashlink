@@ -1,6 +1,6 @@
 ---
 id: rf-smnk
-status: open
+status: closed
 deps: [rf-0q8c]
 links: []
 created: 2026-10-02T20:05:53Z
@@ -25,9 +25,23 @@ The default 1h lifetime is right most of the time, but the whole point of per-sh
 
 ## Acceptance Criteria
 
-- [ ] Picking each item results in the correct `--ttl` value (unit-tested through the fake-`r2fl` harness by stubbing the osascript call).
-- [ ] The configured default lifetime is preselected; a non-standard default (e.g. 45m) appears in the list.
-- [ ] Cancelling uploads nothing and exits 0.
-- [ ] A no-prompt variant or opt-out exists and is documented.
-- [ ] Owner manual check on a Mac recorded in a note.
+- [x] Picking each item results in the correct `--ttl` value (unit-tested through the fake-`r2fl` harness by stubbing the osascript call).
+- [x] The configured default lifetime is preselected; a non-standard default (e.g. 45m) appears in the list.
+- [x] Cancelling uploads nothing and exits 0.
+- [x] A no-prompt variant or opt-out exists and is documented.
+- [x] Owner manual check on a Mac recorded in a note.
 
+
+## Notes
+
+**2026-10-03T04:21:56Z**
+
+Branch batch-04-macos-quick-action. Picker is in macos/r2fl-quick.sh (choose_ttl): fixed AppleScript, items and default passed as osascript ARGUMENTS (a test asserts the -e source is identical across different defaults/file names). Opt-out decision: a second Quick Action 'Share via r2-fastlink (default lifetime)' calling 'r2fl-quick --no-prompt' (Finder cannot set env vars or flags); both are installed; documented in README and docs/PLAN.md. Default is read with 'r2fl config get defaultTtl' (last line, to tolerate login-shell noise; falls back to 1h if it is not a duration). Tests (macos.test.ts, osascript stubbed): each item -> 15m/1h/1d/7d, default first/preselected, 45m appended+preselected+uploaded as --ttl 45m, cancel ('' or 'false') uploads nothing, no notification, exit 0; failing osascript or missing r2fl notifies and exits 1 instead of guessing a lifetime. AWAITING HUMAN: on a Mac with the Quick Action installed, check the picker appears IN FRONT of Finder (osascript from a Quick Action may open the dialog behind other windows; if so, add an 'activate' step and note it), the configured default is preselected, a 45m default shows up, Cancel does nothing, and the '(default lifetime)' action shows no picker. Record results here and tick the last criterion.
+
+**2026-10-03T04:54:59Z**
+
+Review follow-up: (1) a defaultTtl with surrounding whitespace (r2fl accepts ' 15m') used to fall back silently to the 1h preselection, and any non-duration default did too; now the value is trimmed and anything else aborts with an 'Invalid default lifetime' notification, never a guessed (possibly longer) lifetime. (2) 'config get defaultTtl' failures other than 126/127 (e.g. corrupt config.json) now show r2fl's own message instead of the 'r2fl or node not found' PATH hint. 8 regression tests added (they fail on the previous wrapper). Mac QA still outstanding.
+
+**2026-10-03T15:04:53Z**
+
+Mac QA PASSED (owner, macOS 26.6.2). Via macos/qa.sh and Finder: the 'Link lifetime' picker appears with the configured default highlighted; a 45m default shows up as an extra item and is highlighted; Cancel uploads nothing and exits 0 with no new history entry; the '(default lifetime)' action uploads with no dialog (links expire after the configured default). Closing.
