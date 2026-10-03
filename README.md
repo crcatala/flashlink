@@ -45,12 +45,14 @@ git clone https://github.com/crcatala/r2-fastlink && cd r2-fastlink
 pnpm install
 cd packages/worker
 
-# 1. Create the private bucket (name must match wrangler.jsonc)
-pnpm exec wrangler r2 bucket create r2-fastlink
+# 1. Create the private bucket (name must match wrangler.jsonc). --no-update-config stops
+#    wrangler from offering to add a second, redundant binding to wrangler.jsonc
+pnpm exec wrangler r2 bucket create r2-fastlink --no-update-config
 
-# 2. Set your upload token (a long random string; keep it secret)
+# 2. Set your token (a long random string; keep it secret). The CLI and scripts use the same
+#    value, under the same name: `r2fl init` asks for it, or set R2FL_TOKEN in your shell
 openssl rand -hex 32            # copy this value...
-pnpm exec wrangler secret put UPLOAD_TOKEN   # ...and paste it when prompted
+pnpm exec wrangler secret put R2FL_TOKEN   # ...and paste it when prompted
 
 # 3. Safety net: delete any object older than 30 days, even if the Worker's own cleanup
 #    never ran (the Worker removes files 7 days after expiry; this only catches strays)
@@ -60,7 +62,7 @@ pnpm exec wrangler r2 bucket lifecycle add r2-fastlink expire-strays objects/ --
 pnpm exec wrangler deploy
 ```
 
-Wrangler prints your `*.workers.dev` URL. To use your own domain, add a custom domain or route to the Worker in the Cloudflare dashboard (and optionally set `PUBLIC_BASE_URL` in `wrangler.jsonc`).
+Wrangler prints your `*.workers.dev` URL. If `wrangler r2 bucket create` ever asks "Would you like Wrangler to add it on your behalf?" (older versions, or if you left out `--no-update-config`), answer **no**: `wrangler.jsonc` already binds the bucket as `BUCKET`, and accepting adds a redundant second binding and reformats the file. `wrangler.jsonc` also sets `workers_dev: true` and `preview_urls: false` so deploys do not warn; preview URLs would put every uploaded version of the Worker on extra public hostnames. To use your own domain, add a custom domain or route to the Worker in the Cloudflare dashboard (and optionally set `PUBLIC_BASE_URL` in `wrangler.jsonc`).
 
 To confirm a deployment works end to end (uploads of several sizes, `Range`/`HEAD`, `no-store`, expiry and refresh, rate limiting), run `R2FL_TOKEN=<token> node scripts/verify-deployment.mjs --endpoint https://<your-worker>`; [`docs/VERIFY_DEPLOYMENT.md`](docs/VERIFY_DEPLOYMENT.md) explains it and lists the checks that need the Cloudflare dashboard. So far phase 1 has only been exercised against the local simulator, not a real account.
 
@@ -116,7 +118,7 @@ pnpm format
 pnpm build         # the r2fl CLI
 
 cd packages/worker
-echo 'UPLOAD_TOKEN=dev-token-0123456789abcdef' > .dev.vars
+echo 'R2FL_TOKEN=dev-token-0123456789abcdef' > .dev.vars
 pnpm exec wrangler dev             # local Worker + R2 + Durable Object on :8787
 ```
 

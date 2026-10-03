@@ -78,9 +78,20 @@ describe('rate limiting runs before the Durable Object', () => {
     expect(await res.text()).toBe('works');
   });
 
-  it('reports a missing UPLOAD_TOKEN as a server error instead of allowing access', async () => {
-    const res = await run('/api/status', { UPLOAD_TOKEN: undefined });
+  it('reports a missing R2FL_TOKEN as a server error instead of allowing access', async () => {
+    const res = await run('/api/status', { R2FL_TOKEN: undefined });
     expect(res.status).toBe(500);
+  });
+
+  it('does not accept the old UPLOAD_TOKEN secret name, but says it was renamed', async () => {
+    const res = await run('/api/status', {
+      R2FL_TOKEN: undefined,
+      UPLOAD_TOKEN: 'test-token-test-token-test-token-0123',
+    });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string; message: string };
+    expect(body.error).toBe('not_configured');
+    expect(body.message).toContain('renamed to R2FL_TOKEN');
   });
 });
 

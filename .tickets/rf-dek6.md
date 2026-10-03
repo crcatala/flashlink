@@ -64,3 +64,7 @@ Recommended order for remaining work: (1) rf-rxkx verify on a real Cloudflare ac
 **2026-10-02T20:20:30Z**
 
 PR batching (sequential, one PR per batch; tag batch-NN on each ticket, lowest open batch goes next): 01 CI | 02 real-deploy verification runbook+script (human runs it) | 03 CLI --notify + JSON errors | 04 macOS Quick Action + picker + docs (human Mac QA) | 05 license + npm release prep (human decides/publishes) | 06 secret warning | 07 clipboard upload + folder zip | 08 download-cap policy | 09 agent skill/MCP | 10 setup script + deploy button | 11 large files | 12 edge cache | 13 history decision | 14 menubar app design. Batches 11-14 are P4 ideas: an agent should ask before starting them. Prompt: docs/AGENT_PROMPT.md.
+
+**2026-10-03T02:51:14Z**
+
+2026-10-02: the Worker secret UPLOAD_TOKEN was renamed to R2FL_TOKEN (same name as the CLI/script env var). Where this epic's 'Commands' line says UPLOAD_TOKEN in .dev.vars, use R2FL_TOKEN. See the follow-up PR from branch fix/rename-upload-token-wrangler-config.

@@ -22,9 +22,15 @@ api.use('*', async (c, next) => {
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
   if (!(await withinLimit(c.env.LIMIT_IP, ip))) return rateLimited();
 
-  const token = c.env.UPLOAD_TOKEN;
+  const token = c.env.R2FL_TOKEN;
   if (!token) {
-    return errorResponse(500, 'not_configured', 'UPLOAD_TOKEN is not configured on the server.');
+    return errorResponse(
+      500,
+      'not_configured',
+      c.env.UPLOAD_TOKEN
+        ? 'The secret UPLOAD_TOKEN was renamed to R2FL_TOKEN. Run `wrangler secret put R2FL_TOKEN`.'
+        : 'R2FL_TOKEN is not configured on the server.',
+    );
   }
   if (!(await isAuthorized(c.req.raw, token))) {
     return errorResponse(401, 'unauthorized', 'Missing or invalid token.', {

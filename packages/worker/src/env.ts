@@ -7,6 +7,8 @@ export interface Env {
   LIMIT_IP?: RateLimit;
   LIMIT_GLOBAL?: RateLimit;
   /** Secret: bearer token required for /api/*. */
+  R2FL_TOKEN?: string;
+  /** Old name of the secret. Never used for auth; only detected to give a helpful error. */
   UPLOAD_TOKEN?: string;
   /** Optional base URL used when building links (defaults to the request origin). */
   PUBLIC_BASE_URL?: string;

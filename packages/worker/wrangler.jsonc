@@ -4,6 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
 
+  // Public URL: https://r2-fastlink.<your-subdomain>.workers.dev. Set both explicitly so
+  // `wrangler deploy` does not warn. Preview URLs would expose every uploaded version of
+  // this Worker (same bucket, same secret) on extra hostnames, which this tool never needs.
+  "workers_dev": true,
+  "preview_urls": false,
+
   // Landing page + robots.txt. Asset requests are served without invoking the Worker;
   // unmatched paths (short codes, /api/*) fall through to src/index.ts.
   "assets": { "directory": "./public" },
@@ -35,5 +41,5 @@
     // "PUBLIC_BASE_URL": "https://fl.example.com"  // optional; defaults to the request origin
   },
 
-  // Secret (not stored here):  wrangler secret put UPLOAD_TOKEN
+  // Secret (not stored here):  wrangler secret put R2FL_TOKEN
 }

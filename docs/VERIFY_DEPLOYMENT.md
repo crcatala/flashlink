@@ -11,7 +11,7 @@ Follow the README ["Deploy your own"](../README.md#deploy-your-own) section lite
 ## 2. Run the script (checklist items 3 to 7)
 
 ```sh
-export R2FL_TOKEN=<the value you stored with `wrangler secret put UPLOAD_TOKEN`>
+export R2FL_TOKEN=<the value you stored with `wrangler secret put R2FL_TOKEN`>
 node scripts/verify-deployment.mjs --endpoint https://<your-worker>.<subdomain>.workers.dev
 ```
 

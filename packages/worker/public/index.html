@@ -340,8 +340,8 @@ HTTP/2 410
             class="term"
           ><span class="p">$</span> git clone https://github.com/crcatala/r2-fastlink
 <span class="p">$</span> cd r2-fastlink &amp;&amp; pnpm install
-<span class="p">$</span> pnpm --filter @r2-fastlink/worker exec wrangler r2 bucket create r2-fastlink
-<span class="p">$</span> pnpm --filter @r2-fastlink/worker exec wrangler secret put UPLOAD_TOKEN
+<span class="p">$</span> pnpm --filter @r2-fastlink/worker exec wrangler r2 bucket create r2-fastlink --no-update-config
+<span class="p">$</span> pnpm --filter @r2-fastlink/worker exec wrangler secret put R2FL_TOKEN
 <span class="p">$</span> pnpm --filter @r2-fastlink/worker deploy</pre>
           <p class="note">
             Full instructions are in the

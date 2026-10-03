@@ -82,7 +82,7 @@ Keep it short: the PR link; a one-paragraph summary; which tickets are closed an
 
 ## Environment notes (this dev container)
 - Linux only, Node 22.12+, pnpm. You cannot run macOS-specific things: say so, rely on tests, and list the manual Mac steps under Human steps.
-- `wrangler dev` must run inside tmux (a hook blocks background processes): `tmux new-session -d -s dev -c packages/worker "pnpm exec wrangler dev --port 8787 --persist-to <scratch>/state 2>&1 | tee <scratch>/dev.log"`. Put `UPLOAD_TOKEN=<dev token>` in `packages/worker/.dev.vars` (git-ignored). Kill the tmux session when finished.
+- `wrangler dev` must run inside tmux (a hook blocks background processes): `tmux new-session -d -s dev -c packages/worker "pnpm exec wrangler dev --port 8787 --persist-to <scratch>/state 2>&1 | tee <scratch>/dev.log"`. Put `R2FL_TOKEN=<dev token>` in `packages/worker/.dev.vars` (git-ignored). Kill the tmux session when finished.
 - Use `/usr/bin/curl`, not the `curl` on PATH: the wrapper in ~/.local/bin corrupts piped binary output.
 - Prefix test commands with `RTK_DISABLED=1` when you need unabridged output (rtk compresses command output).
 - VHS (terminal-capture): set `VHS_NO_SANDBOX=true`; quote paths in `Screenshot "..."`; `unset PROMPT_COMMAND` in the tape's hidden setup; keep paths short; prefer `Wait+Screen /text/` over fixed sleeps and don't use `^` anchors there; never set VHS_PUBLISH.
