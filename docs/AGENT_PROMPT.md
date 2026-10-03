@@ -62,7 +62,7 @@ Run `tk show <id>` for every ticket in the batch and for their dependencies. A t
 
 ## 4. Verify visually
 Capture 2-4 representative screenshots of the feature working, and inspect every image before using it:
-- CLI / terminal behavior: the terminal-capture skill (VHS).
+- CLI / terminal behavior: the terminal-capture skill.
 - Landing page or any web UI: the agent-browser skill.
 - Getting images into the PR: the github-pr-screenshots skill (after the PR exists).
 If a change has nothing visual, include a short command-output transcript in the PR instead and say so. Keep captures in your scratch/tmp dir; never commit them.
@@ -84,7 +84,6 @@ Keep it short: the PR link; a one-paragraph summary; which tickets are closed an
 - `wrangler dev` must run inside tmux (a hook blocks background processes): `tmux new-session -d -s dev -c packages/worker "pnpm exec wrangler dev --port 8787 --persist-to <scratch>/state 2>&1 | tee <scratch>/dev.log"`. Put `R2FL_TOKEN=<dev token>` in `packages/worker/.dev.vars` (git-ignored). Kill the tmux session when finished.
 - Use `/usr/bin/curl`, not the `curl` on PATH: the wrapper in ~/.local/bin corrupts piped binary output.
 - Prefix test commands with `RTK_DISABLED=1` when you need unabridged output (rtk compresses command output).
-- VHS (terminal-capture): set `VHS_NO_SANDBOX=true`; quote paths in `Screenshot "..."`; `unset PROMPT_COMMAND` in the tape's hidden setup; keep paths short; prefer `Wait+Screen /text/` over fixed sleeps and don't use `^` anchors there; never set VHS_PUBLISH.
 - agent-browser: export a task-specific `AGENT_BROWSER_SESSION` before every call and close the session at the end.
 - The Worker's `compatibility_date` must not exceed what the local workerd supports (currently pinned to 2026-08-01).
 ```
