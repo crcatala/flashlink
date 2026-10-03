@@ -13,9 +13,9 @@
 #                  The Quick Actions then run it directly and no longer need node or a PATH.
 #   --latest       download the newest GitHub release's binary for this Mac and install it as
 #   --version TAG  --binary does (TAG is for example v0.1.0 or 0.1.0). The download is checked
-#                  against the release's SHA256SUMS. Run on its own, without the other files from
-#                  macos/ next to it (curl -fsSL <release>/install.sh | sh -s -- --latest), it
-#                  fetches those from the release too.
+#                  against the release's SHA256SUMS. The Quick Action files come from that same
+#                  release (never from a checkout next to this script), so this also works run on
+#                  its own: curl -fsSL <release>/install.sh | sh -s -- --latest
 #   (no option)    an already installed binary is left as it is.
 #
 # Downloads use curl (which sets no quarantine flag) and fall back to `gh release download`, which
@@ -161,14 +161,14 @@ if [ -n "$download" ]; then
   fetch "r2fl-$target" "$work/r2fl-$target"
   verify "$work/r2fl-$target" "r2fl-$target"
   binary_src="$work/r2fl-$target"
-  # Run on its own (curl | sh) the Quick Action files are not next to this script: fetch them.
-  if [ ! -f "$here/r2fl-quick.sh" ] || [ ! -d "$here/Share via r2-fastlink.workflow" ]; then
-    fetch r2fl-macos-support.tar.gz "$work/support.tar.gz"
-    verify "$work/support.tar.gz" r2fl-macos-support.tar.gz
-    mkdir "$work/support"
-    tar -xzf "$work/support.tar.gz" -C "$work/support"
-    here="$work/support/macos"
-  fi
+  # Always take the Quick Action files from the same release as the binary, even from inside a
+  # checkout: a pinned version must not mix in whatever commit the checkout happens to be at. (It
+  # also covers `curl | sh`, where no other file is next to this script.)
+  fetch r2fl-macos-support.tar.gz "$work/support.tar.gz"
+  verify "$work/support.tar.gz" r2fl-macos-support.tar.gz
+  mkdir "$work/support"
+  tar -xzf "$work/support.tar.gz" -C "$work/support"
+  here="$work/support/macos"
 fi
 if [ ! -f "$here/r2fl-quick.sh" ] || [ ! -d "$here/Share via r2-fastlink.workflow" ]; then
   echo "install.sh: the Quick Action files are not next to this script. Run it from the macos/ folder, or use --latest." >&2
@@ -218,22 +218,32 @@ else
   echo "note: pbs not found; log out and back in if the Quick Actions do not appear."
 fi
 
+binary_failed=""
 if [ -n "$binary_src" ]; then
   mkdir -p "$data_dir/bin"
-  rm -f "$bin_file"
-  install -m 755 "$binary_src" "$bin_file"
+  # Prepare and test the new file beside the installed one; only a binary that starts replaces it,
+  # so a failed update never costs you the working binary.
+  new_file="$bin_file.new"
+  rm -f "$new_file"
+  install -m 755 "$binary_src" "$new_file"
   # Browser or AirDrop downloads are quarantined; Apple Silicon also refuses to run an unsigned
   # (cross-compiled) executable, so sign it ad hoc. Neither needs a developer account.
-  xattr -dr com.apple.quarantine "$bin_file" 2>/dev/null || true
+  xattr -dr com.apple.quarantine "$new_file" 2>/dev/null || true
   if command -v codesign >/dev/null 2>&1; then
-    codesign --force --sign - "$bin_file" >/dev/null 2>&1 || echo "note: codesign failed; the binary may not start." >&2
+    codesign --force --sign - "$new_file" >/dev/null 2>&1 || echo "note: codesign failed; the binary may not start." >&2
   fi
   # Run it the way a Quick Action will: bare environment, no PATH.
-  if env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version >/dev/null 2>&1; then
+  if env -i HOME="$HOME" PATH="$minimal_path" "$new_file" --version >/dev/null 2>&1; then
+    mv -f "$new_file" "$bin_file"
     echo "installed: $bin_file ($(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version))"
   else
-    rm -f "$bin_file"
-    echo "WARNING: the binary does not start on this Mac (wrong architecture or blocked). It was removed; the Quick Actions will use your own r2fl instead." >&2
+    rm -f "$new_file"
+    binary_failed=1
+    if [ -x "$bin_file" ]; then
+      echo "WARNING: the new binary does not start on this Mac (wrong architecture or blocked). Your previous binary was kept: $bin_file" >&2
+    else
+      echo "WARNING: the binary does not start on this Mac (wrong architecture or blocked), so it was not installed; the Quick Actions will use your own r2fl instead." >&2
+    fi
   fi
 fi
 
@@ -279,3 +289,5 @@ Enable it (first time only):
 Use it: right-click a file in Finder -> Quick Actions (or Services) -> Share via r2-fastlink.
 The first notification may need allowing: System Settings -> Notifications -> Script Editor.
 MSG
+
+[ -z "$binary_failed" ] || exit 1

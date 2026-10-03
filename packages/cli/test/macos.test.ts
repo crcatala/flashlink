@@ -606,16 +606,48 @@ describe('install.sh and uninstall.sh', () => {
     expect(r.stdout).toContain('found the way a Quick Action will look for them');
   });
 
-  it('removes a binary that does not start and warns', () => {
+  it('does not install a binary that does not start, warns, and exits non-zero', () => {
     write(path.join(dir, 'built', 'r2fl'), '#!/bin/sh\nexit 1\n');
     const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
       R2FL_INSTALL_ANY_OS: '1',
     });
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(1);
     expect(r.stderr).toContain('does not start');
-    expect(fs.existsSync(path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl'))).toBe(
-      false,
-    );
+    const bin = path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin');
+    expect(fs.existsSync(path.join(bin, 'r2fl'))).toBe(false);
+    expect(fs.existsSync(path.join(bin, 'r2fl.new'))).toBe(false);
+    // The Quick Actions are still installed and use the login-shell fallback.
+    expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'r2fl-quick'))).toBe(true);
+  });
+
+  it('a failed update keeps the working binary and says so', () => {
+    const good = path.join(dir, 'built', 'good');
+    write(good, "#!/bin/sh\necho '1.0.0 (old)'\n");
+    const bin = path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl');
+    expect(run(install, ['--binary', good], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(0);
+    expect(fs.readFileSync(bin, 'utf8')).toContain('1.0.0 (old)');
+
+    const bad = path.join(dir, 'built', 'bad');
+    write(bad, '#!/bin/sh\nexit 126\n');
+    const r = run(install, ['--binary', bad], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('previous binary was kept');
+    expect(fs.readFileSync(bin, 'utf8')).toContain('1.0.0 (old)');
+    expect(fs.existsSync(`${bin}.new`)).toBe(false);
+    // And it still runs the way a Quick Action would start it.
+    expect(spawnSync(bin, ['--version'], { encoding: 'utf8' }).stdout).toContain('1.0.0 (old)');
+  });
+
+  it('a successful update replaces the binary', () => {
+    const v1 = path.join(dir, 'built', 'v1');
+    const v2 = path.join(dir, 'built', 'v2');
+    write(v1, "#!/bin/sh\necho '1.0.0'\n");
+    write(v2, "#!/bin/sh\necho '2.0.0'\n");
+    const bin = path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl');
+    run(install, ['--binary', v1], { R2FL_INSTALL_ANY_OS: '1' });
+    const r = run(install, ['--binary', v2], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(r.status).toBe(0);
+    expect(fs.readFileSync(bin, 'utf8')).toContain('2.0.0');
   });
 
   it('says Quick Actions will not find a binary installed under a custom data directory', () => {
@@ -698,7 +730,9 @@ describe('install.sh --latest / --version', () => {
 
   // A fake release folder, laid out like the assets scripts/package-release.sh produces. The
   // "binary" is a shell script that prints its version, so it runs on any OS.
-  function makeRelease(opts: { version?: string; skip?: string[]; corrupt?: string } = {}) {
+  function makeRelease(
+    opts: { version?: string; skip?: string[]; corrupt?: string; supportRoot?: string } = {},
+  ) {
     const version = opts.version ?? '9.9.9 (rel1234)';
     write(path.join(release(), 'r2fl-darwin-arm64'), `#!/bin/sh\necho '${version}'\n`);
     write(path.join(release(), 'r2fl-darwin-x64'), `#!/bin/sh\necho '${version}'\n`);
@@ -708,7 +742,7 @@ describe('install.sh --latest / --version', () => {
         '-czf',
         path.join(release(), 'r2fl-macos-support.tar.gz'),
         '-C',
-        path.dirname(macosDir),
+        opts.supportRoot ?? path.dirname(macosDir),
         'macos',
       ],
       { stdio: 'ignore' },
@@ -810,6 +844,23 @@ describe('install.sh --latest / --version', () => {
     );
   });
 
+  it('takes the Quick Action files from the release even when run from a different checkout', () => {
+    // The release was cut from other support files than the checkout this installer sits in.
+    const other = path.join(dir, 'other');
+    fs.cpSync(macosDir, path.join(other, 'macos'), { recursive: true });
+    fs.appendFileSync(path.join(other, 'macos', 'r2fl-quick.sh'), '\n# from the release\n');
+    makeRelease({ supportRoot: other });
+    fakeUname('arm64');
+    // The real macos/ folder, which is complete: it must not be used.
+    const r = run(install, ['--version', 'v9.9.9'], dlEnv());
+    expect(r.status).toBe(0);
+    const wrapperText = fs.readFileSync(path.join(home(), '.local', 'bin', 'r2fl-quick'), 'utf8');
+    expect(wrapperText).toContain('# from the release');
+    expect(fs.readFileSync(path.join(macosDir, 'r2fl-quick.sh'), 'utf8')).not.toContain(
+      '# from the release',
+    );
+  });
+
   it('on its own, refuses support files that fail the checksum', () => {
     makeRelease({ corrupt: 'r2fl-macos-support.tar.gz' });
     fakeUname('arm64');
@@ -840,7 +891,7 @@ describe('install.sh --latest / --version', () => {
       );
       write(
         path.join(dir, 'bin', 'gh'),
-        `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_LOG/gh.calls"\n${ghWorks ? 'while [ "$#" -gt 0 ]; do [ "$1" = --output ] && out=$2; shift; done; cp "$FAKE_RELEASE/$(basename "$out")" "$out"; exit 0' : 'exit 1'}\n`,
+        `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_LOG/gh.calls"\n${ghWorks ? 'while [ "$#" -gt 0 ]; do [ "$1" = --output ] && out=$2; [ "$1" = --pattern ] && pat=$2; shift; done; cp "$FAKE_RELEASE/$pat" "$out"; exit 0' : 'exit 1'}\n`,
       );
       fakeUname('arm64');
     }

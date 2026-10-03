@@ -44,3 +44,7 @@ AWAITING HUMAN: (1) Approve the decision note in docs/PLAN.md (merging the PR co
 **2026-10-03T20:12:43Z**
 
 PR #14 CI is green, including the new 'binaries' job (both darwin builds, checksums, linux binary start): criterion 4 ticked. Remaining criteria still await a real tag, a Mac and the owner (see the AWAITING HUMAN note above).
+
+**2026-10-03T21:35:27Z**
+
+Review follow-up on PR #14: (1) npm-publish job moved to ubuntu-latest (npm provenance rejects third-party runners); (2) install.sh stages the new binary as r2fl.new, signs and start-checks it, and only then replaces the installed one, so a failed update keeps the working binary and exits 1 (previously it deleted the old binary and exited 0); (3) --latest/--version always fetch and verify the release's support archive instead of using whatever macos/ files sit next to the script. 3 regression tests fail on the old install.sh. AWAITING HUMAN items above are unchanged.

@@ -70,7 +70,8 @@ jobs:
 
   npm-publish:
     needs: verify
-    runs-on: ubicloud-standard-2
+    # GitHub-hosted on purpose: npm provenance rejects third-party runners such as Ubicloud.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read

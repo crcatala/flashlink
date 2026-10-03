@@ -139,7 +139,7 @@ A fork sets `R2FL_REPO=<you>/<fork>` for the installer. Then point the binary at
 ~/.local/share/r2fl/bin/r2fl init --endpoint https://fl.example.com
 ```
 
-**Update:** run the install command again; it replaces the binary, the Quick Actions and the notifier and keeps your config and history. **Uninstall:** `curl -fsSL https://github.com/crcatala/r2-fastlink/releases/latest/download/uninstall.sh | sh` (or `sh macos/uninstall.sh` from a clone).
+**Update:** run the install command again; it replaces the binary, the Quick Actions and the notifier and keeps your config and history. The new binary is tested before it replaces the old one: if it does not start on your Mac, the installer says so, keeps the binary you had and exits with an error. **Uninstall:** `curl -fsSL https://github.com/crcatala/r2-fastlink/releases/latest/download/uninstall.sh | sh` (or `sh macos/uninstall.sh` from a clone).
 
 **From a clone** (development, or no release yet): with the CLI installed and configured as in "Install the CLI" above,
 
@@ -220,7 +220,7 @@ git tag v0.1.0 && git push origin v0.1.0
 `.github/workflows/release.yml` (it refuses a tag that does not match the version) runs the checks, then does two independent things:
 
 - **GitHub Release:** `r2fl-darwin-arm64`, `r2fl-darwin-x64`, `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, built on a Linux runner.
-- **npm:** `npm publish --provenance --access public` for `r2fl` (it builds and tests first). It needs an npm automation token stored as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions); without it the job only prints a warning, so a fork can release binaries alone. Nothing is ever published from a branch or from a local machine.
+- **npm:** (on a GitHub-hosted runner, because npm provenance does not accept others, and from a public repository) `npm publish --provenance --access public` for `r2fl` (it builds and tests first). It needs an npm automation token stored as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions); without it the job only prints a warning, so a fork can release binaries alone. Nothing is ever published from a branch or from a local machine.
 
 To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `package.json` and the README).
 
