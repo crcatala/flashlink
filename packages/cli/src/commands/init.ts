@@ -48,7 +48,7 @@ export async function init(opts: InitOptions, ctx: Context): Promise<void> {
       if (err instanceof ApiError && err.status === 401) {
         throw new CliError(
           'The server rejected that token (401).',
-          'Check UPLOAD_TOKEN on the Worker.',
+          'Check R2FL_TOKEN on the Worker.',
         );
       }
       if (err instanceof ApiError) {
