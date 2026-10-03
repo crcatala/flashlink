@@ -1,0 +1,90 @@
+# Builds the Finder Sync spike (macos/spike, ticket rf-og97) on a GitHub-hosted Mac. Ubicloud has no
+# macOS runners, and this is the only job in the repo that needs one, so it stays off the normal CI
+# path: it runs only when the spike changes, or by hand (Actions > macOS spike > Run workflow).
+# macOS minutes are the expensive kind (about $0.062/min on a private repo), hence the timeouts.
+
+name: macOS spike
+
+on:
+  pull_request:
+    paths:
+      - macos/spike/**
+      - .github/workflows/macos-spike.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Lint plists
+        run: plutil -lint macos/spike/App/Info.plist macos/spike/FinderExt/Info.plist macos/spike/FinderExt/FinderExt.entitlements
+
+      - name: Self-test the hand-off format
+        run: |
+          swiftc -o "$RUNNER_TEMP/handoff-selftest" macos/spike/Shared/HandOff.swift macos/spike/SelfTest/main.swift
+          "$RUNNER_TEMP/handoff-selftest"
+
+      - run: brew install xcodegen
+
+      # The first real compile of the app and the extension against AppKit and FinderSync.
+      - name: Build (ad hoc signed)
+        id: build
+        timeout-minutes: 10
+        run: |
+          app=$(sh macos/spike/build.sh)
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect the bundle
+        env:
+          APP: ${{ steps.build.outputs.app }}
+        run: |
+          appex="$APP/Contents/PlugIns/R2FLFinderSync.appex"
+          test -d "$appex"
+          echo "--- app signature"; codesign -dvv "$APP" 2>&1 | grep -E "Identifier|Signature|TeamIdentifier"
+          echo "--- extension signature"; codesign -dvv "$appex" 2>&1 | grep -E "Identifier|Signature|TeamIdentifier"
+          echo "--- extension entitlements"; codesign -d --entitlements - "$appex" 2>&1
+          codesign --verify --deep --strict "$APP" && echo "signature verifies"
+          echo "--- Info.plist (extension)"; plutil -p "$appex/Contents/Info.plist" | grep -A3 NSExtension
+          echo "--- URL scheme (app)"; plutil -p "$APP/Contents/Info.plist" | grep -A3 CFBundleURLSchemes
+          echo "--- extension entry point"; otool -l "$appex/Contents/MacOS/R2FLFinderSync" | grep -A2 LC_MAIN || true
+
+      # Informational only: a CI Mac has no Finder session to show a menu, so these cannot prove the
+      # ticket's question. They show how far registration and the host app's half get on a Mac.
+      - name: Install and exercise the host app (informational)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          APP: ${{ steps.build.outputs.app }}
+        run: |
+          sh macos/spike/install.sh "$APP"
+          sh macos/spike/test-handoff.sh
+          echo "--- host app log"; cat ~/Library/Logs/r2fl-spike.log
+
+      # ditto keeps permissions and the bundle intact; upload-artifact's zip would drop the exec bits.
+      - name: Package
+        env:
+          APP: ${{ steps.build.outputs.app }}
+        run: ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/r2-fastlink-spike.zip"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: r2-fastlink-spike
+          path: ${{ runner.temp }}/r2-fastlink-spike.zip
+          if-no-files-found: error
+          retention-days: 14

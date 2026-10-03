@@ -24,7 +24,7 @@ describe('macos/spike consistency', () => {
   const appPlist = read('App/Info.plist');
   const extPlist = read('FinderExt/Info.plist');
   const project = read('project.yml');
-  const runSh = read('run.sh');
+  const installSh = read('install.sh');
 
   it('registers the URL scheme the extension opens', () => {
     const scheme = swiftConst(handoff, 'scheme');
@@ -47,14 +47,14 @@ describe('macos/spike consistency', () => {
     expect(read('App/Info.plist')).toMatch(/<key>LSUIElement<\/key>\s*<true\/>/);
   });
 
-  it('keeps bundle ids in step between project.yml and run.sh', () => {
+  it('keeps bundle ids in step between project.yml and install.sh', () => {
     const app = /PRODUCT_BUNDLE_IDENTIFIER: (\S+)\n\s+INFOPLIST_FILE: App/.exec(project)?.[1];
     const ext = /PRODUCT_BUNDLE_IDENTIFIER: (\S+)\n\s+INFOPLIST_FILE: FinderExt/.exec(project)?.[1];
     expect(app).toBeDefined();
     expect(ext).toBe(`${app}.FinderSync`); // an extension's id must extend its host app's id
-    expect(runSh).toContain(`APP_ID="${app}"`);
-    expect(runSh).toContain(`EXT_ID="${ext}"`);
-    expect(runSh).toContain('R2FLFinderSync.appex');
+    expect(installSh).toContain(`APP_ID="${app}"`);
+    expect(installSh).toContain(`EXT_ID="${ext}"`);
+    expect(installSh).toContain('R2FLFinderSync.appex');
   });
 
   it('commits no signing material', () => {
@@ -70,6 +70,26 @@ describe('macos/spike consistency', () => {
       expect(src, file).not.toMatch(/Developer ID|iPhone Developer|[A-Z0-9]{10}\.dev\./);
     }
     expect(project).toMatch(/CODE_SIGN_IDENTITY: ["']-["']/);
+  });
+});
+
+describe('macOS spike workflow', () => {
+  const workflow = fs.readFileSync(
+    path.join(spike, '..', '..', '.github', 'workflows', 'macos-spike.yml'),
+    'utf8',
+  );
+
+  it('runs on a GitHub-hosted Mac only for spike changes, never on the normal CI path', () => {
+    expect(workflow).toMatch(/runs-on: macos-latest/);
+    expect(workflow).toMatch(/paths:\s+- macos\/spike\/\*\*/);
+    expect(workflow).toContain('workflow_dispatch');
+    expect(workflow).toMatch(/timeout-minutes: \d+/);
+  });
+
+  it('calls scripts that exist', () => {
+    for (const script of workflow.match(/macos\/spike\/[\w./-]+\.(?:sh|swift)/g) ?? []) {
+      expect(fs.existsSync(path.join(spike, '..', '..', script)), script).toBe(true);
+    }
   });
 });
 

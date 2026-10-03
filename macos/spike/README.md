@@ -13,21 +13,41 @@ not, we stay with the Quick Action in `macos/` (PR #10) or try an Apple Shortcut
 
 ## What is here
 
-| Path                   | What                                                                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `project.yml`          | XcodeGen spec for two targets (the `.xcodeproj` is generated, not checked in)                                                                                 |
-| `App/`                 | Host app "r2-fastlink": `LSUIElement` (no Dock icon), registers `r2fl-spike://`, logs every hand-off to `~/Library/Logs/r2fl-spike.log`, posts a notification |
-| `FinderExt/`           | The Finder Sync extension (sandboxed; entitlements are only `app-sandbox` and `files.user-selected.read-only`, so no provisioning profile)                    |
-| `Shared/HandOff.swift` | The hand-off format (`r2fl-spike://share?ttl=1h&path=…&path=…`, every byte percent-encoded) compiled into both targets                                        |
-| `SelfTest/main.swift`  | Foundation-only test of `HandOff.swift`; runs on Linux or macOS with `swiftc`, no Xcode                                                                       |
-| `run.sh`               | Build, install to `~/Applications`, enable the extension, restart Finder (`--uninstall` reverses it)                                                          |
-| `test-handoff.sh`      | Exercises the host app half without Finder: awkward file names in, log lines compared out                                                                     |
+| Path                                 | What                                                                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project.yml`                        | XcodeGen spec for two targets (the `.xcodeproj` is generated, not checked in)                                                                                 |
+| `App/`                               | Host app "r2-fastlink": `LSUIElement` (no Dock icon), registers `r2fl-spike://`, logs every hand-off to `~/Library/Logs/r2fl-spike.log`, posts a notification |
+| `FinderExt/`                         | The Finder Sync extension (sandboxed; entitlements are only `app-sandbox` and `files.user-selected.read-only`, so no provisioning profile)                    |
+| `Shared/HandOff.swift`               | The hand-off format (`r2fl-spike://share?ttl=1h&path=…&path=…`, every byte percent-encoded) compiled into both targets                                        |
+| `SelfTest/main.swift`                | Foundation-only test of `HandOff.swift`; runs on Linux or macOS with `swiftc`, no Xcode                                                                       |
+| `build.sh` / `install.sh` / `run.sh` | Build, install to `~/Applications`, enable the extension, restart Finder (`--uninstall` reverses it)                                                          |
+| `test-handoff.sh`                    | Exercises the host app half without Finder: awkward file names in, log lines compared out                                                                     |
 
 Why a URL scheme: it needs no App Group and no provisioning profile (an App Group requires a signed
 team identity). The sandboxed extension simply calls `NSWorkspace.open(url)`; LaunchServices starts
 the host app. The cost is URL length, see "Open questions".
 
 ## Build and run
+
+### Option A: no Xcode, use the CI build
+
+`.github/workflows/macos-spike.yml` builds the app on a GitHub-hosted Mac (ad hoc signed, same
+`build.sh`) whenever `macos/spike/` changes, and can be started by hand (Actions → macOS spike → Run
+workflow). On your Mac you only need `git` and `gh`:
+
+```sh
+gh run list --workflow macos-spike.yml --branch spike/rf-og97-finder-sync -L 3   # pick a green run
+gh run download <run-id> -n r2-fastlink-spike -D ~/Downloads/r2fl-spike
+sh macos/spike/install.sh ~/Downloads/r2fl-spike/r2-fastlink-spike.zip
+```
+
+`install.sh` strips the download quarantine flag, copies the app to `~/Applications`, opens it once
+(this registers the URL scheme and asks for notification permission), registers and enables the
+extension with `pluginkit`, and restarts Finder. Note in `FINDINGS.md` that this build was made by CI.
+The job log also shows the CI build's `codesign` output and the host-app half of `test-handoff.sh`
+(informational: a CI Mac has no Finder session, so it cannot answer the ticket's question).
+
+### Option B: build locally
 
 You need Xcode (the app, not just the command line tools), XcodeGen and a Terminal.
 
@@ -36,17 +56,15 @@ brew install xcodegen
 sh macos/spike/run.sh                 # ad hoc signing ("Sign to Run Locally"), watches "/"
 ```
 
-The script prints macOS and Xcode versions and the signature it ended up with (copy them into
-`FINDINGS.md`), builds with `xcodebuild`, copies the app to `~/Applications/r2-fastlink.app`, opens it
-once (this registers the URL scheme and asks for notification permission), registers and enables the
-extension with `pluginkit`, and restarts Finder.
+`run.sh` is `build.sh` (prints macOS and Xcode versions, runs `xcodegen` and `xcodebuild`) followed by
+`install.sh` (prints the signature it ended up with; copy it into `FINDINGS.md`).
 
 Variants:
 
 ```sh
 WATCH=home sh macos/spike/run.sh      # watch the home folder + each mounted volume instead of "/"
 SIGNING=team TEAM=ABCDE12345 sh macos/spike/run.sh   # only if ad hoc fails: free personal Apple ID team
-sh macos/spike/run.sh --uninstall
+sh macos/spike/install.sh --uninstall   # same as run.sh --uninstall
 ```
 
 No team id, identity or profile is stored anywhere in the repo; `TEAM` comes from your environment.
