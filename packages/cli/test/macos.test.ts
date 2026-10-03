@@ -14,7 +14,7 @@ let dir: string;
 // so that a newline inside an argument stays visible).
 const FAKE_R2FL = `#!/bin/sh
 if [ "$1" = config ] && [ "$2" = get ] && [ "$3" = defaultTtl ]; then
-  [ "\${FAKE_CONFIG_EXIT:-0}" = 0 ] || exit "$FAKE_CONFIG_EXIT"
+  [ "\${FAKE_CONFIG_EXIT:-0}" = 0 ] || { [ -z "\${FAKE_CONFIG_ERR-}" ] || echo "$FAKE_CONFIG_ERR" >&2; exit "$FAKE_CONFIG_EXIT"; }
   printf '%s\\n' "\${FAKE_DEFAULT_TTL-1h}"
   exit 0
 fi
@@ -195,11 +195,23 @@ describe('r2fl-quick lifetime picker', () => {
     expect(call!.slice(call!.lastIndexOf('end run') + 1)[0]).toBe('2h');
   });
 
-  it('falls back to 1h when the default is not a duration', () => {
-    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', FAKE_DEFAULT_TTL: '-evil' });
+  it('trims whitespace around the default, which r2fl accepts (" 15m")', () => {
+    run(wrapper, ['a.txt'], { FAKE_PICK: '15 minutes', FAKE_DEFAULT_TTL: '  15m \t' });
     const [call] = pickerCalls();
-    expect(call!.slice(call!.lastIndexOf('end run') + 1)[0]).toBe('1 hour');
+    expect(call!.slice(call!.lastIndexOf('end run') + 1)[0]).toBe('15 minutes');
   });
+
+  it.each(['-evil', 'soon', '1 h', '', '(not set)', '15m; id'])(
+    'refuses to guess a lifetime when the default is %j',
+    (bad) => {
+      const r = run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', FAKE_DEFAULT_TTL: bad });
+      expect(r.status).toBe(1);
+      expect(pickerCalls()).toEqual([]);
+      expect(upCalls()).toEqual([]);
+      expect(notifications()).toHaveLength(1);
+      expect(notifications()[0]).toContain('Invalid default lifetime');
+    },
+  );
 
   it('keeps the AppleScript fixed: config text and file names travel only as arguments', () => {
     run(wrapper, ['"; do shell script "x".txt'], { FAKE_PICK: '1 hour', FAKE_DEFAULT_TTL: '45m' });
@@ -226,6 +238,17 @@ describe('r2fl-quick lifetime picker', () => {
     expect(upCalls()).toEqual([]);
     expect(notifications()).toHaveLength(1);
     expect(notifications()[0]).toContain('Could not show the lifetime picker');
+  });
+
+  it('shows what r2fl said when it ran but failed (corrupt config), not a PATH hint', () => {
+    const message = 'error: Expected property name or } in JSON at position 2';
+    const r = run(wrapper, ['a.txt'], { FAKE_CONFIG_EXIT: '1', FAKE_CONFIG_ERR: message });
+    expect(r.status).toBe(1);
+    expect(pickerCalls()).toEqual([]);
+    expect(upCalls()).toEqual([]);
+    expect(notifications()).toHaveLength(1);
+    expect(notifications()[0]).toContain(message);
+    expect(notifications()[0]!.join(' ')).not.toContain('not found');
   });
 
   it('reports a missing r2fl before showing any picker', () => {

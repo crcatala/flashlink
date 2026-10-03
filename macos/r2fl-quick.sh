@@ -94,15 +94,29 @@ choose_ttl() {
 }
 
 if [ "$prompt" -eq 1 ]; then
-  if ! out=$(login_r2fl config get defaultTtl 2>/dev/null); then
-    notify_problem "Could not run r2fl" "r2fl or node was not found by your login shell. See the README (Finder integration)."
+  errfile=$(mktemp "${TMPDIR:-/tmp}/r2fl-quick.XXXXXX") || exit 1
+  trap 'rm -f "$errfile"' EXIT
+  out=$(login_r2fl config get defaultTtl 2>"$errfile")
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    if [ "$status" -eq 126 ] || [ "$status" -eq 127 ]; then
+      notify_problem "Could not run r2fl" "r2fl or node was not found by your login shell. See the README (Finder integration)."
+    else
+      # r2fl ran and refused (for example a corrupt config file): show what it said, not a PATH hint.
+      reason=$(grep . "$errfile" | tail -n 1 | cut -c1-200)
+      notify_problem "r2fl config error" "${reason:-r2fl config get defaultTtl failed (exit $status).}"
+    fi
     exit 1
   fi
-  # A login shell may print noise (a greeting from a profile) before the value: take the last line.
-  default_ttl=$(printf '%s\n' "$out" | tail -n 1)
+  # A login shell may print noise (a greeting from a profile) before the value: take the last
+  # line, without surrounding whitespace (r2fl accepts " 15m").
+  default_ttl=$(printf '%s\n' "$out" | tail -n 1 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  # Never guess a lifetime: a longer one than configured would keep the file public for longer.
   case $default_ttl in
-    [0-9]*) ;;
-    *) default_ttl=1h ;;
+    *[!0-9smhdwSMHDW]* | "" | [!0-9]*)
+      notify_problem "Invalid default lifetime" "defaultTtl is \"$default_ttl\". Fix it with: r2fl config set defaultTtl 1h"
+      exit 1
+      ;;
   esac
   if ! ttl=$(choose_ttl "$default_ttl"); then
     notify_problem "Could not show the lifetime picker" "osascript failed. Use the \"default lifetime\" Quick Action instead."
