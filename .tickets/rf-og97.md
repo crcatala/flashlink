@@ -61,3 +61,7 @@ Linux-side work done on branch spike/rf-og97-finder-sync (PR pending). Written a
 - macos/spike/: XcodeGen project (host app + sandboxed Finder Sync extension), run.sh (ad hoc build, install, pluginkit enable), test-handoff.sh, README (Mac test script), FINDINGS.md template.
 - Verified on Linux: HandOff.swift compiles and passes SelfTest with swiftc 6.1.2; the app and extension sources parse and typecheck only against hand-written stubs (NOT against AppKit/FinderSync, never built by Xcode); plists parse; shell encoder agrees with the Swift parser; vitest macos-spike.test.ts.
 - NOT done (needs the Mac): every acceptance criterion. Ticket stays open; fill macos/spike/FINDINGS.md on the Mac.
+
+**2026-10-03T16:50:22Z**
+
+CI Mac result (GitHub macos-latest, macOS 26.6.2, Xcode 26.6, run 37138241482 on PR #11): both targets build ad hoc signed first try; extension is sandboxed with app-sandbox + user-selected.read-only; pluginkit -a/-e use registers it and lists it enabled (+); host app launches, URL scheme works, test-handoff.sh passes 6/6 awkward names. Notifications and the Finder menu NOT exercised (no Finder session on CI). Remaining for the owner's Mac: download the CI artifact (README Option A, no Xcode needed) and run the Finder steps in macos/spike/README.md.

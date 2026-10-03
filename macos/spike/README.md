@@ -7,9 +7,11 @@ lifetime submenu and hand the selected files to a helper app?
 This spike uploads nothing. If it works, a follow-up ticket designs the real Finder-only app; if
 not, we stay with the Quick Action in `macos/` (PR #10) or try an Apple Shortcut.
 
-> Status: written and checked on Linux only. The Swift for the two Apple-framework files has never
-> been compiled by Xcode, so expect the first Mac build to maybe need a small fix. Record
-> everything in [`FINDINGS.md`](FINDINGS.md).
+> Status: written on Linux. The CI Mac (macOS 26.6.2, Xcode 26.6) builds both targets ad hoc signed
+> on the first try, `pluginkit` registers and enables the extension, and the host-app half of
+> `test-handoff.sh` passes there. Still unproven, because it needs a real Finder session: that
+> Finder loads the extension and shows the root menu, and that a click hands off the selection.
+> Record everything in [`FINDINGS.md`](FINDINGS.md).
 
 ## What is here
 
