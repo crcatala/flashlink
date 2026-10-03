@@ -12,6 +12,11 @@ export interface HistoryEntry {
   sha256: string;
   /** Absolute path of the source file, or null for stdin uploads. */
   sourcePath: string | null;
+  /**
+   * What `sourcePath` is: `dir` means a folder that was zipped (a zip is not reproducible, so
+   * `refresh` cannot re-upload it). Absent in entries written before folder uploads existed.
+   */
+  sourceKind?: 'file' | 'dir' | 'stdin';
   createdAt: string;
   expiresAt: string;
   ttlSeconds: number;

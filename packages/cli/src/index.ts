@@ -59,7 +59,7 @@ function buildProgram(ctx: () => Context, quiet: boolean): Command {
   program
     .command('up [files...]')
     .alias('upload')
-    .description('Upload files (or stdin) and print a short link for each')
+    .description('Upload files, folders (as a zip) or stdin and print a short link for each')
     .option('-t, --ttl <duration>', 'link lifetime: 30m, 2h, 1d… (default: your config, 1h)')
     .option('-d, --max-downloads <n>', 'stop serving after n downloads', positiveInt)
     .option('-n, --name <filename>', 'filename to use (required-ish for stdin)')
@@ -69,6 +69,13 @@ function buildProgram(ctx: () => Context, quiet: boolean): Command {
     .option('--notify', 'post a macOS notification with the result (and copy the URL)')
     .option('--allow-secrets', 'upload even if the file looks like it holds secrets')
     .option('-y, --yes', 'same as --allow-secrets (skip the secret-warning prompt)')
+    .option(
+      '-x, --exclude <glob>',
+      'folders: leave out matching paths (repeatable)',
+      (value: string, previous: string[]) => [...previous, value],
+      [] as string[],
+    )
+    .option('--no-gitignore', 'folders: include files that .gitignore would skip')
     .option('-q, --quiet', 'print only URLs')
     .action((files: string[], opts) => upWithContext(files, opts, ctx));
 

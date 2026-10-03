@@ -64,6 +64,14 @@ async function reupload(code: string, ttlSeconds: number, ctx: Context) {
   if (!entry.sourcePath) {
     throw new CliError(`${gone}; it came from stdin, so it can't be re-uploaded.`);
   }
+  if (entry.sourceKind === 'dir') {
+    // A zip embeds timestamps and depends on the exclusions used, so it can't be verified as
+    // "the same content" the way a file can, and silently sending a different zip is worse.
+    throw new CliError(
+      `${gone}; it was a zipped folder (${entry.sourcePath}), which can't be re-uploaded safely.`,
+      'Upload the folder again with `r2fl up` to get a new link.',
+    );
+  }
   let bytes: Buffer;
   try {
     bytes = fs.readFileSync(entry.sourcePath);

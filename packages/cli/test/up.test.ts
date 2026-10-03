@@ -149,12 +149,12 @@ describe('r2fl up', () => {
     await expect(up([], {}, h.ctx)).rejects.toThrow(/No files given/);
   });
 
-  it('rejects empty files, directories and missing files with a labelled message', async () => {
+  it('rejects empty files, empty folders and missing files with a labelled message', async () => {
     await expect(up([h.file('empty.txt', '')], {}, h.ctx)).rejects.toThrow(
       /empty\.txt: Empty file/,
     );
-    h.file('dir/x.txt', 'x');
-    await expect(up([`${h.dir}/dir`], {}, h.ctx)).rejects.toThrow(/dir: Is a directory/);
+    fs.mkdirSync(`${h.dir}/dir`);
+    await expect(up([`${h.dir}/dir`], {}, h.ctx)).rejects.toThrow(/dir: Nothing to zip/);
     await expect(up([`${h.dir}/nope.txt`], {}, h.ctx)).rejects.toThrow(/nope\.txt: No such file/);
     h.stdin.data = Buffer.alloc(0);
     await expect(up([], {}, h.ctx)).rejects.toThrow(/stdin: Empty input/);

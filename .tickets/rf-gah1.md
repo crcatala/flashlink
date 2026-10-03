@@ -1,6 +1,6 @@
 ---
 id: rf-gah1
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-02T20:05:53Z
@@ -24,9 +24,19 @@ tags: [phase-3, cli, idea, batch-07]
 
 ## Acceptance Criteria
 
-- [ ] `r2fl up some-dir` uploads a zip named `some-dir.zip` with correct content; unzipping it reproduces the directory (minus exclusions).
-- [ ] Size cap enforced on the zipped size with a helpful error; temp zip is always cleaned up.
-- [ ] Default exclusions and `--exclude`/gitignore behavior are tested; symlinks pointing outside the directory are not followed.
-- [ ] Behavior of `refresh` after purge for directory uploads is defined, tested and documented.
-- [ ] README updated (the "Is a directory" hint removed).
+- [x] `r2fl up some-dir` uploads a zip named `some-dir.zip` with correct content; unzipping it reproduces the directory (minus exclusions).
+- [x] Size cap enforced on the zipped size with a helpful error; temp zip is always cleaned up.
+- [x] Default exclusions and `--exclude`/gitignore behavior are tested; symlinks pointing outside the directory are not followed.
+- [x] Behavior of `refresh` after purge for directory uploads is defined, tested and documented.
+- [x] README updated (the "Is a directory" hint removed).
 
+
+## Notes
+
+**2026-10-03T23:20:16Z**
+
+Done on branch batch-07-folder-zip (PR: see GitHub), commit 56f86ac. Deviations (also in docs/PLAN.md): (1) no system zip and no temp file: an in-memory zip writer on node:zlib (src/zip.ts, no new npm dependency) because the dev container has no zip, and a plaintext temp copy of possibly sensitive files is worse than none; so 'temp zip is always cleaned up' holds trivially (test asserts no .zip is written). (2) size cap = zipped size, aborts as soon as the running zip passes it; one extra guard, no --force flag: files totalling >20x the cap are refused before reading (the zip is held in memory). (3) .git and node_modules always excluded by name at any depth; 'explicitly included' = pass that folder itself. (4) refresh after purge for a folder zip is refused (HistoryEntry.sourceKind 'dir'). (5) secret check runs per member file while zipping. Evidence: 295 CLI tests (27 new in test/folder.test.ts, incl. real unzip -t and extraction), and built CLI against wrangler dev: uploaded my-project.zip, downloaded it, unzip -t clean, diff -r identical minus exclusions, leaking symlink skipped, purge+refresh refused. Not verified: macOS Quick Action on a real Mac with a right-clicked folder (optional manual check, no ticket gate).
+
+**2026-10-03T23:29:33Z**
+
+Review follow-up on PR #17 (3 findings, all reproduced first and fixed): (1) a symlinked PARENT folder escaped the containment check (git lists a tracked sub/x even after sub became a link outside): every candidate is now realpath'd, checked to be inside the folder, and read via the resolved path. (2) a git failure inside a repository (missing git, error, timeout, or the 1 MiB execFileSync output cap, hit at ~11k files) silently fell back to a walk that ignores .gitignore: now an error naming --no-gitignore (fail closed), maxBuffer 256 MiB; outside a repo git is still not used. (3) docs said pointing at node_modules includes it, but inside a repo that ignores it that gives 'Nothing to zip': README and PLAN now say --no-gitignore is needed too, with a test. 5 new tests (3 fail on the previous folder.ts); suite 300 passing.

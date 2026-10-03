@@ -19,11 +19,11 @@ https://fl.example.com/k3F9xQ2m
 
 Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. Phase 2 (the Finder Quick Action) is implemented and has been verified on macOS 26. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
 
-| Phase | Scope                                                         | Status |
-| ----- | ------------------------------------------------------------- | ------ |
-| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page        | done   |
-| 2     | macOS Finder Quick Action                                     | done   |
-| 3+    | Extras (zip of folders, agent skill; clipboard upload parked) | ideas  |
+| Phase | Scope                                                          | Status |
+| ----- | -------------------------------------------------------------- | ------ |
+| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page         | done   |
+| 2     | macOS Finder Quick Action                                      | done   |
+| 3+    | Extras (folder zip done; agent skill; clipboard upload parked) | ideas  |
 
 ## How it works
 
@@ -96,6 +96,8 @@ r2fl up big.zip -d 3                  # stop serving after 3 downloads
 cat trace.txt | r2fl up --name trace.txt   # from stdin
 r2fl up shot.png --with-name          # https://…/k3F9xQ2m/shot.png
 r2fl up .env --allow-secrets          # override the secret warning (see below)
+r2fl up my-project                    # a folder: uploads my-project.zip (see below)
+r2fl up logs --exclude '*.tmp'        # ...leaving out matching paths (repeatable)
 
 r2fl ls                               # local history (add --live, --all, --sync, --json)
 r2fl refresh k3F9xQ2m --ttl 30m       # same link, new window (no argument: the latest upload)
@@ -107,6 +109,8 @@ r2fl config                           # view settings; `config set defaultTtl 2h
 ```
 
 Only the URL goes to stdout, so it composes: `curl -s "$(r2fl up shot.png --no-copy)"`. Add `--json` for the full result.
+
+**Folders.** `r2fl up <folder>` zips the folder and uploads `<folder>.zip` (`application/zip`), with everything under a `<folder>/` directory inside the archive, so unzipping gives you the folder back (file permissions are kept; empty folders are not). The zip is built in memory, so it needs no `zip` command and leaves no temporary file, and the size limit applies to the **zipped** size (a big folder of text is fine; it stops as soon as the zip passes the limit, and refuses at once if the files add up to more than 20 times the limit). Left out: `.git/` and `node_modules/` at any depth (point `r2fl up` at one of them directly to include it; if a git repository ignores it, as it usually does, add `--no-gitignore` too, otherwise there is nothing left to zip), anything matching `--exclude <glob>` (repeatable; gitignore-style: `*.log` matches at any depth, `build/` only folders, `/dist` and `docs/**/*.md` are anchored to the folder you passed), and, inside a git repository, whatever `.gitignore` ignores (tracked and untracked files are both included; `--no-gitignore` disables this. Inside a repository `git` is needed to read the ignore rules; if it is missing or fails, `up` stops and tells you so rather than guessing, and `--no-gitignore` is the way out. Outside a repository `git` is not used). Symlinks are never followed out of the folder (every path is resolved first, so a symlinked parent folder cannot lead out either): a link to a file inside it is stored as that file, anything else (a link elsewhere, to a folder, or a broken one) is skipped, and the number skipped is reported. The [secret warning](#using-it) checks every file that goes into the zip and names the ones it flags. `--name` renames the upload (it is still a zip). `r2fl refresh` keeps working while the server still has the file, but once it has been purged a zipped folder **cannot be re-uploaded** (a zip is not reproducible: it depends on timestamps and the exclusions used), so it fails with a message to run `r2fl up <folder>` again for a new link.
 
 **Secret warning.** Anyone with the link can read the file, so `up` checks before uploading and stops if the file looks like it holds secrets: a file name such as `.env`, `.env.production`, `*.env`, `*.pem`, `*.key`, `*.p12`, `id_rsa` / `id_ed25519` (not the `.pub` files), `credentials*`, `.npmrc`, `.netrc` or `*.kdbx` (`.env.example`, `.env.sample` and `.env.template` are fine), or, in a text file, a private key header (`-----BEGIN … PRIVATE KEY-----`), an AWS access key ID, a GitHub or Slack token, or an `api_key = <16+ characters>` assignment. Only the first 2 MB of a text file is scanned and binary files are not scanned at all (their names still are). The warning names the rule and line numbers but never prints the matched text. At a terminal you are asked `Upload anyway? [y/N]`; with no terminal to ask (a script, stdin, the Finder Quick Action, where the error notification says why) or with `--json` (which never prompts and keeps stderr empty) the upload is refused. The real file name is checked even if you rename the upload with `--name`. `--allow-secrets` (or `-y` / `--yes`) uploads anyway, and `r2fl config set warnSecrets false` turns the check off. With several files only the flagged ones are skipped. It is a safety net with a deliberately small pattern list: a clean result does not prove a file is safe, and false positives are possible. `r2fl refresh` does not check again (it re-sends a file you already uploaded).
 
@@ -152,7 +156,7 @@ sh macos/install.sh                 # uses your own r2fl and node, found in your
 pnpm install:macos                  # or: build the standalone binary for this Mac (needs Bun) and install it
 ```
 
-The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to `~/.local/bin/r2fl-quick`, checks that a login shell can find `r2fl` and `node`, and refreshes the Services menu. Then enable them once in **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders**.
+The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to `~/.local/bin/r2fl-quick`, checks that a login shell can find `r2fl` and `node`, and refreshes the Services menu. Then enable them once in **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders**. A folder you right-click is uploaded as a zip (see [Folders](#using-it)); the notification names a file in it if the secret warning refuses it.
 
 | Quick Action                               | Behavior                                                                                                                                                                                                                    |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
