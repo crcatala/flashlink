@@ -2,17 +2,17 @@
 id: rf-kecm
 status: open
 deps: [rf-og97]
-links: []
+links: [rf-gah1, rf-4514]
 created: 2026-10-03T17:14:56Z
 type: task
 priority: 2
 assignee: cc-vps
-parent: rf-dek6
-tags: [phase-3, macos, design, needs-human, swift]
+parent: rf-yofr  # Epic: native Finder-only macOS app
+tags: [phase-3, macos, design, needs-human, swift, batch-14]
 ---
 # Design: Finder-only macOS app (Finder Sync extension + helper app), no node/PATH
 
-The spike (rf-og97, PR #11) says VIABLE: an ad hoc signed Finder Sync extension shows 'Share via r2-fastlink' at the ROOT of Finder's context menu on macOS 26.6.2, with a 15m/1h/1d/7d submenu, and hands all selected paths plus the lifetime to a helper app via an r2fl-spike:// URL (no App Group, no profile, no team id, no prompts; 924 files and awkward names work; the host app relaunches on demand). See macos/spike/FINDINGS.md. This ticket designs the real, Finder-only app that replaces the Quick Action (macos/) as the primary Finder integration, so that it needs no node, shell or PATH. Output is a short design note approved by the owner BEFORE implementation (rf-kwsu).
+The spike (rf-og97, PR #11) says VIABLE: an ad hoc signed Finder Sync extension shows 'Share via r2-fastlink' at the ROOT of Finder's context menu on macOS 26.6.2, with a 15m/1h/1d/7d submenu, and hands all selected paths plus the lifetime to a helper app via an r2fl-spike:// URL (no App Group, no profile, no team id, no prompts; 924 files and awkward names work; the host app relaunches on demand). See macos/spike/FINDINGS.md. This ticket designs the real, Finder-only app that replaces the Quick Action (macos/) as the primary Finder integration, so that it needs no node, shell or PATH. Output is a short design note (a new section in docs/PLAN.md) approved by the owner BEFORE implementation. An agent drafts it; the owner approves (put 'AWAITING HUMAN:' in a note when the draft is ready). Epic: rf-yofr.
 
 ## Design
 
@@ -37,6 +37,6 @@ Questions the design note must answer:
 ## Acceptance Criteria
 
 - [ ] A short design note (scope, upload/auth approach, token storage, history, distribution, tests/CI, fate of the Quick Action) is written in docs/PLAN.md or a linked doc and approved by the owner BEFORE implementation.
-- [ ] rf-kwsu's scope is the approved design (done in this ticket's PR), and any new implementation tickets are split from it.
+- [ ] The child tickets of the epic rf-yofr (core rf-dgve, app shell rf-kwsu, releases rf-16ho, QA rf-szpx, docs rf-0yp9, icon rf-txf4) are each confirmed or amended by the note (scope, order, acceptance), in this ticket's PR. The note ends with a one-line decision for each of the twelve questions above.
 - [ ] The note records what is verified (macos/spike/FINDINGS.md) versus assumed.
 

@@ -31,7 +31,13 @@ Before the first run: merge PR #1 (it contains `.tickets/`).
 | 11    | `rf-v39y` large files (multipart)                                   | P4 idea: agent asks before starting.                                                                                                  | yes                                         |
 | 12    | `rf-l2ym` edge cache                                                | P4 idea: only if measurements justify; agent asks first.                                                                              | yes (measurements)                          |
 | 13    | `rf-j60m` multi-machine history                                     | P4 idea: decision ticket.                                                                                                             | yes (decision)                              |
-| 14    | `rf-kwsu` native menubar app                                        | P4 idea: design first.                                                                                                                | yes (design approval)                       |
+| 14    | `rf-kecm` macOS app design note                                     | Epic `rf-yofr` (Finder-only app). The agent drafts the note in docs/PLAN.md; the owner approves before any code.                      | yes (design approval)                       |
+| 15    | `rf-dgve` Swift upload core                                         | Foundation-only SwiftPM package with Linux CI tests. Blocked by `rf-kecm`.                                                            | none                                        |
+| 16    | `rf-kwsu` app shell                                                 | Extension + helper app on the core; macOS CI job. Needs a real Mac to try it.                                                         | yes (a Mac)                                 |
+| 17    | `rf-16ho` releases and updates                                      | GitHub Releases, `install.sh --latest`, version check.                                                                                | yes (update test on a Mac)                  |
+| 18    | `rf-szpx` Mac QA and sign-off                                       | Owner runs the checklist on a real Mac.                                                                                               | **yes** (a Mac)                             |
+| 19    | `rf-0yp9` docs, Quick Action decision                               | Closes epic `rf-yofr`.                                                                                                                | none                                        |
+| 20    | `rf-txf4` final app icon                                            | P4 idea: agent asks first.                                                                                                            | yes (design taste)                          |
 
 ## The prompt
 

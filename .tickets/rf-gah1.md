@@ -2,7 +2,7 @@
 id: rf-gah1
 status: open
 deps: []
-links: []
+links: [rf-4514, rf-kecm]
 created: 2026-10-02T20:05:53Z
 type: feature
 priority: 3
