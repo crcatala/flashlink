@@ -232,7 +232,7 @@ Implementation notes, where phase 1 refined this plan:
 **Phase 3: extras (ideas, not committed)**
 
 - Folder upload as zip (done, `rf-gah1`).
-- An agent skill (a `SKILL.md` over the CLI) so agents can create and refresh links themselves.
+- An agent skill (`skills/r2-fastlink/SKILL.md`, a skill file over the CLI so agents can create, refresh and revoke links themselves) (done, `rf-xxew`). It was validated by driving the documented commands against `wrangler dev`. Findings: the skill must tell agents to pass `--no-copy` (otherwise the clipboard is touched), that options go before `--`, that refresh also re-opens revoked and download-capped links and works for links this machine never uploaded (the server owns the state; the local history only matters for re-uploading a purged file), and that the one token can manage every link, which is the argument for scoped tokens in `rf-h4so`. `r2fl status | head` dies with an `EPIPE` stack trace (a CLI wart, noted in the skill, not fixed here). The MCP server and scoped tokens stay parked in `rf-h4so`.
 - Parked: upload from the clipboard (screenshots), reconsidered later; an MCP server and scoped (restricted) tokens, to be decided after the skill has been used.
 - Native Swift menubar app (drop target, hotkey).
 - Deploy-to-Cloudflare button.

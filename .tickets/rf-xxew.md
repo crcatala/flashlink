@@ -1,6 +1,6 @@
 ---
 id: rf-xxew
-status: open
+status: closed
 deps: []
 links: [rf-h4so]
 created: 2026-10-02T20:05:53Z
@@ -24,12 +24,20 @@ The consumers of these links are coding agents. A skill (instructions) lets an a
 
 ## Acceptance Criteria
 
-- [ ] Skill file exists and was validated by an agent actually performing upload + refresh + revoke with it.
-- [ ] README documents where the skill lives and how to install it.
-- [ ] A note records that the MCP server and scoped tokens were deferred to `rf-h4so`, with anything learned during validation.
+- [x] Skill file exists and was validated by an agent actually performing upload + refresh + revoke with it.
+- [x] README documents where the skill lives and how to install it.
+- [x] A note records that the MCP server and scoped tokens were deferred to `rf-h4so`, with anything learned during validation.
 
 ## Notes
 
 **2026-10-03T21:29:57Z**
 
 2026-10-03 reorder: now batch-08 and narrowed to the skill file only. The MCP server and the scoped-token question moved to rf-h4so (parked). Rationale: the skill is a markdown file over the existing CLI and agents benefit from it during dogfooding; the MCP server and a second token class are real work with no demonstrated need yet.
+
+**2026-10-03T23:37:29Z**
+
+2026-10-03 batch-08 (branch batch-08-agent-skill). Added skills/r2-fastlink/SKILL.md (folder and skill name are r2-fastlink, matching the repo, so first-time users recognise it), a README 'Agent skill' section (install: symlink from a clone, or gh api for the private repo), a PLAN note, and packages/cli/test/skill.test.ts (front matter, every r2fl command/option shown exists in the real CLI --help, key rules present; verified it fails when a bogus flag is added). VALIDATION: I (the authoring agent, not a fresh one) followed only the skill's commands from a clean env (R2FL_ENDPOINT/R2FL_TOKEN/R2FL_*_DIR only) against wrangler dev: upload with --ttl 2s (stdout is only the URL), real expiry -> 410, refresh by URL (same code, 200), revoke (410, empty stdout, exit 0), refresh re-opens a revoked link, revoke --purge -> 404, stdin --name --json, folder zip (node_modules left out), secret refusal (exit 1, JSON error), bad-token JSON error shape. Corrections the validation forced into the skill: refresh DOES re-open a download-capped link (window hits reset); refresh works for links this machine never uploaded; options must precede '--'; purged-from-another-machine error text; not-configured text; quota codes are daily_limit/storage_full; codes are base58 not [A-Za-z0-9]; pass --no-copy; r2fl status | head crashes with an EPIPE stack trace (existing CLI wart, noted in the skill, NOT fixed here). DEFERRED to rf-h4so: MCP server and scoped tokens. Learned for the token-scope question: the single token can upload/refresh/revoke/purge EVERY link, and refresh needs no local history, so an agent holding the token can re-open any link whose code it knows; the skill says this plainly and tells agents to touch only their own links. That is the main argument for restricted tokens in rf-h4so.
+
+**2026-10-03T23:47:51Z**
+
+2026-10-03 review follow-up on PR #18, all three points valid and fixed. (1) Skill said revoke --purge makes the link 'gone for good'; false: refresh on the uploading machine re-uploads an unchanged original under the same code (I had seen this in my own validation). Reworded; a refresh from another machine fails after a purge. (2) Skill now documents the multi-file up --json array shape ({file,error,message} entries, exit 1, nothing on stderr) and says not to re-run the whole command after a partial failure. (3) skill.test.ts only matched a hard-coded command list and --long options; it now extracts every r2fl <word> from code blocks and spans, checks it against the CLI's real command list (aliases included) and checks short and long options exactly. Mutation-checked: an unknown command, a misspelt command, -z and --nope each fail it. It also flagged an error message in a code span, now plain quotes.
