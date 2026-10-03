@@ -72,16 +72,19 @@ Limits are plain vars in [`packages/worker/wrangler.jsonc`](packages/worker/wran
 
 ## Install the CLI
 
-The CLI isn't published to npm yet. From a clone of this repo:
+```sh
+npm i -g r2fl                  # or run it without installing: npx r2fl --help
+r2fl init --endpoint https://fl.example.com      # prompts for your upload token
+```
+
+Works on macOS and Linux (Node 22.12+). Releases are published from this repository by a version tag (see [Releasing](#releasing)); if `npm i -g r2fl` reports that the package does not exist, no release has been published yet, so install from a clone instead:
 
 ```sh
 pnpm install && pnpm build
 ln -s "$PWD/packages/cli/dist/index.js" ~/.local/bin/r2fl   # or anywhere on your PATH
-
-r2fl init --endpoint https://fl.example.com      # prompts for your upload token
 ```
 
-Works on macOS and Linux (Node 22.12+).
+On a Mac without Node, the [Finder integration](#finder-integration-macos) installs a standalone `r2fl` that needs no Node at all.
 
 ## Using it
 
@@ -118,12 +121,32 @@ Right-click a file in Finder, choose **Quick Actions → Share via r2-fastlink**
 
 > Status: the wrapper and installer have automated tests (run on Linux in CI) and the whole flow was verified by hand on macOS 26.6.2 (Apple Silicon). The QA checklist below is how to repeat that.
 
-**Install**
+**Install** (no clone, no Bun, no Node needed)
 
 ```sh
-# from a clone of this repo, with the CLI installed and configured as in "Install the CLI" above
+curl -fsSL https://github.com/crcatala/r2-fastlink/releases/latest/download/install.sh | sh -s -- --latest
+```
+
+That downloads the latest release's standalone `r2fl` for your Mac (Apple Silicon or Intel), the Quick Actions and the notifier, checks each download against the release's `SHA256SUMS`, and installs them. To pin a version use `--version v0.1.0`. While the repository is private, `curl` cannot read the release, so use the GitHub CLI (`gh auth login` once); the installer falls back to it by itself:
+
+```sh
+cd "$(mktemp -d)" && gh release download --repo crcatala/r2-fastlink --pattern install.sh && sh install.sh --latest
+```
+
+A fork sets `R2FL_REPO=<you>/<fork>` for the installer. Then point the binary at your Worker (it is not on your `PATH`, and it uses the same config file as any other `r2fl`):
+
+```sh
+~/.local/share/r2fl/bin/r2fl init --endpoint https://fl.example.com
+```
+
+**Update:** run the install command again; it replaces the binary, the Quick Actions and the notifier and keeps your config and history. The new binary is tested before it replaces the old one: if it does not start on your Mac, the installer says so, keeps the binary you had and exits with an error. **Uninstall:** `curl -fsSL https://github.com/crcatala/r2-fastlink/releases/latest/download/uninstall.sh | sh` (or `sh macos/uninstall.sh` from a clone).
+
+**From a clone** (development, or no release yet): with the CLI installed and configured as in "Install the CLI" above,
+
+```sh
 r2fl init --endpoint https://fl.example.com
-sh macos/install.sh
+sh macos/install.sh                 # uses your own r2fl and node, found in your login shell
+pnpm install:macos                  # or: build the standalone binary for this Mac (needs Bun) and install it
 ```
 
 The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to `~/.local/bin/r2fl-quick`, checks that a login shell can find `r2fl` and `node`, and refreshes the Services menu. Then enable them once in **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders**.
@@ -135,9 +158,9 @@ The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to
 
 The server still enforces the maximum lifetime (7 days by default); if it refuses the choice the notification shows the error.
 
-**Standalone binary (experimental; no node or PATH needed).** Compile the CLI into one executable with [Bun](https://bun.sh) (`pnpm build:binary`, or `sh scripts/build-binary.sh darwin-arm64`; about 60 to 70 MB; it cross-compiles, so it can be built on Linux too), copy `dist/bin/r2fl-darwin-arm64` to the Mac, and install with `sh macos/install.sh --binary ./r2fl-darwin-arm64`. On the Mac itself, `pnpm install:macos` does both steps for your architecture (needs Bun; run it again after pulling to refresh the binary, wrapper and notifier together). The installer copies it to `~/.local/share/r2fl/bin/r2fl`, ad hoc signs it (`codesign -s -`, no developer account) and runs it with an empty environment to prove it starts. The Quick Actions then run that file directly. If it is missing, or cannot start (exit 126/127), they fall back to the login-shell lookup described below. It is a second copy of `r2fl`, used only by the Quick Actions: your own `r2fl` is untouched. Re-run the installer with `--binary` to update it. The binary reports the git commit it was built from (`r2fl --version` prints for example `0.0.0 (a1b2c3d)`, with `-dirty` if the tree had uncommitted changes), and the lifetime dialog shows the same line under "Link lifetime", so you can tell a stale install from a fresh one.
+**The standalone binary (no node or PATH needed).** The release's `r2fl-darwin-arm64` / `r2fl-darwin-x64` is the CLI compiled with [Bun](https://bun.sh) into one file (about 60 to 70 MB). The installer copies it to `~/.local/share/r2fl/bin/r2fl`, ad hoc signs it (`codesign -s -`, no developer account; it is not notarized, which is why the installer fetches it with `curl`, which sets no quarantine flag) and runs it with an empty environment to prove it starts. The Quick Actions then run that file directly. If it is missing, or cannot start (exit 126/127), they fall back to the login-shell lookup described below. It is a second copy of `r2fl`, used only by the Quick Actions: your own `r2fl` is untouched. `r2fl --version` prints the release and the git commit it was built from (for example `0.1.0 (a1b2c3d)`; `-dirty` for a local build with uncommitted changes), and the lifetime dialog shows the same line under "Link lifetime", so you can tell a stale install from a fresh one. To build one yourself, `pnpm build:binary` (or `sh scripts/build-binary.sh darwin-arm64`; it cross-compiles, so Linux works too) and `sh macos/install.sh --binary dist/bin/r2fl-darwin-arm64`; `pnpm install:macos` does both for your architecture.
 
-**Uninstall:** `sh macos/uninstall.sh` removes both Quick Actions, the wrapper and the standalone binary. Your config and history are left alone.
+Uninstalling removes both Quick Actions, the wrapper, the notifier and the standalone binary; your config and history are left alone.
 
 **How it works.** (Without the standalone binary.) Quick Actions run with a minimal `PATH` that has neither `r2fl` nor `node`. `install.sh` therefore records the folders where **your Terminal** finds them in `~/.config/r2fl/quick-action-path` (one line of colon-separated folders; edit it by hand if you like), and the wrapper puts them in front of `PATH`. Everything runs in your login shell (`/bin/zsh -l`); if `r2fl` is still not found, for example after mise or nvm moved to a new Node version, it retries once in an interactive login shell, which also reads `~/.zshrc`. The actual work is `r2fl up --notify --ttl <choice> -- <files>`; the token and endpoint come from the normal r2fl config file, never from the Quick Action. Run `macos/install.sh` from a Terminal where `r2fl --version` works, and run it again after changing how `r2fl` is installed.
 
@@ -184,7 +207,22 @@ pnpm exec wrangler dev             # local Worker + R2 + Durable Object on :8787
 
 `node scripts/verify-deployment.mjs --endpoint http://localhost:8787` (with `R2FL_TOKEN` set to the `.dev.vars` token) runs the black-box deployment checks against the local Worker; add `--sweeper` and start `wrangler dev` with `--var PURGE_GRACE_SECONDS:20` to include the sweeper check.
 
-CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `wrangler deploy --dry-run` for the Worker. It needs no secrets and takes its Node version from `.node-version`. It runs on `ubicloud-standard-2`; forks without Ubicloud should change `runs-on` to `ubuntu-latest`. Actions are pinned to commit SHAs. Run the same checks locally before opening a PR.
+CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `wrangler deploy --dry-run` for the Worker. It needs no secrets and takes its Node version from `.node-version`. It runs on `ubicloud-standard-2`; forks without Ubicloud should change `runs-on` to `ubuntu-latest`. Actions are pinned to commit SHAs. Run the same checks locally before opening a PR. A second job, `binaries`, builds the release files exactly as a release does (both darwin binaries, the support archive, `SHA256SUMS`), checks the checksums and starts the linux build, so a broken build shows up on the pull request rather than at release time.
+
+### Releasing
+
+One version number: `version` in `packages/cli/package.json`. To release, bump it in a commit, merge, then tag that commit and push the tag:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+`.github/workflows/release.yml` (it refuses a tag that does not match the version) runs the checks, then does two independent things:
+
+- **GitHub Release:** `r2fl-darwin-arm64`, `r2fl-darwin-x64`, `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, built on a Linux runner.
+- **npm:** (on a GitHub-hosted runner, because npm provenance does not accept others, and from a public repository) `npm publish --provenance --access public` for `r2fl` (it builds and tests first). It needs an npm automation token stored as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions); without it the job only prints a warning, so a fork can release binaries alone. Nothing is ever published from a branch or from a local machine.
+
+To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `package.json` and the README).
 
 ```
 packages/core     shared types, duration parsing, API client

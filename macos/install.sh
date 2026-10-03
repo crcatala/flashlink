@@ -8,10 +8,19 @@
 #   ~/.local/share/r2fl/bin/r2fl           (only with --binary: standalone r2fl, no node needed)
 #   ~/.local/share/r2fl/notify/r2-fastlink.app   (posts the notifications; see notify-applet.applescript)
 #
-# Usage: install.sh [--binary FILE]
+# Usage: install.sh [--binary FILE | --latest | --version TAG]
 #   --binary FILE  a standalone r2fl built by scripts/build-binary.sh (copy it to the Mac first).
 #                  The Quick Actions then run it directly and no longer need node or a PATH.
-#                  Without the option an already installed binary is left as it is.
+#   --latest       download the newest GitHub release's binary for this Mac and install it as
+#   --version TAG  --binary does (TAG is for example v0.1.0 or 0.1.0). The download is checked
+#                  against the release's SHA256SUMS. The Quick Action files come from that same
+#                  release (never from a checkout next to this script), so this also works run on
+#                  its own: curl -fsSL <release>/install.sh | sh -s -- --latest
+#   (no option)    an already installed binary is left as it is.
+#
+# Downloads use curl (which sets no quarantine flag) and fall back to `gh release download`, which
+# is what works while the repository is private. R2FL_REPO (default crcatala/r2-fastlink) names a
+# fork's repository.
 #
 # Nothing here contains a token or endpoint: that stays in the r2fl config file.
 # Remove everything again with macos/uninstall.sh.
@@ -19,6 +28,12 @@
 set -eu
 
 binary_src=""
+download=""
+release_tag=""
+usage() {
+  echo "usage: install.sh [--binary FILE | --latest | --version TAG]" >&2
+  exit 2
+}
 case ${1-} in
   --binary)
     binary_src=${2-}
@@ -26,12 +41,30 @@ case ${1-} in
       echo "install.sh: --binary needs an existing file." >&2
       exit 2
     fi
+    [ "$#" -eq 2 ] || usage
+    ;;
+  --latest)
+    download=1
+    [ "$#" -eq 1 ] || usage
+    ;;
+  --version)
+    download=1
+    release_tag=${2-}
+    [ -n "$release_tag" ] && [ "$#" -eq 2 ] || usage
+    case $release_tag in
+      v*) ;;
+      *) release_tag="v$release_tag" ;;
+    esac
+    # The tag ends up in a URL and a file name: only what a version tag can contain.
+    case $release_tag in
+      *[!A-Za-z0-9._-]*)
+        echo "install.sh: '$release_tag' is not a release tag (expected something like v0.1.0)." >&2
+        exit 2
+        ;;
+    esac
     ;;
   "") ;;
-  *)
-    echo "usage: install.sh [--binary FILE]" >&2
-    exit 2
-    ;;
+  *) usage ;;
 esac
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -58,6 +91,88 @@ fi
 if [ -n "${R2FL_DATA_DIR:-}" ] || [ -n "${XDG_DATA_HOME:-}" ]; then
   echo "note: R2FL_DATA_DIR / XDG_DATA_HOME is set here, but Quick Actions do not see shell variables:" >&2
   echo "      they look in \$HOME/.local/share/r2fl. Unset the variable and run this again to use that." >&2
+fi
+
+# --- Fetching a release (--latest / --version) -------------------------------------------------
+repo=${R2FL_REPO:-crcatala/r2-fastlink}
+# R2FL_RELEASE_BASE (a folder or URL holding the release assets) replaces GitHub: for mirrors, tests.
+release_base=${R2FL_RELEASE_BASE:-}
+work=""
+cleanup() { [ -z "$work" ] || rm -rf "$work"; }
+trap cleanup EXIT
+
+# fetch ASSET DEST: curl first, then `gh release download` (needed while the repository is private).
+fetch() {
+  if [ -n "$release_base" ]; then
+    url="$release_base/$1"
+  elif [ -n "$release_tag" ]; then
+    url="https://github.com/$repo/releases/download/$release_tag/$1"
+  else
+    url="https://github.com/$repo/releases/latest/download/$1"
+  fi
+  if curl -fsSL "$url" -o "$2" 2>/dev/null; then
+    return 0
+  fi
+  if [ -z "$release_base" ] && command -v gh >/dev/null 2>&1; then
+    if [ -n "$release_tag" ]; then
+      gh release download "$release_tag" --repo "$repo" --pattern "$1" --output "$2" --clobber >/dev/null 2>&1 && return 0
+    else
+      gh release download --repo "$repo" --pattern "$1" --output "$2" --clobber >/dev/null 2>&1 && return 0
+    fi
+  fi
+  echo "install.sh: could not download $1 (${release_tag:-latest release of $repo})." >&2
+  echo "  Check your connection and the version. For a private repository, install the GitHub CLI and run \`gh auth login\`." >&2
+  exit 1
+}
+
+sha256_of() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    sha256sum "$1" | awk '{print $1}'
+  fi
+}
+
+# verify FILE NAME: FILE must match the SHA256SUMS entry for NAME.
+verify() {
+  want=$(awk -v n="$2" '$2 == n { print $1 }' "$work/SHA256SUMS")
+  if [ -z "$want" ]; then
+    echo "install.sh: SHA256SUMS has no entry for $2; refusing to install it." >&2
+    exit 1
+  fi
+  if [ "$(sha256_of "$1")" != "$want" ]; then
+    echo "install.sh: the checksum of $2 does not match SHA256SUMS; refusing to install it." >&2
+    exit 1
+  fi
+}
+
+if [ -n "$download" ]; then
+  case $(uname -m) in
+    arm64 | aarch64) target=darwin-arm64 ;;
+    x86_64) target=darwin-x64 ;;
+    *)
+      echo "install.sh: unsupported architecture $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+  work=$(mktemp -d "${TMPDIR:-/tmp}/r2fl-install.XXXXXX")
+  echo "Downloading ${release_tag:-the latest release} ($target)..." >&2
+  fetch SHA256SUMS "$work/SHA256SUMS"
+  fetch "r2fl-$target" "$work/r2fl-$target"
+  verify "$work/r2fl-$target" "r2fl-$target"
+  binary_src="$work/r2fl-$target"
+  # Always take the Quick Action files from the same release as the binary, even from inside a
+  # checkout: a pinned version must not mix in whatever commit the checkout happens to be at. (It
+  # also covers `curl | sh`, where no other file is next to this script.)
+  fetch r2fl-macos-support.tar.gz "$work/support.tar.gz"
+  verify "$work/support.tar.gz" r2fl-macos-support.tar.gz
+  mkdir "$work/support"
+  tar -xzf "$work/support.tar.gz" -C "$work/support"
+  here="$work/support/macos"
+fi
+if [ ! -f "$here/r2fl-quick.sh" ] || [ ! -d "$here/Share via r2-fastlink.workflow" ]; then
+  echo "install.sh: the Quick Action files are not next to this script. Run it from the macos/ folder, or use --latest." >&2
+  exit 1
 fi
 
 mkdir -p "$services" "$bin_dir"
@@ -103,22 +218,32 @@ else
   echo "note: pbs not found; log out and back in if the Quick Actions do not appear."
 fi
 
+binary_failed=""
 if [ -n "$binary_src" ]; then
   mkdir -p "$data_dir/bin"
-  rm -f "$bin_file"
-  install -m 755 "$binary_src" "$bin_file"
+  # Prepare and test the new file beside the installed one; only a binary that starts replaces it,
+  # so a failed update never costs you the working binary.
+  new_file="$bin_file.new"
+  rm -f "$new_file"
+  install -m 755 "$binary_src" "$new_file"
   # Browser or AirDrop downloads are quarantined; Apple Silicon also refuses to run an unsigned
   # (cross-compiled) executable, so sign it ad hoc. Neither needs a developer account.
-  xattr -dr com.apple.quarantine "$bin_file" 2>/dev/null || true
+  xattr -dr com.apple.quarantine "$new_file" 2>/dev/null || true
   if command -v codesign >/dev/null 2>&1; then
-    codesign --force --sign - "$bin_file" >/dev/null 2>&1 || echo "note: codesign failed; the binary may not start." >&2
+    codesign --force --sign - "$new_file" >/dev/null 2>&1 || echo "note: codesign failed; the binary may not start." >&2
   fi
   # Run it the way a Quick Action will: bare environment, no PATH.
-  if env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version >/dev/null 2>&1; then
+  if env -i HOME="$HOME" PATH="$minimal_path" "$new_file" --version >/dev/null 2>&1; then
+    mv -f "$new_file" "$bin_file"
     echo "installed: $bin_file ($(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version))"
   else
-    rm -f "$bin_file"
-    echo "WARNING: the binary does not start on this Mac (wrong architecture or blocked). It was removed; the Quick Actions will use your own r2fl instead." >&2
+    rm -f "$new_file"
+    binary_failed=1
+    if [ -x "$bin_file" ]; then
+      echo "WARNING: the new binary does not start on this Mac (wrong architecture or blocked). Your previous binary was kept: $bin_file" >&2
+    else
+      echo "WARNING: the binary does not start on this Mac (wrong architecture or blocked), so it was not installed; the Quick Actions will use your own r2fl instead." >&2
+    fi
   fi
 fi
 
@@ -143,7 +268,7 @@ if env -i HOME="$HOME" USER="${USER:-}" PATH="$minimal_path" \
   r2fl_cmd=$r2fl_bin
   [ ! -x "$bin_file" ] || r2fl_cmd=$bin_file
   if [ "$("$r2fl_cmd" config get endpoint 2>/dev/null | tail -n 1)" = "(not set)" ]; then
-    echo "r2fl is not configured yet: run \`r2fl init\` first." >&2
+    echo "r2fl is not configured yet: run \`$r2fl_cmd init --endpoint https://<your worker>\` first." >&2
   fi
 else
   cat >&2 <<'MSG'
@@ -164,3 +289,5 @@ Enable it (first time only):
 Use it: right-click a file in Finder -> Quick Actions (or Services) -> Share via r2-fastlink.
 The first notification may need allowing: System Settings -> Notifications -> Script Editor.
 MSG
+
+[ -z "$binary_failed" ] || exit 1

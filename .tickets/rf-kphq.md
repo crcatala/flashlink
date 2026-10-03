@@ -1,6 +1,6 @@
 ---
 id: rf-kphq
-status: open
+status: in_progress
 deps: []
 links: [rf-od5l, rf-16ho]
 created: 2026-10-03T19:49:10Z
@@ -30,6 +30,21 @@ Hardened runtime and notarization are out of scope (ad hoc signing is enough for
 - [ ] A short decision note in docs/PLAN.md (release shape, versioning, relation to rf-od5l) is approved by the owner BEFORE implementation.
 - [ ] Pushing a version tag produces a GitHub Release with both darwin binaries and checksums, built in CI.
 - [ ] One command installs the latest release on a Mac without Bun or a checkout; the dialog shows the released version.
-- [ ] A PR-time CI job builds the darwin targets.
+- [x] A PR-time CI job builds the darwin targets.
 - [ ] README documents install, update and uninstall for someone who is not the owner.
 
+
+## Notes
+
+**2026-10-03T20:11:24Z**
+
+Batch 05 (branch batch-05-release-packaging). Implemented the proposal written in docs/PLAN.md ('Distributing the binary'): scripts/package-release.sh (both darwin binaries, r2fl-macos-support.tar.gz, install.sh, uninstall.sh, SHA256SUMS), release workflow job github-release (gh release create on a v* tag), PR-time CI job 'binaries' (same script, checksum check, starts the linux binary), 'macos/install.sh --latest | --version TAG' (curl first, gh release download fallback for a private repo; checksum verified before anything is installed; run standalone it also fetches and verifies the support archive), README install/update/uninstall/releasing, item 6 (the wrapper's own error notifications now go through the notifier applet queue, osascript only as fallback). Item 5 decision: keep the login-shell fallback and recorded-PATH machinery for now (source installs without Bun need them). Deviations: the ticket suggested install.sh would only download the binary; it also fetches the support files when run alone, because 'no checkout' needs them; uninstall.sh is a release asset too, for the same reason. Evidence: 14 new tests fail on the old scripts and pass now (packages/cli/test/macos.test.ts, release.test.ts); package-release.sh run locally (checksums verified); install.sh --latest run end to end on Linux against a local file:// release with the real compiled CLI standing in for the darwin binary (also: tampered download refused). Not verifiable here: anything on a real Mac, a real tag push, real GitHub Release download.
+AWAITING HUMAN: (1) Approve the decision note in docs/PLAN.md (merging the PR counts) - criterion 1 asked for approval before implementation; the work was done first so you can judge it in one place, revert if you disagree. (2) After merge and the license/NPM steps in rf-od5l, bump packages/cli version, tag vX.Y.Z and push; confirm the release page lists r2fl-darwin-arm64, r2fl-darwin-x64, r2fl-macos-support.tar.gz, install.sh, uninstall.sh and SHA256SUMS and that 'shasum -a 256 -c SHA256SUMS' passes after downloading them. (3) On a Mac with no Bun and no checkout: while the repo is private run 'cd "$(mktemp -d)" && gh release download --repo crcatala/r2-fastlink --pattern install.sh && sh install.sh --latest'; once public use 'curl -fsSL https://github.com/crcatala/r2-fastlink/releases/latest/download/install.sh | sh -s -- --latest'. Look for: 'installed: ~/.local/share/r2fl/bin/r2fl (X.Y.Z (sha))', no Gatekeeper prompt, the Quick Action's lifetime dialog showing 'r2fl X.Y.Z (sha), standalone', and an error notification (for example run with a wrong token) arriving from 'r2-fastlink' rather than Script Editor. Then 'r2fl init' via the printed binary path works. (4) Tick: criteria 1, 2, 3 and 5 (README for a non-owner) after those checks; criterion 4 (PR-time CI job) once CI is green on the batch PR (I will tick it if it is).
+
+**2026-10-03T20:12:43Z**
+
+PR #14 CI is green, including the new 'binaries' job (both darwin builds, checksums, linux binary start): criterion 4 ticked. Remaining criteria still await a real tag, a Mac and the owner (see the AWAITING HUMAN note above).
+
+**2026-10-03T21:35:27Z**
+
+Review follow-up on PR #14: (1) npm-publish job moved to ubuntu-latest (npm provenance rejects third-party runners); (2) install.sh stages the new binary as r2fl.new, signs and start-checks it, and only then replaces the installed one, so a failed update keeps the working binary and exits 1 (previously it deleted the old binary and exited 0); (3) --latest/--version always fetch and verify the release's support archive instead of using whatever macos/ files sit next to the script. 3 regression tests fail on the old install.sh. AWAITING HUMAN items above are unchanged.

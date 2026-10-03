@@ -20,12 +20,13 @@
 # Then `r2fl up --notify` uploads the files; it posts the result notification itself.
 #
 # Test hooks (not meant for users): R2FL_QUICK_SHELL replaces /bin/zsh, R2FL_QUICK_OSASCRIPT
-# replaces /usr/bin/osascript.
+# replaces /usr/bin/osascript, R2FL_QUICK_OPEN replaces /usr/bin/open.
 
 set -u
 
 LOGIN_SHELL=${R2FL_QUICK_SHELL:-/bin/zsh}
 OSASCRIPT=${R2FL_QUICK_OSASCRIPT:-/usr/bin/osascript}
+OPEN=${R2FL_QUICK_OPEN:-/usr/bin/open}
 CONFIG_DIR=${R2FL_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/r2fl}
 DATA_DIR=${R2FL_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/r2fl}
 R2FL_BIN=${R2FL_QUICK_BIN:-$DATA_DIR/bin/r2fl}
@@ -54,10 +55,38 @@ if [ "$#" -eq 0 ] && [ "$check" -eq 0 ]; then
   exit 2
 fi
 
+# Queue a notification for the notifier applet that install.sh builds (the protocol is described in
+# notify-applet.applescript and mirrors packages/cli/src/notify.ts). Notifications from plain
+# osascript belong to Script Editor, and clicking one opens Script Editor's Open dialog; the
+# applet's own do nothing. Fails (leaving nothing behind) when the applet is not installed or
+# cannot be started, and the caller then falls back to osascript.
+notify_via_applet() {
+  applet="$DATA_DIR/notify/r2-fastlink.app"
+  pending="$DATA_DIR/notify/pending"
+  [ -d "$applet" ] || return 1
+  mkdir -p "$pending" && chmod 700 "$pending" || return 1
+  name="$(date +%s)-$$"
+  # Written under a dot name, which the applet's listing skips, then renamed: it never reads half a
+  # message. Owner only, like the other messages (they can hold links).
+  (umask 077 && printf '%s\n%s\n' "$1" "$2" >"$pending/.$name.tmp") || return 1
+  mv "$pending/.$name.tmp" "$pending/$name" || {
+    rm -f "$pending/.$name.tmp"
+    return 1
+  }
+  if "$OPEN" -g -j "$applet" >/dev/null 2>&1; then
+    return 0
+  fi
+  rm -f "$pending/$name"
+  return 1
+}
+
 # Post a notification. Only fixed text from this script is ever passed, never file names, and
 # it travels as osascript arguments rather than being spliced into the AppleScript source.
 notify_problem() {
   echo "r2fl-quick: $2" >&2
+  if notify_via_applet "$1" "$2"; then
+    return 0
+  fi
   "$OSASCRIPT" \
     -e 'on run argv' \
     -e 'display notification (item 2 of argv) with title "r2-fastlink" subtitle (item 1 of argv)' \
