@@ -19,11 +19,11 @@ https://fl.example.com/k3F9xQ2m
 
 Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. Phase 2 (the Finder Quick Action) is implemented and has been verified on macOS 26. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
 
-| Phase | Scope                                                          | Status |
-| ----- | -------------------------------------------------------------- | ------ |
-| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page         | done   |
-| 2     | macOS Finder Quick Action                                      | done   |
-| 3+    | Extras (folder zip done; agent skill; clipboard upload parked) | ideas  |
+| Phase | Scope                                                             | Status |
+| ----- | ----------------------------------------------------------------- | ------ |
+| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page            | done   |
+| 2     | macOS Finder Quick Action                                         | done   |
+| 3+    | Extras (folder zip and agent skill done; clipboard upload parked) | ideas  |
 
 ## How it works
 
@@ -121,6 +121,26 @@ Only the URL goes to stdout, so it composes: `curl -s "$(r2fl up shot.png --no-c
 If the server has already deleted a link's file (7 days past expiry by default), `r2fl refresh` re-uploads the original local file under the **same code**, as long as it is unchanged.
 
 Settings live in `~/.config/r2fl/config.json` and history in `~/.local/share/r2fl/history.json` (both honor `XDG_*`). `R2FL_ENDPOINT`, `R2FL_TOKEN` and `R2FL_TTL` override the config.
+
+## Agent skill
+
+[`skills/r2fl/SKILL.md`](skills/r2fl/SKILL.md) teaches a coding agent to use the CLI: upload a file, folder or command output, refresh a link it was handed that has expired, and revoke what it no longer needs. It documents the contract agents rely on (stdout is only the URL, `--json`, exit codes), asks for short lifetimes, and tells the agent never to upload secrets or override the secret warning by itself.
+
+Install it for Claude Code, as a personal skill (all projects) or a project skill (`.claude/skills/r2fl` inside a repository):
+
+```sh
+# from a clone (a symlink keeps it up to date with `git pull`)
+mkdir -p ~/.claude/skills && ln -s "$PWD/skills/r2fl" ~/.claude/skills/r2fl
+
+# without a clone (works while the repository is private, after `gh auth login`)
+mkdir -p ~/.claude/skills/r2fl
+gh api repos/crcatala/r2-fastlink/contents/skills/r2fl/SKILL.md \
+  -H 'Accept: application/vnd.github.raw' > ~/.claude/skills/r2fl/SKILL.md
+```
+
+Other agents that read an `AGENTS.md` or similar can use the same file: it is plain markdown, and everything after the front matter is the instructions.
+
+The agent needs `r2fl` on its `PATH` (or `npx r2fl`) and the endpoint and token. In a sandbox or on another machine, give it `R2FL_ENDPOINT` and `R2FL_TOKEN` as **environment variables** rather than a config file you paste in, and keep the token out of logs and command lines. **The token is not scoped:** it can upload, refresh, revoke and purge every link on your deployment, so only give it to agents you would trust with all of them. Restricted tokens and an MCP server are not built yet (parked until the skill has been used for a while). `packages/cli/test/skill.test.ts` checks that every command and option the skill shows exists in the CLI.
 
 ## Finder integration (macOS)
 
