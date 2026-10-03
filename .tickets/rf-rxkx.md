@@ -35,10 +35,10 @@ Checklist to run and record (put results in `tk add-note`, file a bug ticket und
 ## Acceptance Criteria
 
 - [ ] Every checklist item executed against a real Cloudflare deployment, with results recorded as notes on this ticket.
-- [ ] README "Deploy your own" corrected wherever it diverged from reality (commands, flags, ordering, caveats).
-- [ ] Any discovered defect has its own ticket (type bug, parent = this epic) or is fixed in the same PR with a regression test.
+- [x] README "Deploy your own" corrected wherever it diverged from reality (commands, flags, ordering, caveats).
+- [x] Any discovered defect has its own ticket (type bug, parent = this epic) or is fixed in the same PR with a regression test.
 - [ ] docs/PLAN.md section 5 updated if real behavior or costs differ from the model; the "Not verified" caveat in the phase-1 notes is removed or restated.
-- [ ] No secrets, account IDs or tokens committed.
+- [x] No secrets, account IDs or tokens committed.
 
 
 ## Notes
@@ -58,3 +58,7 @@ Review follow-up on PR #4 (script fixes, same branch): (1) sweeper check no long
 **2026-10-03T02:51:14Z**
 
 2026-10-02: the Worker secret is now named R2FL_TOKEN (was UPLOAD_TOKEN); the step 'wrangler secret put UPLOAD_TOKEN' above means 'wrangler secret put R2FL_TOKEN'. The bucket is created with --no-update-config, and wrangler.jsonc sets workers_dev/preview_urls. See the follow-up PR from branch fix/rename-upload-token-wrangler-config.
+
+**2026-10-03T03:33:25Z**
+
+Owner ran the checklist on a real account (2026-10-03), branch fix/verification-followups. Results (details in docs/PLAN.md section 7): item 1 deploy worked after fixes already merged (PR #6: R2FL_TOKEN rename, workers_dev/preview_urls, --no-update-config); item 2 DO is SQL, exactly one object (same ID listed twice in the dashboard, named + bare ID), 299 DO requests/0 errors in 24h, links table empty after cleanup; items 3-6 pass via verify script (49 MiB up in 19.1s, 413 over cap, Range/HEAD, no-store, expiry/refresh/revoke/purge, max-downloads); item 4: Cloudflare's edge supplies Content-Length for a chunked upload (201 instead of 411, bytes stored intact) and a chunked 60 MB upload is refused 413, so the cap holds; script's 411 check relaxed and a chunked over-limit check added (mutation of the Worker to accept a missing length makes both fail); item 7: rate limiter NEVER returned 429 (150 req/1.2s, 200 req/~50s) -> bug rf-77fd; item 9 sweeper PASS with PURGE_GRACE_SECONDS=20 and grace restored to 604800; item 10 expire-strays rule present. REMAINING (AWAITING HUMAN): item 9 usage after about a day vs PLAN section 5 (dashboard DO requests/duration/rows, Worker and R2 ops), item 8 custom domain (optional), and resolving rf-77fd (not a blocker for closing this ticket if you accept it as a separate bug).

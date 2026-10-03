@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TOKEN, callReal, forbiddenRegistry, resetState, run, uploadOk } from './helpers.ts';
 
 const allow: RateLimit = { limit: async () => ({ success: true }) };
@@ -69,6 +69,23 @@ describe('rate limiting runs before the Durable Object', () => {
       { headers: { Authorization: `Bearer ${TOKEN}` } },
     );
     expect(res.status).toBe(200);
+  });
+
+  it('fails open but logs when the limiter binding throws', async () => {
+    const link = await uploadOk('works');
+    const broken: RateLimit = {
+      limit: async () => {
+        throw new Error('binding exploded');
+      },
+    };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await run(`/${link.code}`, { LIMIT_IP: broken, LIMIT_GLOBAL: broken });
+      expect(res.status).toBe(200);
+      expect(logged).toHaveBeenCalledWith('rate limiter failed open', expect.any(Error));
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it('still serves live links when the limiter bindings are absent', async () => {

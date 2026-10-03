@@ -103,7 +103,7 @@ Non-goals
 **Upload** (`POST /api/links`)
 
 1. Authenticate, rate-limit.
-2. Require `Content-Length`; reject over the size cap with `413` before reading the body.
+2. Require `Content-Length`; reject over the size cap with `413` before reading the body. (On real Cloudflare a chunked request body is buffered by the edge, which supplies the length, so a client that omits it is not refused with 411 but is still held to the cap with 413.)
 3. DO `allocate(meta)`: checks quota, picks a unique code, inserts a `pending` row, returns the code and R2 key.
 4. Worker streams the body to R2 (`env.BUCKET.put`).
 5. DO `commit(code)`: marks the row `active`, returns the final metadata. Two DO calls per upload; none while bytes move.
@@ -144,7 +144,7 @@ Anyone holding a link can fetch the file until it expires. The risks are guessin
 9. **Response hardening.** `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` (a cached response would outlive expiry), and `Content-Security-Policy: sandbox` on active content types (HTML, SVG, XML). `sandbox` is not applied to everything because it breaks inline PDF viewing in some browsers; with `nosniff`, non-active types can't execute.
 10. **Edge backstops (documented, outside the Worker).** Cloudflare's automatic DDoS mitigation and an optional WAF rate-limit rule block traffic before the Worker runs, so blocked requests aren't billed.
 
-Limits of the in-Worker rate limiter. Cloudflare documents the Rate Limiting binding as "permissive, eventually consistent, and intentionally designed to not be used as an accurate accounting system", and counters are **local to each Cloudflare location**. It is a deterrent, not a hard cap. The period can only be 10 or 60 seconds, and limits are set in `wrangler.jsonc`, not in runtime vars.
+Limits of the in-Worker rate limiter (first real-account measurement: it did not throttle at all in a 200-request flood, see section 7; under investigation). Cloudflare documents the Rate Limiting binding as "permissive, eventually consistent, and intentionally designed to not be used as an accurate accounting system", and counters are **local to each Cloudflare location**. It is a deterrent, not a hard cap. The period can only be 10 or 60 seconds, and limits are set in `wrangler.jsonc`, not in runtime vars.
 
 ## 5. Cost model
 
@@ -196,7 +196,14 @@ Implementation notes, where phase 1 refined this plan:
 - Rate-limit bindings are optional in code (a missing or erroring limiter fails open), so a fork can remove them from `wrangler.jsonc`.
 - `compatibility_date` is pinned to `2026-08-01`: the bundled local runtime (workerd) rejects dates newer than it knows about. Bump it when you upgrade Wrangler.
 - Tests inject permissive limiter stubs for most cases and exercise the real binding in one dedicated test.
-- Real-account verification is not done yet (ticket `rf-rxkx`). `scripts/verify-deployment.mjs` automates the HTTP-level checks against any deployment (it was validated against `wrangler dev`, where the rate limiter, sweeper alarm and `Content-Length` handling all behaved as designed), and [`VERIFY_DEPLOYMENT.md`](VERIFY_DEPLOYMENT.md) lists the dashboard-only checks. Until the owner has run both on a real account, the cost model in section 5 and the rate-limit numbers in section 4 are unverified expectations, not measurements.
+- Real-account verification (ticket `rf-rxkx`, run by the owner on 2026-10-03 against a workers.dev deployment on the free plan; `scripts/verify-deployment.mjs` and [`VERIFY_DEPLOYMENT.md`](VERIFY_DEPLOYMENT.md)). Results:
+  - Everything functional passed: auth, uploads from tiny to 49 MiB (49 MiB up in 19.1 s, about 2.6 MiB/s from the owner's connection; down in 2.1 s), the 413 over the cap, Range/HEAD, `no-store` on every Worker response, 5 s TTL expiry then 410, refresh keeping the URL, revoke, purge and re-upload under the same code, `--max-downloads`, and no `cf-cache-status` on any Worker response.
+  - Sweeper: with `PURGE_GRACE_SECONDS=20` an expired link was purged within seconds of becoming due and its row was gone. The grace period was then restored to 604800.
+  - Durable Object: namespace `r2-fastlink_Registry`, storage SQL, exactly one object (the dashboard lists it twice, once as `registry` and once by its bare ID, which is the same ID; the bare-ID row is most likely alarm invocations, which carry no name). 299 DO requests and 0 errors in the first 24 hours, which covered about 270 scripted requests plus manual curls. No loop or junk traffic is visible. After cleanup the `links` table was empty.
+  - Lifecycle: `expire-strays` (prefix `objects/`, 30 days) exists. Cloudflare also adds a default "abort incomplete multipart uploads after 7 days" rule.
+  - **Content-Length through the edge:** a chunked upload with no `Content-Length` was accepted (201), not refused with 411: Cloudflare's edge buffers a chunked request body and gives the Worker a length, so the Worker never sees "no length". The bytes were stored intact. The cap still holds: a chunked 60 MB upload got `413 file_too_large` (after the whole body was sent, which is why it was slow). The script's 411 check now accepts either behavior and a new check asserts the chunked over-limit case is refused.
+  - **Rate limiter: not enforcing in practice (open).** From one IP, 150 requests in 1.2 s and then 200 requests over about 50 s (about 4/s against a limit of 60/min) to a well-formed unknown code all returned 404, never 429. Cloudflare documents the binding as permissive and eventually consistent, but this is far past that. The Worker fails open when the binding throws, which used to be silent and now logs `rate limiter failed open`. Tracked as `rf-77fd`. Next step: redeploy and run `wrangler tail` during a flood to see whether the binding throws. Until that is resolved, treat the per-IP and global limits as absent and rely on the other backstops (item 10, billing alerts).
+  - Still open: DO and Worker usage after about a day of normal use against section 5, and the optional custom domain check.
 - `r2fl refresh` with no argument refreshes the most recent upload; `r2fl ls --sync` reconciles local history with the server.
 
 **Phase 2: macOS Finder Quick Action**: install script, notification with the URL, TTL prompt. Notes on clipboard and PATH when run from Quick Actions.
