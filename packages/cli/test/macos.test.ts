@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -154,6 +155,73 @@ describe('r2fl-quick --no-prompt', () => {
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('usage');
     expect(upCalls()).toEqual([]);
+  });
+});
+
+describe('r2fl-quick problem notifications', () => {
+  const dataDir = () => path.join(dir, 'data');
+  const applet = () => path.join(dataDir(), 'notify', 'r2-fastlink.app');
+  const pendingDir = () => path.join(dataDir(), 'notify', 'pending');
+  const openCalls = () => calls('open.args');
+  const env = (extra: Record<string, string> = {}) => ({
+    R2FL_DATA_DIR: dataDir(),
+    R2FL_QUICK_OPEN: path.join(dir, 'fake-open'),
+    FAKE_UP_EXIT: '127',
+    ...extra,
+  });
+  beforeEach(() => {
+    write(
+      path.join(dir, 'fake-open'),
+      '#!/bin/sh\nfor a in "$@"; do printf \'%s\\0\' "$a"; done >> "$FAKE_LOG/open.args"\nprintf \'\\n\' >> "$FAKE_LOG/open.args"\nexit "${FAKE_OPEN_EXIT:-0}"\n',
+    );
+  });
+
+  it('queues the message for the notifier applet instead of using osascript', () => {
+    fs.mkdirSync(applet(), { recursive: true });
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], env());
+    expect(r.status).toBe(127);
+    expect(notifications()).toEqual([]);
+    expect(openCalls()).toEqual([['-g', '-j', applet()]]);
+    const queued = fs.readdirSync(pendingDir());
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).not.toMatch(/^\./);
+    const file = path.join(pendingDir(), queued[0]!);
+    // Same protocol as `r2fl up --notify`: subtitle, then text, one per line; owner only.
+    expect(fs.readFileSync(file, 'utf8').split('\n')).toEqual([
+      'Could not run r2fl',
+      expect.stringContaining('r2fl or node was not found'),
+      '',
+    ]);
+    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    expect(fs.statSync(pendingDir()).mode & 0o777).toBe(0o700);
+  });
+
+  it('falls back to osascript when the applet is not installed', () => {
+    const r = run(wrapper, ['--no-prompt', 'a.txt'], env());
+    expect(r.status).toBe(127);
+    expect(notifications()).toHaveLength(1);
+    expect(openCalls()).toEqual([]);
+    expect(fs.existsSync(pendingDir())).toBe(false);
+  });
+
+  it('falls back to osascript, leaving no queued message, when the applet cannot be started', () => {
+    fs.mkdirSync(applet(), { recursive: true });
+    run(wrapper, ['--no-prompt', 'a.txt'], env({ FAKE_OPEN_EXIT: '1' }));
+    expect(notifications()).toHaveLength(1);
+    expect(fs.readdirSync(pendingDir())).toEqual([]);
+  });
+
+  it('uses the applet for config errors found before the picker, too', () => {
+    fs.mkdirSync(applet(), { recursive: true });
+    const r = run(
+      wrapper,
+      ['a.txt'],
+      env({ FAKE_UP_EXIT: '0', FAKE_CONFIG_EXIT: '1', FAKE_CONFIG_ERR: 'corrupt config' }),
+    );
+    expect(r.status).toBe(1);
+    expect(notifications()).toEqual([]);
+    const [queued] = fs.readdirSync(pendingDir());
+    expect(fs.readFileSync(path.join(pendingDir(), queued!), 'utf8')).toContain('corrupt config');
   });
 });
 
@@ -618,6 +686,208 @@ describe('install.sh and uninstall.sh', () => {
     expect(fs.existsSync(path.join(dir, 'home', '.config', 'r2fl', 'quick-action-path'))).toBe(
       false,
     );
+  });
+});
+
+describe('install.sh --latest / --version', () => {
+  const install = path.join(macosDir, 'install.sh');
+  const home = () => path.join(dir, 'home');
+  const installed = () => path.join(home(), '.local', 'share', 'r2fl', 'bin', 'r2fl');
+  const release = () => path.join(dir, 'release');
+  const sha = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+
+  // A fake release folder, laid out like the assets scripts/package-release.sh produces. The
+  // "binary" is a shell script that prints its version, so it runs on any OS.
+  function makeRelease(opts: { version?: string; skip?: string[]; corrupt?: string } = {}) {
+    const version = opts.version ?? '9.9.9 (rel1234)';
+    write(path.join(release(), 'r2fl-darwin-arm64'), `#!/bin/sh\necho '${version}'\n`);
+    write(path.join(release(), 'r2fl-darwin-x64'), `#!/bin/sh\necho '${version}'\n`);
+    spawnSync(
+      'tar',
+      [
+        '-czf',
+        path.join(release(), 'r2fl-macos-support.tar.gz'),
+        '-C',
+        path.dirname(macosDir),
+        'macos',
+      ],
+      { stdio: 'ignore' },
+    );
+    const names = ['r2fl-darwin-arm64', 'r2fl-darwin-x64', 'r2fl-macos-support.tar.gz'];
+    const sums = names
+      .filter((n) => !opts.skip?.includes(n))
+      .map((n) => `${sha(path.join(release(), n))}  ${n}\n`);
+    fs.writeFileSync(path.join(release(), 'SHA256SUMS'), sums.join(''));
+    if (opts.corrupt) fs.appendFileSync(path.join(release(), opts.corrupt), 'tampered');
+  }
+
+  // Pretend to be a Mac of the given architecture.
+  function fakeUname(machine: string) {
+    write(
+      path.join(dir, 'bin', 'uname'),
+      `#!/bin/sh\n[ "$1" = -m ] && { echo ${machine}; exit 0; }\nexec /usr/bin/uname "$@"\n`,
+    );
+  }
+
+  const dlEnv = (extra: Record<string, string> = {}) => ({
+    R2FL_INSTALL_ANY_OS: '1',
+    R2FL_RELEASE_BASE: `file://${release()}`,
+    ...extra,
+  });
+
+  it('--latest installs the binary for this architecture and shows its version', () => {
+    makeRelease();
+    fakeUname('arm64');
+    fs.writeFileSync(path.join(release(), 'r2fl-darwin-x64'), '#!/bin/sh\necho wrong-arch\n');
+    // The x64 file is not what arm64 must pick, whatever its checksum says.
+    const r = run(install, ['--latest'], dlEnv());
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(`installed: ${installed()} (9.9.9 (rel1234))`);
+    expect(fs.readFileSync(installed(), 'utf8')).toContain('9.9.9 (rel1234)');
+    expect(fs.existsSync(path.join(home(), '.local', 'bin', 'r2fl-quick'))).toBe(true);
+  });
+
+  it('picks the x64 binary on an Intel Mac', () => {
+    makeRelease();
+    fakeUname('x86_64');
+    fs.writeFileSync(path.join(release(), 'r2fl-darwin-arm64'), '#!/bin/sh\necho wrong-arch\n');
+    const r = run(install, ['--latest'], dlEnv());
+    expect(r.status).toBe(0);
+    expect(fs.readFileSync(installed(), 'utf8')).toContain('9.9.9');
+  });
+
+  it('refuses a download whose checksum does not match, and installs nothing', () => {
+    makeRelease({ corrupt: 'r2fl-darwin-x64' });
+    fakeUname('x86_64');
+    const r = run(install, ['--latest'], dlEnv());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('checksum of r2fl-darwin-x64 does not match');
+    expect(fs.existsSync(installed())).toBe(false);
+    expect(fs.existsSync(path.join(home(), '.local', 'bin', 'r2fl-quick'))).toBe(false);
+  });
+
+  it('refuses a binary that SHA256SUMS does not list', () => {
+    makeRelease({ skip: ['r2fl-darwin-x64'] });
+    fakeUname('x86_64');
+    const r = run(install, ['--latest'], dlEnv());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no entry for r2fl-darwin-x64');
+    expect(fs.existsSync(installed())).toBe(false);
+  });
+
+  it('reports a failed download without installing anything', () => {
+    fakeUname('arm64');
+    fs.mkdirSync(release(), { recursive: true });
+    const r = run(install, ['--latest'], dlEnv());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('could not download SHA256SUMS');
+    expect(fs.existsSync(path.join(home(), '.local'))).toBe(false);
+  });
+
+  it('on its own (no macos/ files beside it) it fetches and verifies the support files', () => {
+    makeRelease();
+    fakeUname('arm64');
+    const alone = path.join(dir, 'alone');
+    fs.mkdirSync(alone);
+    fs.copyFileSync(install, path.join(alone, 'install.sh'));
+    const r = run(path.join(alone, 'install.sh'), ['--latest'], dlEnv());
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(installed())).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(
+          home(),
+          'Library',
+          'Services',
+          'Share via r2-fastlink.workflow',
+          'Contents',
+          'Info.plist',
+        ),
+      ),
+    ).toBe(true);
+    expect(fs.readFileSync(path.join(home(), '.local', 'bin', 'r2fl-quick'), 'utf8')).toBe(
+      fs.readFileSync(path.join(macosDir, 'r2fl-quick.sh'), 'utf8'),
+    );
+  });
+
+  it('on its own, refuses support files that fail the checksum', () => {
+    makeRelease({ corrupt: 'r2fl-macos-support.tar.gz' });
+    fakeUname('arm64');
+    const alone = path.join(dir, 'alone');
+    fs.mkdirSync(alone);
+    fs.copyFileSync(install, path.join(alone, 'install.sh'));
+    const r = run(path.join(alone, 'install.sh'), ['--latest'], dlEnv());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('checksum of r2fl-macos-support.tar.gz does not match');
+    expect(fs.existsSync(path.join(home(), 'Library'))).toBe(false);
+  });
+
+  it('without --latest, it explains that the Quick Action files are missing', () => {
+    const alone = path.join(dir, 'alone');
+    fs.mkdirSync(alone);
+    fs.copyFileSync(install, path.join(alone, 'install.sh'));
+    const r = run(path.join(alone, 'install.sh'), [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not next to this script');
+  });
+
+  describe('where it downloads from', () => {
+    // Fake curl (records the URL, writes nothing, fails) and fake gh (records, writes a file).
+    function fakeTools(ghWorks: boolean) {
+      write(
+        path.join(dir, 'bin', 'curl'),
+        '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$FAKE_LOG/curl.calls"\nexit 22\n',
+      );
+      write(
+        path.join(dir, 'bin', 'gh'),
+        `#!/bin/sh\nprintf '%s\\n' "$*" >> "$FAKE_LOG/gh.calls"\n${ghWorks ? 'while [ "$#" -gt 0 ]; do [ "$1" = --output ] && out=$2; shift; done; cp "$FAKE_RELEASE/$(basename "$out")" "$out"; exit 0' : 'exit 1'}\n`,
+      );
+      fakeUname('arm64');
+    }
+    const ghCalls = () =>
+      fs
+        .readFileSync(path.join(dir, 'log', 'gh.calls'), 'utf8')
+        .trim()
+        .split('\n');
+
+    it('asks GitHub for the latest release, then for a given version', () => {
+      fakeTools(false);
+      run(install, ['--latest'], { R2FL_INSTALL_ANY_OS: '1', R2FL_REPO: 'me/fork' });
+      run(install, ['--version', '0.1.0'], { R2FL_INSTALL_ANY_OS: '1', R2FL_REPO: 'me/fork' });
+      const urls = fs.readFileSync(path.join(dir, 'log', 'curl.calls'), 'utf8');
+      expect(urls).toContain('https://github.com/me/fork/releases/latest/download/SHA256SUMS');
+      expect(urls).toContain('https://github.com/me/fork/releases/download/v0.1.0/SHA256SUMS');
+    });
+
+    it('falls back to gh release download when curl fails (a private repository)', () => {
+      makeRelease();
+      fakeTools(true);
+      const r = run(install, ['--version', 'v9.9.9'], {
+        R2FL_INSTALL_ANY_OS: '1',
+        FAKE_RELEASE: release(),
+      });
+      expect(r.status).toBe(0);
+      expect(ghCalls()[0]).toBe(
+        'release download v9.9.9 --repo crcatala/r2-fastlink --pattern SHA256SUMS --output ' +
+          ghCalls()[0]!.split('--output ')[1],
+      );
+      expect(fs.existsSync(installed())).toBe(true);
+    });
+
+    it('says what to do when neither curl nor gh can download', () => {
+      fakeTools(false);
+      const r = run(install, ['--latest'], { R2FL_INSTALL_ANY_OS: '1' });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('gh auth login');
+    });
+  });
+
+  it('rejects odd options and version strings before doing anything', () => {
+    for (const args of [['--version'], ['--version', 'v1/../x'], ['--latest', 'x'], ['--binary']]) {
+      const r = run(install, args, dlEnv());
+      expect(r.status, args.join(' ')).toBe(2);
+    }
+    expect(fs.existsSync(path.join(home(), '.local'))).toBe(false);
   });
 });
 
