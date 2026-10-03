@@ -2,7 +2,7 @@
 id: rf-0q8c
 status: in_progress
 deps: [rf-hx3f]
-links: []
+links: [rf-kwsu, rf-og97]
 created: 2026-10-02T20:05:53Z
 type: task
 priority: 2
