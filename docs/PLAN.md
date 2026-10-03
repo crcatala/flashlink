@@ -212,7 +212,10 @@ Implementation notes, where phase 1 refined this plan:
 ## 8. Distribution and forking
 
 - `wrangler.jsonc` declares the R2 bucket, the SQLite DO migration (`new_sqlite_classes`), the rate-limit bindings, and the static assets directory.
-- Deploy: `pnpm install && pnpm --filter worker deploy`, then `wrangler secret put UPLOAD_TOKEN` (the README gives an `openssl rand` one-liner).
+- Deploy: `pnpm install && pnpm --filter worker deploy`, then `wrangler secret put R2FL_TOKEN` (the README gives an `openssl rand` one-liner).
+- One name for the token everywhere: the Worker secret, the CLI/script environment variable and the docs are all `R2FL_TOKEN` (it was `UPLOAD_TOKEN` on the Worker until the repo's first real deployment, which showed the two names were confusing). A Worker that still has only `UPLOAD_TOKEN` fails closed with a 500 whose message says to run `wrangler secret put R2FL_TOKEN`; the old name is never accepted for auth.
+- `wrangler.jsonc` sets `workers_dev: true` and `preview_urls: false` explicitly. Preview URLs would expose every uploaded version on extra public hostnames (same bucket, same secret) with no benefit here.
+- The README creates the bucket with `wrangler r2 bucket create r2-fastlink --no-update-config`. Without it wrangler offers to append a second binding (`r2_fastlink`) to `wrangler.jsonc` and rewrites the whole file; the code only uses `BUCKET`. (`--no-update-config` is read from wrangler 4.147 source: an explicit `false` skips both the prompt and the write.)
 - The custom domain is attached via a Worker route or custom domain in the Cloudflare dashboard.
 - The CLI ships as an npm package (`r2fl`), so no special runtime beyond Node.
 - Works on the free plan; the README documents billing alerts for paid-plan users.

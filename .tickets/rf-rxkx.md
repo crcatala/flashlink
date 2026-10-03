@@ -54,3 +54,7 @@ AWAITING HUMAN: agent part done on branch batch-02-verify-deployment (scripts/ve
 **2026-10-03T01:04:48Z**
 
 Review follow-up on PR #4 (script fixes, same branch): (1) sweeper check no longer trusts a 404 from GET /api/links/:code (a 'purging' row is also 404 while R2 delete is in flight or failing); it now waits 3s and requires DELETE to answer 404 (row gone = R2 delete confirmed), else FAIL. (2) cleanup is best-effort and aggregates failures. (3) HEAD hit-count check asserts status 200 and integer hits on both reads (previously undefined === undefined passed). Verified by mutation against wrangler dev: old script falsely PASSED the HEAD check (GET /api/links/:code -> 500) and the sweeper check (alarm throwing before the R2 delete); new script FAILs both; cleanup with every DELETE failing now lists all codes. Clean run: 31/31. Still nothing run on real Cloudflare; AWAITING HUMAN note above stands.
+
+**2026-10-03T02:51:14Z**
+
+2026-10-02: the Worker secret is now named R2FL_TOKEN (was UPLOAD_TOKEN); the step 'wrangler secret put UPLOAD_TOKEN' above means 'wrangler secret put R2FL_TOKEN'. The bucket is created with --no-update-config, and wrangler.jsonc sets workers_dev/preview_urls. See the follow-up PR from branch fix/rename-upload-token-wrangler-config.
