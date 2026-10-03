@@ -21,7 +21,7 @@ targets:
     platform: macOS
     sources:
       - path: App
-        excludes: ['Info.plist']
+        excludes: ['Info.plist', 'AppIcon.svg']
       - path: Shared
     settings:
       base:
@@ -29,6 +29,7 @@ targets:
         PRODUCT_MODULE_NAME: R2FLSpike
         PRODUCT_BUNDLE_IDENTIFIER: dev.r2fastlink.spike
         INFOPLIST_FILE: App/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon # notifications show the app icon
     dependencies:
       - target: R2FLFinderSync # embedded in Contents/PlugIns
   R2FLFinderSync:

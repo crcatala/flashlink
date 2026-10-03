@@ -1,6 +1,6 @@
 ---
 id: rf-og97
-status: open
+status: closed
 deps: []
 links: [rf-0q8c]
 created: 2026-10-03T14:27:41Z
@@ -69,3 +69,7 @@ CI Mac result (GitHub macos-latest, macOS 26.6.2, Xcode 26.6, run 37138241482 on
 **2026-10-03T17:15:37Z**
 
 Mac run done by the owner on macOS 26.6.2 (CI-built ad hoc app): VIABLE. Root-level menu + lifetime submenu works with ad hoc signing only; all paths/awkward names/924 files and all four lifetimes arrive; notification titled r2-fastlink; no prompts; no killall needed; host app relaunches on click. Details: macos/spike/FINDINGS.md, screenshots in a PR #11 comment. Follow-up design ticket rf-kecm filed; rf-kwsu rescoped to a Finder-only app and now depends on rf-kecm. Left OPEN until the owner confirms closing (PR #11 merge).
+
+**2026-10-03T17:19:08Z**
+
+Closed after the owner's OK (macOS 26.6.2 run: VIABLE, see macos/spike/FINDINGS.md). The spike folder is kept as the reference for the real app (rf-kecm, rf-kwsu).

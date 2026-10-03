@@ -57,6 +57,15 @@ describe('macos/spike consistency', () => {
     expect(installSh).toContain('R2FLFinderSync.appex');
   });
 
+  it('has an app icon set that the project compiles in (notifications show the app icon)', () => {
+    expect(project).toContain('ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon');
+    const dir = 'App/Assets.xcassets/AppIcon.appiconset';
+    const contents = JSON.parse(read(`${dir}/Contents.json`)) as { images: { filename: string }[] };
+    expect(contents.images).toHaveLength(10);
+    for (const { filename } of contents.images)
+      expect(fs.existsSync(path.join(spike, dir, filename)), filename).toBe(true);
+  });
+
   it('commits no signing material', () => {
     for (const file of [
       'project.yml',

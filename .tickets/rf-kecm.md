@@ -31,6 +31,8 @@ Questions the design note must answer:
 8. directoryURLs: '/' worked everywhere tried; WATCH=home was never needed. Decide whether to keep any narrowing. Folder-background menu (FIMenuKind.contextualMenuForContainer) is not implemented; decide if wanted.
 9. Compatibility: only macOS 26.6.2 was tested; decide the minimum supported version (the spike targets 13.0) and how to word that.
 10. Errors and progress for large uploads (notification only, or a small progress panel), and cancel.
+11. Icon: notifications show the app icon. An interim icon (the landing page favicon in the macOS icon grid) lives in macos/spike/App/Assets.xcassets; decide whether to keep it, and the macOS 26 icon format (Icon Composer) question.
+12. Versioning, releases and self-serve updates: see `rf-16ho`; the design note must say how the app reports its version.
 
 ## Acceptance Criteria
 

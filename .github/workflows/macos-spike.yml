@@ -62,6 +62,7 @@ jobs:
           codesign --verify --deep --strict "$APP" && echo "signature verifies"
           echo "--- Info.plist (extension)"; plutil -p "$appex/Contents/Info.plist" | grep -A3 NSExtension
           echo "--- URL scheme (app)"; plutil -p "$APP/Contents/Info.plist" | grep -A3 CFBundleURLSchemes
+          echo "--- app icon (notifications show it)"; test -f "$APP/Contents/Resources/Assets.car"; ls "$APP/Contents/Resources"; plutil -p "$APP/Contents/Info.plist" | grep -i -E "IconFile|IconName"
           echo "--- extension entry point"; otool -l "$appex/Contents/MacOS/R2FLFinderSync" | grep -A2 LC_MAIN || true
 
       # Informational only: a CI Mac has no Finder session to show a menu, so these cannot prove the
