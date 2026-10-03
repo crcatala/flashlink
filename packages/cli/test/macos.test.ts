@@ -520,6 +520,33 @@ describe('install.sh and uninstall.sh', () => {
     expect(files(path.join(dir, 'home'))).toEqual([]);
   });
 
+  it('builds and installs the notifier applet when osacompile exists; uninstall removes it', () => {
+    const home = path.join(dir, 'home');
+    const applet = path.join(home, '.local', 'share', 'r2fl', 'notify', 'r2-fastlink.app');
+    // A fake osacompile: `osacompile -o OUT SOURCE` creates the bundle and keeps the source.
+    write(
+      path.join(dir, 'bin', 'osacompile'),
+      '#!/bin/sh\nmkdir -p "$2/Contents" && cp "$3" "$2/Contents/source.applescript"\n',
+    );
+    const i = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(i.status).toBe(0);
+    expect(i.stdout).toContain(`installed: ${applet}`);
+    expect(fs.readFileSync(path.join(applet, 'Contents', 'source.applescript'), 'utf8')).toBe(
+      fs.readFileSync(path.join(macosDir, 'notify-applet.applescript'), 'utf8'),
+    );
+    expect(fs.statSync(path.join(applet, '..', 'pending')).isDirectory()).toBe(true);
+
+    expect(run(uninstall, []).status).toBe(0);
+    expect(fs.existsSync(path.dirname(applet))).toBe(false);
+  });
+
+  it('says so, but still installs, when the notifier cannot be built', () => {
+    write(path.join(dir, 'bin', 'osacompile'), '#!/bin/sh\nexit 1\n');
+    const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('open Script Editor');
+  });
+
   it('works even though a Quick Action has a bare PATH (the terminal PATH is recorded)', () => {
     const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);

@@ -6,6 +6,7 @@
 #   ~/.local/bin/r2fl-quick                                                (wrapper both call)
 #   ~/.config/r2fl/quick-action-path       (where r2fl and node were found in THIS terminal)
 #   ~/.local/share/r2fl/bin/r2fl           (only with --binary: standalone r2fl, no node needed)
+#   ~/.local/share/r2fl/notify/r2-fastlink.app   (posts the notifications; see notify-applet.applescript)
 #
 # Usage: install.sh [--binary FILE]
 #   --binary FILE  a standalone r2fl built by scripts/build-binary.sh (copy it to the Mac first).
@@ -40,6 +41,8 @@ config_dir=${R2FL_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/r2fl}
 path_file="$config_dir/quick-action-path"
 data_dir=${R2FL_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/r2fl}
 bin_file="$data_dir/bin/r2fl"
+notify_dir="$data_dir/notify"
+applet="$notify_dir/r2-fastlink.app"
 # What a Quick Action starts with. Your Terminal already has a full PATH, so testing there would
 # find r2fl even when the Quick Action cannot. Overridable only so tests can use a fake r2fl.
 minimal_path=${R2FL_QUICK_MINIMAL_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
@@ -62,6 +65,28 @@ done
 
 install -m 755 "$here/r2fl-quick.sh" "$bin_dir/r2fl-quick"
 echo "installed: $bin_dir/r2fl-quick"
+
+# The notifier applet: notifications from plain osascript belong to Script Editor, which a click
+# on them opens. Ones from this applet belong to "r2-fastlink" and a click does nothing.
+if command -v osacompile >/dev/null 2>&1; then
+  mkdir -p "$notify_dir/pending"
+  rm -rf "$applet"
+  if osacompile -o "$applet" "$here/notify-applet.applescript" 2>/dev/null; then
+    # No Dock icon, a stable identity for the notification settings, then sign it again (ad hoc).
+    defaults write "$applet/Contents/Info" LSUIElement -bool true >/dev/null 2>&1 || true
+    defaults write "$applet/Contents/Info" CFBundleIdentifier -string dev.r2fastlink.notify >/dev/null 2>&1 || true
+    defaults write "$applet/Contents/Info" CFBundleName -string r2-fastlink >/dev/null 2>&1 || true
+    xattr -dr com.apple.quarantine "$applet" 2>/dev/null || true
+    if command -v codesign >/dev/null 2>&1; then
+      codesign --force --deep --sign - "$applet" >/dev/null 2>&1 || true
+    fi
+    echo "installed: $applet"
+  else
+    echo "note: could not build the notifier; notifications will open Script Editor when clicked." >&2
+  fi
+else
+  echo "note: osacompile not found; notifications will open Script Editor when clicked." >&2
+fi
 
 # Refresh the Services menu so the new items show up without logging out.
 if [ -x "$pbs" ]; then

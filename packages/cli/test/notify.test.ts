@@ -1,5 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { escapeAppleScript, notificationScript, sendNotification } from '../src/notify.ts';
+
+let dir: string;
+// An applet folder that does not exist: the tests below must not depend on this machine's install.
+let none: string;
+beforeEach(() => {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-notify-'));
+  none = path.join(dir, 'no-applet');
+});
+afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 describe('escapeAppleScript', () => {
   it('escapes quotes and backslashes so text cannot leave the string literal', () => {
@@ -38,10 +50,16 @@ describe('notificationScript', () => {
 describe('sendNotification', () => {
   it('runs osascript by absolute path with the escaped script on darwin', async () => {
     const calls: [string, string[]][] = [];
-    const ok = await sendNotification('Link copied', 'u"rl', 'darwin', async (cmd, args) => {
-      calls.push([cmd, args]);
-      return true;
-    });
+    const ok = await sendNotification(
+      'Link copied',
+      'u"rl',
+      'darwin',
+      async (cmd, args) => {
+        calls.push([cmd, args]);
+        return true;
+      },
+      none,
+    );
     expect(ok).toBe(true);
     expect(calls).toEqual([
       ['/usr/bin/osascript', ['-e', notificationScript('Link copied', 'u"rl')]],
@@ -51,16 +69,94 @@ describe('sendNotification', () => {
   it('is a no-op that never runs anything on non-darwin platforms', async () => {
     for (const platform of ['linux', 'win32'] as const) {
       let ran = false;
-      const ok = await sendNotification('s', 'b', platform, async () => {
-        ran = true;
-        return true;
-      });
+      const ok = await sendNotification(
+        's',
+        'b',
+        platform,
+        async () => {
+          ran = true;
+          return true;
+        },
+        none,
+      );
       expect(ok).toBe(false);
       expect(ran).toBe(false);
     }
   });
 
   it('returns false when osascript fails', async () => {
-    expect(await sendNotification('s', 'b', 'darwin', async () => false)).toBe(false);
+    expect(await sendNotification('s', 'b', 'darwin', async () => false, none)).toBe(false);
+  });
+});
+
+describe('sendNotification through the notifier applet', () => {
+  const app = () => path.join(dir, 'r2-fastlink.app');
+  const pending = () => path.join(dir, 'pending');
+  const pendingFiles = () => (fs.existsSync(pending()) ? fs.readdirSync(pending()) : []);
+
+  it('queues the message next to the app and opens the app instead of running osascript', async () => {
+    fs.mkdirSync(app());
+    const calls: [string, string[]][] = [];
+    const ok = await sendNotification(
+      'Link copied',
+      'https://fl.test/AAAAAAA1',
+      'darwin',
+      async (cmd, args) => {
+        calls.push([cmd, args]);
+        return true;
+      },
+      dir,
+    );
+    expect(ok).toBe(true);
+    expect(calls).toEqual([['/usr/bin/open', ['-g', '-j', app()]]]);
+    const [name] = pendingFiles();
+    expect(fs.readFileSync(path.join(pending(), name!), 'utf8')).toBe(
+      'Link copied\nhttps://fl.test/AAAAAAA1\n',
+    );
+  });
+
+  it('keeps each notification on one line each and leaves text otherwise untouched', async () => {
+    fs.mkdirSync(app());
+    await sendNotification(
+      'a\nb',
+      'x"y\\\r\n$(id) café 📄\u0000z',
+      'darwin',
+      async () => true,
+      dir,
+    );
+    const [name] = pendingFiles();
+    expect(fs.readFileSync(path.join(pending(), name!), 'utf8')).toBe(
+      'a b\nx"y\\ $(id) café 📄 z\n',
+    );
+  });
+
+  it('gives every notification its own file', async () => {
+    fs.mkdirSync(app());
+    for (let i = 0; i < 3; i++)
+      await sendNotification('s', `b${i}`, 'darwin', async () => true, dir);
+    expect(pendingFiles()).toHaveLength(3);
+  });
+
+  it('falls back to osascript, leaving nothing queued, when the app cannot be opened', async () => {
+    fs.mkdirSync(app());
+    const calls: string[] = [];
+    const ok = await sendNotification(
+      's',
+      'b',
+      'darwin',
+      async (cmd) => {
+        calls.push(cmd);
+        return cmd === '/usr/bin/osascript';
+      },
+      dir,
+    );
+    expect(ok).toBe(true);
+    expect(calls).toEqual(['/usr/bin/open', '/usr/bin/osascript']);
+    expect(pendingFiles()).toEqual([]);
+  });
+
+  it('does not touch the applet folder when no app is installed', async () => {
+    await sendNotification('s', 'b', 'darwin', async () => true, dir);
+    expect(pendingFiles()).toEqual([]);
   });
 });
