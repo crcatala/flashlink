@@ -291,7 +291,7 @@ describe('r2fl up --notify', () => {
     );
     expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
     expect(h.notifications).toEqual([
-      { subtitle: 'Upload failed', body: '1 of 2 uploads failed.' },
+      { subtitle: 'Upload failed', body: '1 of 2 uploads failed. empty.txt: Empty file.' },
     ]);
   });
 
@@ -394,5 +394,44 @@ describe('r2fl up secret warning', () => {
     expect(h.notifications).toHaveLength(1);
     expect(h.notifications[0]).toMatchObject({ subtitle: 'Upload failed' });
     expect(h.notifications[0]!.body).toMatch(/secrets.*--allow-secrets/);
+  });
+
+  it('still checks the real file name when --name renames the upload', async () => {
+    const file = h.file('.env', 'A=1\n');
+    await expect(up([file], { name: 'notes.txt' }, h.ctx)).rejects.toThrow(/\.env file/);
+    expect(h.server.requests).toHaveLength(0);
+    await up([file], { name: 'notes.txt', allowSecrets: true }, h.ctx);
+    expect(h.stdout).toEqual(['https://fl.test/AAAAAAA1']);
+  });
+
+  it('does not report the same rule twice when the new name matches too', async () => {
+    const file = h.file('.env', 'A=1\n');
+    const err = (await up([file], { name: 'prod.env' }, h.ctx).catch((e: unknown) => e)) as Error;
+    expect(err.message.match(/\.env file/g)).toHaveLength(1);
+  });
+
+  it('never prompts in --json mode: stderr stays quiet and the failure is the JSON error', async () => {
+    h.stdin.interactive = true; // the default prompt throws, so a prompt would fail the test
+    await expect(up([h.file('.env', 'A=1\n')], { json: true }, h.ctx)).rejects.toThrow(/secrets/);
+    expect(h.stderr).toEqual([]);
+    expect(h.server.requests).toHaveLength(0);
+  });
+
+  it('names the reason in the notification when some of several files are refused', async () => {
+    const flagged = h.file('.env', 'A=1\n');
+    const ok = h.file('ok.txt', 'fine');
+    await expect(up([flagged, ok], { notify: true }, h.ctx)).rejects.toThrow(/1 of 2/);
+    const failure = h.notifications.find((n) => n.subtitle === 'Upload failed')!;
+    expect(failure.body).toMatch(/1 of 2 uploads failed/);
+    expect(failure.body).toMatch(/^1 of 2 uploads failed\. \.env: Looks like it contains secrets/);
+    expect(failure.body).toMatch(/--allow-secrets/);
+  });
+
+  it('keeps the plain summary without --notify (the per-file lines are already on stderr)', async () => {
+    const err = (await up([h.file('.env', 'A=1\n'), h.file('ok.txt', 'x')], {}, h.ctx).catch(
+      (e: unknown) => e,
+    )) as CliError;
+    expect(err.message).toBe('1 of 2 uploads failed.');
+    expect(err.hint).toBeUndefined();
   });
 });

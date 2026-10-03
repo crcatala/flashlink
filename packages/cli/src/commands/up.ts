@@ -8,7 +8,7 @@ import { CliError, ReportedError, errorJson, errorText } from '../errors.ts';
 import { clock, formatBytes } from '../format.ts';
 import type { HistoryEntry } from '../history.ts';
 import { sendNotification } from '../notify.ts';
-import { describeFinding, findSecrets } from '../secrets.ts';
+import { checkContent, checkFilename, describeFinding, type SecretFinding } from '../secrets.ts';
 
 export interface UpOptions {
   ttl?: string;
@@ -126,6 +126,7 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
   // --json with several files: one array in target order, failures as {file, error, message}.
   const entries: (UploadResult | ({ file: string } & ReturnType<typeof errorJson>))[] = [];
   let failures = 0;
+  let firstFailure = '';
   const targets = useStdin ? ['-'] : files;
   for (const target of targets) {
     try {
@@ -148,7 +149,7 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
         if (opts.name) source.filename = opts.name;
       }
       if (ctx.config.warnSecrets && !opts.allowSecrets && !opts.yes) {
-        await confirmSecrets(source, ctx);
+        await confirmSecrets(source, opts, ctx);
       }
       const contentType = detectContentType(source.filename, source.bytes);
       const result = await client.upload({
@@ -171,7 +172,7 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
       // A single failure is reported once, by the top-level handler.
       const label = target === '-' ? 'stdin' : target;
       if (targets.length === 1) throw labelled(err, label);
-      failures++;
+      if (failures++ === 0) firstFailure = errorText(labelled(err, path.basename(label)));
       if (opts.json) {
         entries.push({ file: label, ...errorJson(err) });
       } else {
@@ -197,8 +198,13 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
   if (failures > 0) {
     // up() posts the single failure notification; successful links are still on stdout.
     const summary = `${failures} of ${targets.length} uploads failed.`;
+    // A notification is all a launcher user sees, so it names the first reason (stderr already
+    // lists every one, so the plain summary stays plain there).
+    const detail = opts.notify ? firstFailure : '';
     // The JSON array above already carries every failure; a second document would break parsers.
-    throw opts.json ? new ReportedError(summary) : new CliError(summary);
+    throw opts.json
+      ? new ReportedError(detail ? `${summary} ${detail}` : summary)
+      : new CliError(summary, detail || undefined);
   }
   if (opts.notify) {
     const state = copied ? 'copied' : 'ready';
@@ -211,12 +217,21 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
  * Stop (or ask) when the file looks like it holds secrets. A person at a terminal is asked;
  * scripts and the Quick Action have nobody to ask, so they are refused and told how to override.
  */
-async function confirmSecrets(source: Source, ctx: Context): Promise<void> {
-  const findings = findSecrets(source.filename, source.bytes);
+async function confirmSecrets(source: Source, opts: UpOptions, ctx: Context): Promise<void> {
+  // `--name` must not rename a flagged file past the check, so look at the real name as well.
+  const names = new Set([source.filename]);
+  if (source.sourcePath) names.add(path.basename(source.sourcePath));
+  const findings: SecretFinding[] = [];
+  for (const name of names) {
+    for (const f of checkFilename(name))
+      if (!findings.some((o) => o.rule === f.rule)) findings.push(f);
+  }
+  findings.push(...checkContent(source.bytes));
   if (findings.length === 0) return;
   const reasons = findings.map(describeFinding);
   const override = 'Pass --allow-secrets to upload anyway, or `r2fl config set warnSecrets false`.';
-  if (!ctx.interactive) {
+  // --json is for programs: it never prompts, and stderr stays quiet (the error is the JSON line).
+  if (!ctx.interactive || opts.json) {
     throw new CliError(`Looks like it contains secrets: ${reasons.join('; ')}.`, override);
   }
   const { style } = ctx;
