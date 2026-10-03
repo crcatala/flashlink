@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
-const SKILL = path.join(root, 'skills', 'r2fl', 'SKILL.md');
+const SKILL = path.join(root, 'skills', 'r2-fastlink', 'SKILL.md');
 const ENTRY = fileURLToPath(new URL('../src/index.ts', import.meta.url));
 
 const text = fs.readFileSync(SKILL, 'utf8');
@@ -20,7 +20,7 @@ function help(...args: string[]): string {
   return res.stdout;
 }
 
-describe('skills/r2fl/SKILL.md', () => {
+describe('skills/r2-fastlink/SKILL.md', () => {
   it('has the frontmatter a skill loader needs, and the name matches its folder', () => {
     const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
     expect(match).not.toBeNull();
@@ -32,7 +32,8 @@ describe('skills/r2fl/SKILL.md', () => {
           line.slice(line.indexOf(':') + 1).trim(),
         ]),
     );
-    expect(fields.name).toBe('r2fl');
+    expect(fields.name).toBe(path.basename(path.dirname(SKILL)));
+    expect(fields.name).toBe('r2-fastlink');
     expect(fields.description!.length).toBeGreaterThan(40);
     expect(fields.description!.length).toBeLessThanOrEqual(1024);
   });

@@ -124,18 +124,18 @@ Settings live in `~/.config/r2fl/config.json` and history in `~/.local/share/r2f
 
 ## Agent skill
 
-[`skills/r2fl/SKILL.md`](skills/r2fl/SKILL.md) teaches a coding agent to use the CLI: upload a file, folder or command output, refresh a link it was handed that has expired, and revoke what it no longer needs. It documents the contract agents rely on (stdout is only the URL, `--json`, exit codes), asks for short lifetimes, and tells the agent never to upload secrets or override the secret warning by itself.
+[`skills/r2-fastlink/SKILL.md`](skills/r2-fastlink/SKILL.md) teaches a coding agent to use the CLI: upload a file, folder or command output, refresh a link it was handed that has expired, and revoke what it no longer needs. It documents the contract agents rely on (stdout is only the URL, `--json`, exit codes), asks for short lifetimes, and tells the agent never to upload secrets or override the secret warning by itself.
 
-Install it for Claude Code, as a personal skill (all projects) or a project skill (`.claude/skills/r2fl` inside a repository):
+Install it for Claude Code, as a personal skill (all projects) or a project skill (`.claude/skills/r2-fastlink` inside a repository):
 
 ```sh
 # from a clone (a symlink keeps it up to date with `git pull`)
-mkdir -p ~/.claude/skills && ln -s "$PWD/skills/r2fl" ~/.claude/skills/r2fl
+mkdir -p ~/.claude/skills && ln -s "$PWD/skills/r2-fastlink" ~/.claude/skills/r2-fastlink
 
 # without a clone (works while the repository is private, after `gh auth login`)
-mkdir -p ~/.claude/skills/r2fl
-gh api repos/crcatala/r2-fastlink/contents/skills/r2fl/SKILL.md \
-  -H 'Accept: application/vnd.github.raw' > ~/.claude/skills/r2fl/SKILL.md
+mkdir -p ~/.claude/skills/r2-fastlink
+gh api repos/crcatala/r2-fastlink/contents/skills/r2-fastlink/SKILL.md \
+  -H 'Accept: application/vnd.github.raw' > ~/.claude/skills/r2-fastlink/SKILL.md
 ```
 
 Other agents that read an `AGENTS.md` or similar can use the same file: it is plain markdown, and everything after the front matter is the instructions.

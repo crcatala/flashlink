@@ -1,5 +1,5 @@
 ---
-name: r2fl
+name: r2-fastlink
 description: Share a file, folder or command output as a short public link that expires on its own, and refresh or revoke such links, using the r2fl CLI (r2-fastlink). Use when you need to hand a screenshot, log, build artifact or generated file to the user or to another machine or agent, when you are given an r2-fastlink URL (https://<host>/<8 characters>) that has expired, or when the user says to upload, share, re-open or close a link.
 ---
 
