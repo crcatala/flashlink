@@ -1,4 +1,3 @@
-import { ApiError } from '@r2-fastlink/core';
 import { Command, InvalidArgumentError } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { configGet, configSet, configShow } from './commands/config.ts';
@@ -9,8 +8,8 @@ import { revoke } from './commands/revoke.ts';
 import { status } from './commands/status.ts';
 import { up } from './commands/up.ts';
 import { createContext, type Context } from './context.ts';
-import { CliError } from './errors.ts';
 import { configPath } from './paths.ts';
+import { reportFailure } from './report.ts';
 
 function positiveInt(value: string): number {
   const n = Number(value);
@@ -43,6 +42,7 @@ function buildProgram(ctx: () => Context): Command {
     .option('--with-name', 'append the filename to the URL')
     .option('--json', 'print the full result as JSON')
     .option('--no-copy', 'do not copy the URL to the clipboard')
+    .option('--notify', 'post a macOS notification with the result (and copy the URL)')
     .option('-q, --quiet', 'print only URLs')
     .action((files: string[], opts) => up(files, opts, ctx()));
 
@@ -98,24 +98,19 @@ function buildProgram(ctx: () => Context): Command {
 async function main(): Promise<void> {
   let context: Context | undefined;
   const ctx = () => (context ??= createContext());
+  let jsonMode = false;
   try {
-    await buildProgram(ctx).parseAsync(process.argv);
+    await buildProgram(ctx)
+      .hook('preAction', (_program, action) => {
+        jsonMode = Boolean(action.opts().json);
+      })
+      .parseAsync(process.argv);
   } catch (err) {
-    const color = Boolean(process.stderr.isTTY) && !process.env.NO_COLOR;
-    const red = (s: string) => (color ? `\u001b[31m${s}\u001b[39m` : s);
-    if (err instanceof CliError) {
-      process.stderr.write(`${red('error:')} ${err.message}\n`);
-      if (err.hint) process.stderr.write(`${err.hint}\n`);
-    } else if (err instanceof ApiError) {
-      process.stderr.write(`${red('error:')} ${err.message}\n`);
-      if (err.status === 401) process.stderr.write('Check your token with `r2fl init`.\n');
-    } else if (err instanceof Error && err.message === 'Cancelled') {
-      process.stderr.write('\n');
-    } else {
-      process.stderr.write(
-        `${red('error:')} ${err instanceof Error ? err.message : String(err)}\n`,
-      );
-    }
+    reportFailure(err, jsonMode, {
+      stdout: (text) => process.stdout.write(text),
+      stderr: (text) => process.stderr.write(text),
+      color: Boolean(process.stderr.isTTY) && !process.env.NO_COLOR,
+    });
     process.exitCode = 1;
   }
 }
