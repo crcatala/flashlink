@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { up } from '../src/commands/up.ts';
-import { CliError } from '../src/errors.ts';
+import { up, upWithContext } from '../src/commands/up.ts';
+import { CliError, ReportedError } from '../src/errors.ts';
 import { entryStatus } from '../src/history.ts';
 import { makeHarness, type Harness } from './harness.ts';
 
@@ -99,6 +99,27 @@ describe('r2fl up', () => {
     expect(JSON.parse(h.stdout[0]!)).toHaveLength(2);
   });
 
+  it('--json with several files prints one array with per-file errors and nothing on stderr', async () => {
+    const good = h.file('good.txt', 'ok');
+    const missing = `${h.dir}/missing.txt`;
+    await expect(up([missing, good], { json: true }, h.ctx)).rejects.toBeInstanceOf(ReportedError);
+
+    expect(h.stdout).toHaveLength(1);
+    const [failed, ok] = JSON.parse(h.stdout[0]!);
+    expect(failed).toEqual({ file: missing, error: 'cli_error', message: 'No such file.' });
+    expect(ok).toMatchObject({ code: 'AAAAAAA1', filename: 'good.txt' });
+    expect(h.stderr).toEqual([]);
+  });
+
+  it('--json with several files stays an array when only one succeeds, or none do', async () => {
+    const missing = `${h.dir}/missing.txt`;
+    await expect(up([missing, `${h.dir}/gone.txt`], { json: true }, h.ctx)).rejects.toThrow(
+      /2 of 2 uploads failed/,
+    );
+    expect(JSON.parse(h.stdout[0]!)).toHaveLength(2);
+    expect(h.stderr).toEqual([]);
+  });
+
   it('copies to the clipboard unless disabled', async () => {
     const file = h.file('a.txt', 'a');
     await up([file], {}, h.ctx);
@@ -181,6 +202,33 @@ describe('r2fl up', () => {
     fs.writeFileSync(file, 'v2');
     await up([file], {}, h.ctx);
     expect(Buffer.from(h.server.links.get('AAAAAAA1')!.body).toString()).toBe('v2');
+  });
+});
+
+describe('r2fl up --notify when the context cannot be built', () => {
+  const broken = () => {
+    throw new Error('Unexpected token } in config.json');
+  };
+
+  it('posts the failure notification itself and still rethrows', async () => {
+    const posted: { subtitle: string; body: string }[] = [];
+    const notify = async (subtitle: string, body: string) => {
+      posted.push({ subtitle, body });
+      return true;
+    };
+    await expect(upWithContext(['a.txt'], { notify: true }, broken, notify)).rejects.toThrow(
+      'Unexpected token',
+    );
+    expect(posted).toEqual([
+      { subtitle: 'Upload failed', body: 'Unexpected token } in config.json' },
+    ]);
+  });
+
+  it('does not notify without --notify', async () => {
+    const notify = async () => {
+      throw new Error('should not be called');
+    };
+    await expect(upWithContext(['a.txt'], {}, broken, notify)).rejects.toThrow('Unexpected');
   });
 });
 

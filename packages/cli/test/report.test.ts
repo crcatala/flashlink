@@ -1,6 +1,6 @@
 import { ApiError } from '@r2-fastlink/core';
 import { describe, expect, it } from 'vitest';
-import { CliError, errorJson } from '../src/errors.ts';
+import { CliError, ReportedError, errorJson } from '../src/errors.ts';
 import { reportFailure } from '../src/report.ts';
 
 function run(err: unknown, json: boolean) {
@@ -37,6 +37,17 @@ describe('--json failures', () => {
     const { stdout } = run(new CliError('line one\nline two'), true);
     expect(stdout.trimEnd().split('\n')).toHaveLength(1);
     expect(JSON.parse(stdout).message).toBe('line one\nline two');
+  });
+});
+
+describe('ReportedError', () => {
+  it('prints nothing in either mode', () => {
+    for (const json of [true, false]) {
+      expect(run(new ReportedError('1 of 2 uploads failed.'), json)).toEqual({
+        stdout: '',
+        stderr: '',
+      });
+    }
   });
 });
 

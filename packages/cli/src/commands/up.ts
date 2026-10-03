@@ -4,9 +4,10 @@ import path from 'node:path';
 import mime from 'mime';
 import { parseDuration, type UploadResult } from '@r2-fastlink/core';
 import type { Context } from '../context.ts';
-import { CliError } from '../errors.ts';
+import { CliError, ReportedError, errorJson, errorText } from '../errors.ts';
 import { clock, formatBytes } from '../format.ts';
 import type { HistoryEntry } from '../history.ts';
+import { sendNotification } from '../notify.ts';
 
 export interface UpOptions {
   ttl?: string;
@@ -71,6 +72,26 @@ function readSource(file: string, maxBytes: number): Source {
   };
 }
 
+/**
+ * Entry point from the CLI: the context is built lazily, and building it can fail (unreadable
+ * config or history). With no Context there is no `ctx.notify`, so notify directly.
+ */
+export async function upWithContext(
+  files: string[],
+  opts: UpOptions,
+  getContext: () => Context,
+  notify: (subtitle: string, body: string) => Promise<boolean> = sendNotification,
+): Promise<void> {
+  let ctx: Context;
+  try {
+    ctx = getContext();
+  } catch (err) {
+    if (opts.notify) await notify('Upload failed', errorText(err));
+    throw err;
+  }
+  await up(files, opts, ctx);
+}
+
 export async function up(files: string[], opts: UpOptions, ctx: Context): Promise<void> {
   try {
     await uploadAll(files, opts, ctx);
@@ -80,11 +101,6 @@ export async function up(files: string[], opts: UpOptions, ctx: Context): Promis
     if (opts.notify) await ctx.notify('Upload failed', errorText(err));
     throw err;
   }
-}
-
-function errorText(err: unknown): string {
-  if (err instanceof CliError) return err.hint ? `${err.message} ${err.hint}` : err.message;
-  return err instanceof Error ? err.message : String(err);
 }
 
 async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promise<void> {
@@ -103,6 +119,8 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
   const { style } = ctx;
 
   const results: UploadResult[] = [];
+  // --json with several files: one array in target order, failures as {file, error, message}.
+  const entries: (UploadResult | ({ file: string } & ReturnType<typeof errorJson>))[] = [];
   let failures = 0;
   const targets = useStdin ? ['-'] : files;
   for (const target of targets) {
@@ -134,6 +152,7 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
         maxDownloads: opts.maxDownloads,
       });
       results.push(result);
+      entries.push(result);
       ctx.history.upsert(toEntry(result, source, ttlSeconds));
       if (!opts.quiet && !opts.json) {
         ctx.err(
@@ -146,14 +165,18 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
       const label = target === '-' ? 'stdin' : target;
       if (targets.length === 1) throw labelled(err, label);
       failures++;
-      ctx.err(`${style.red('✗')} ${label}: ${(err as Error).message}`);
-      if (err instanceof CliError && err.hint) ctx.err(`  ${style.dim(err.hint)}`);
+      if (opts.json) {
+        entries.push({ file: label, ...errorJson(err) });
+      } else {
+        ctx.err(`${style.red('✗')} ${label}: ${(err as Error).message}`);
+        if (err instanceof CliError && err.hint) ctx.err(`  ${style.dim(err.hint)}`);
+      }
     }
   }
 
   const urls = results.map((r) => (opts.withName ? r.urlWithName : r.url));
   if (opts.json) {
-    ctx.out(JSON.stringify(results.length === 1 ? results[0] : results, null, 2));
+    ctx.out(JSON.stringify(targets.length === 1 ? entries[0] : entries, null, 2));
   } else {
     for (const url of urls) ctx.out(url);
   }
@@ -166,7 +189,9 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
   }
   if (failures > 0) {
     // up() posts the single failure notification; successful links are still on stdout.
-    throw new CliError(`${failures} of ${targets.length} uploads failed.`);
+    const summary = `${failures} of ${targets.length} uploads failed.`;
+    // The JSON array above already carries every failure; a second document would break parsers.
+    throw opts.json ? new ReportedError(summary) : new CliError(summary);
   }
   if (opts.notify) {
     const state = copied ? 'copied' : 'ready';

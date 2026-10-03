@@ -1,4 +1,4 @@
-import { Command, InvalidArgumentError } from 'commander';
+import { Command, CommanderError, InvalidArgumentError } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { configGet, configSet, configShow } from './commands/config.ts';
 import { init } from './commands/init.ts';
@@ -6,8 +6,10 @@ import { ls } from './commands/ls.ts';
 import { refresh } from './commands/refresh.ts';
 import { revoke } from './commands/revoke.ts';
 import { status } from './commands/status.ts';
-import { up } from './commands/up.ts';
+import { upWithContext } from './commands/up.ts';
 import { createContext, type Context } from './context.ts';
+import { CliError, errorText } from './errors.ts';
+import { sendNotification } from './notify.ts';
 import { configPath } from './paths.ts';
 import { reportFailure } from './report.ts';
 
@@ -17,11 +19,24 @@ function positiveInt(value: string): number {
   return n;
 }
 
-function buildProgram(ctx: () => Context): Command {
+/** Arguments before a `--` terminator (after it, `--json` would be a file name). */
+function optionArgs(argv: string[]): string[] {
+  const end = argv.indexOf('--');
+  return end === -1 ? argv.slice(2) : argv.slice(2, end);
+}
+
+/**
+ * Decided from argv rather than a hook because parse errors happen before any action runs.
+ * Option errors are thrown, not printed, so `--json` can turn them into JSON.
+ */
+function buildProgram(ctx: () => Context, quiet: boolean): Command {
   const program = new Command('r2fl')
     .description('Upload a file and get a short link that expires on its own.')
     .version(pkg.version)
-    .showHelpAfterError('(run with --help for usage)');
+    .showHelpAfterError('(run with --help for usage)')
+    .exitOverride();
+  // Applies to commands created below, which inherit it. Help and --version use writeOut.
+  if (quiet) program.configureOutput({ writeErr: () => {} });
 
   program
     .command('init')
@@ -44,7 +59,7 @@ function buildProgram(ctx: () => Context): Command {
     .option('--no-copy', 'do not copy the URL to the clipboard')
     .option('--notify', 'post a macOS notification with the result (and copy the URL)')
     .option('-q, --quiet', 'print only URLs')
-    .action((files: string[], opts) => up(files, opts, ctx()));
+    .action((files: string[], opts) => upWithContext(files, opts, ctx));
 
   program
     .command('refresh [link]')
@@ -98,20 +113,29 @@ function buildProgram(ctx: () => Context): Command {
 async function main(): Promise<void> {
   let context: Context | undefined;
   const ctx = () => (context ??= createContext());
-  let jsonMode = false;
+  const args = optionArgs(process.argv);
+  const jsonMode = args.includes('--json');
+  const io = {
+    stdout: (text: string) => process.stdout.write(text),
+    stderr: (text: string) => process.stderr.write(text),
+    color: Boolean(process.stderr.isTTY) && !process.env.NO_COLOR,
+  };
   try {
-    await buildProgram(ctx)
-      .hook('preAction', (_program, action) => {
-        jsonMode = Boolean(action.opts().json);
-      })
-      .parseAsync(process.argv);
+    await buildProgram(ctx, jsonMode).parseAsync(process.argv);
   } catch (err) {
-    reportFailure(err, jsonMode, {
-      stdout: (text) => process.stdout.write(text),
-      stderr: (text) => process.stderr.write(text),
-      color: Boolean(process.stderr.isTTY) && !process.env.NO_COLOR,
-    });
     process.exitCode = 1;
+    if (err instanceof CommanderError) {
+      // Help and --version exit 0; a usage error was already printed by commander (not in --json).
+      process.exitCode = err.exitCode;
+      if (err.exitCode !== 0 && jsonMode) {
+        reportFailure(new CliError(err.message.replace(/^error: /, '')), true, io);
+      }
+      if (err.exitCode !== 0 && args.includes('--notify') && /^(up|upload)$/.test(args[0] ?? '')) {
+        await sendNotification('Upload failed', err.message.replace(/^error: /, ''));
+      }
+      return;
+    }
+    reportFailure(err, jsonMode, io);
   }
 }
 
