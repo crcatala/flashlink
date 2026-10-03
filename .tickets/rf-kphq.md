@@ -8,7 +8,7 @@ type: task
 priority: 2
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, macos, release, needs-human, batch-14]
+tags: [phase-3, macos, release, needs-human, batch-05]
 ---
 # Distribute the standalone r2fl binary: CI release artifact and installer download
 
