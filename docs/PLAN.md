@@ -229,9 +229,9 @@ Implementation notes, where phase 1 refined this plan:
 
 **Phase 3: extras (ideas, not committed)**
 
-- Upload from clipboard (screenshots).
 - Folder upload as zip.
-- An agent skill or MCP tool so agents can refresh links themselves.
+- An agent skill (a `SKILL.md` over the CLI) so agents can create and refresh links themselves.
+- Parked: upload from the clipboard (screenshots), reconsidered later; an MCP server and scoped (restricted) tokens, to be decided after the skill has been used.
 - Native Swift menubar app (drop target, hotkey).
 - Deploy-to-Cloudflare button.
 

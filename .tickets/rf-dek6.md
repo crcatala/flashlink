@@ -68,3 +68,7 @@ PR batching (sequential, one PR per batch; tag batch-NN on each ticket, lowest o
 **2026-10-03T02:51:14Z**
 
 2026-10-02: the Worker secret UPLOAD_TOKEN was renamed to R2FL_TOKEN (same name as the CLI/script env var). Where this epic's 'Commands' line says UPLOAD_TOKEN in .dev.vars, use R2FL_TOKEN. See the follow-up PR from branch fix/rename-upload-token-wrangler-config.
+
+**2026-10-03T21:29:57Z**
+
+2026-10-03 reorder (supersedes the batch plan in the 2026-10-02T20:20:30Z note): 05 release packaging (open PR; license no longer in it) | 06 secret warning rf-chq2 | 07 folder zip rf-gah1 (clipboard rf-4514 PARKED) | 08 agent skill rf-xxew (MCP + scoped tokens split to rf-h4so, parked) | dogfooding checkpoint (human: use it, then rf-bi4a) | 09 download-cap policy rf-dd4u | 10 go public: rf-cr7d license + rf-dt1g setup script/deploy button, then tag v0.1.0 | 11 large files | 12 edge cache | 13 history decision. Rationale: release/license work only matters when the repo goes public, which should follow feature completeness and dogfooding. Details in docs/AGENT_PROMPT.md.

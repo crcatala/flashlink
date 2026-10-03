@@ -8,7 +8,7 @@ type: bug
 priority: 3
 assignee: cc-vps
 parent: rf-dek6
-tags: [phase-3, worker, deferred, batch-08]
+tags: [phase-3, worker, deferred, batch-09]
 ---
 # Download-cap accounting policy for Range/416 requests
 
@@ -31,3 +31,9 @@ Tests: 416 does not consume the cap; a ranged request starting at 0 counts once;
 - [ ] Still exactly one DO call per fetch (asserted: the fetch path test counts registry calls through a proxy).
 - [ ] README text for `--max-downloads` states what counts as a download.
 
+
+## Notes
+
+**2026-10-03T21:29:57Z**
+
+2026-10-03 reorder: moved from batch-08 to batch-09, after the dogfooding checkpoint. Rationale: whether -d/--max-downloads is unreliable enough to matter is best judged after real use (especially -d 1 on screenshots/videos), and rf-bi4a (usage check) should be done first. See docs/AGENT_PROMPT.md, 'Checkpoints'.

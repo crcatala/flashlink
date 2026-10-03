@@ -27,3 +27,9 @@ Forking should be near one command. Today the README has several manual steps (b
 - [ ] README documents script and (if viable) the deploy button, including remaining manual steps.
 - [ ] Script has unit tests for its pure parts (argument handling, output formatting) and is shellcheck/lint clean.
 
+
+## Notes
+
+**2026-10-03T21:29:57Z**
+
+2026-10-03 reorder: stays batch-10, which is now the last batch and the 'go public' step together with rf-cr7d. It needs rf-cr7d CLOSED (owner decision) and the repo public before the Deploy button can be tested.

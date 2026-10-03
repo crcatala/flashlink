@@ -19,11 +19,11 @@ https://fl.example.com/k3F9xQ2m
 
 Phase 1 (Worker, Durable Object, CLI, landing page) is implemented. Phase 2 (the Finder Quick Action) is implemented and has been verified on macOS 26. See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, key decisions and the roadmap.
 
-| Phase | Scope                                                             | Status |
-| ----- | ----------------------------------------------------------------- | ------ |
-| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page            | done   |
-| 2     | macOS Finder Quick Action                                         | done   |
-| 3+    | Extras (clipboard/screenshot upload, zip of folders, agent skill) | ideas  |
+| Phase | Scope                                                         | Status |
+| ----- | ------------------------------------------------------------- | ------ |
+| 1     | Worker + Durable Object + R2, `r2fl` CLI, landing page        | done   |
+| 2     | macOS Finder Quick Action                                     | done   |
+| 3+    | Extras (zip of folders, agent skill; clipboard upload parked) | ideas  |
 
 ## How it works
 
