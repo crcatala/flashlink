@@ -606,6 +606,33 @@ describe('scripts/install-macos.sh', () => {
   });
 });
 
+describe('scripts/build-binary.sh without Bun', () => {
+  const script = path.resolve(macosDir, '..', 'scripts', 'build-binary.sh');
+  const barePath = '/usr/bin:/bin';
+  const bunOnBarePath =
+    spawnSync('/bin/sh', ['-c', 'command -v bun'], {
+      env: { PATH: barePath },
+    }).status === 0;
+
+  it.skipIf(bunOnBarePath)('explains why Bun is needed and what to do, then stops cleanly', () => {
+    const r = run(script, [], { PATH: barePath });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('Bun is needed');
+    expect(r.stderr).toContain('Why:');
+    expect(r.stderr).toContain('brew install oven-sh/bun/bun');
+    expect(r.stderr).toContain('sh macos/install.sh'); // the no-Bun alternative
+    expect(r.stdout).toBe('');
+  });
+
+  it('rejects an unknown target, naming it', () => {
+    // A fake bun, so only the argument handling is exercised.
+    write(path.join(dir, 'bin', 'bun'), '#!/bin/sh\nexit 0\n');
+    const r = run(script, ['windows-x64']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("unknown target 'windows-x64'");
+  });
+});
+
 describe('workflow bundles', () => {
   const read = (name: string, file: string) =>
     fs.readFileSync(path.join(macosDir, `${name}.workflow`, 'Contents', file), 'utf8');

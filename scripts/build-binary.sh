@@ -14,7 +14,30 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 out="$root/dist/bin"
 
 if ! command -v bun >/dev/null 2>&1; then
-  echo "build-binary.sh: bun not found. Install it from https://bun.sh" >&2
+  cat >&2 <<'MSG'
+Bun is needed to build the standalone r2fl binary, but `bun` was not found.
+
+Why: a Finder Quick Action starts with a bare PATH, so it cannot rely on your node. Bun compiles
+the CLI into one self-contained file (about 60 MB) that needs neither node nor PATH. It is only
+used to BUILD that file; running it does not need Bun.
+
+To continue, install Bun and run this again:
+  brew install oven-sh/bun/bun        (or see https://bun.sh)
+
+Prefer not to install Bun? The Quick Actions also work with your own r2fl and node (they are
+looked up in your login shell); nothing is built:
+  sh macos/install.sh
+MSG
+  exit 1
+fi
+
+# The bundler resolves the CLI's dependencies from node_modules.
+if [ ! -d "$root/packages/cli/node_modules/commander" ]; then
+  cat >&2 <<'MSG'
+The CLI's dependencies are not installed yet, so the binary cannot be built.
+Run this once from the repository root, then try again:
+  pnpm install
+MSG
   exit 1
 fi
 
