@@ -152,6 +152,7 @@ export interface Harness {
   stdout: string[];
   stderr: string[];
   clipboard: string[];
+  notifications: { subtitle: string; body: string }[];
   stdin: { data: Buffer; isTTY: boolean };
   file(name: string, content: string | Buffer): string;
   cleanup(): void;
@@ -163,6 +164,7 @@ export function makeHarness(overrides: Partial<Context['config']> = {}): Harness
   const stdout: string[] = [];
   const stderr: string[] = [];
   const clipboard: string[] = [];
+  const notifications: { subtitle: string; body: string }[] = [];
   const stdin = { data: Buffer.alloc(0), isTTY: false };
   const env = { R2FL_CONFIG_DIR: path.join(dir, 'config'), R2FL_DATA_DIR: path.join(dir, 'data') };
   const config = { ...DEFAULT_CONFIG, endpoint: ENDPOINT, token: 'secret-token', ...overrides };
@@ -182,6 +184,10 @@ export function makeHarness(overrides: Partial<Context['config']> = {}): Harness
       clipboard.push(t);
       return true;
     },
+    notify: async (subtitle, body) => {
+      notifications.push({ subtitle, body });
+      return true;
+    },
     readStdin: async () => stdin.data,
     prompt: async () => {
       throw new Error('unexpected prompt');
@@ -194,6 +200,7 @@ export function makeHarness(overrides: Partial<Context['config']> = {}): Harness
     stdout,
     stderr,
     clipboard,
+    notifications,
     stdin,
     file(name, content) {
       const p = path.join(dir, name);

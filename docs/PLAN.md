@@ -82,6 +82,8 @@ Non-goals
 
 - `up`, `refresh`, `revoke`, `ls`, `status`, `config`, `init`.
 - Prints only the URL on stdout (scriptable); human-readable details go to stderr. Copies the URL to the clipboard when a clipboard tool exists.
+- `up --notify` (macOS) posts one notification per invocation through `/usr/bin/osascript` (absolute path, because Quick Actions run with a minimal PATH): the link(s) on success, the error on failure. Text is escaped for AppleScript string literals since filenames and URLs are untrusted. It implies a clipboard copy unless `--no-copy`, and does nothing on other platforms. Notification delivery is behind `Context.notify` so tests inject a recorder.
+- With `--json`, any failure is printed as a single compact `{"error": <ApiError.code | "cli_error" | "error">, "message": ...}` line on stdout (stderr stays empty) and the exit code is 1, so wrappers such as the Quick Action can parse failures. This includes option-parse errors (`--json` is detected from argv, and commander's `exitOverride` turns them into thrown errors). `up --json` with several files prints one array with per-file `{file, error, message}` entries instead of a trailing error line (`ReportedError` exits 1 silently). The formatting lives in `src/report.ts`.
 - Config in `~/.config/r2fl/config.json` (mode 600), history in `~/.local/share/r2fl/history.json`. Both honor `XDG_*` variables.
 
 **Shared core** (`packages/core`): API types, duration parsing, API client, constants shared by CLI and Worker.
@@ -206,7 +208,7 @@ Implementation notes, where phase 1 refined this plan:
   - Still open: DO and Worker usage after about a day of normal use against section 5, and the optional custom domain check.
 - `r2fl refresh` with no argument refreshes the most recent upload; `r2fl ls --sync` reconciles local history with the server.
 
-**Phase 2: macOS Finder Quick Action**: install script, notification with the URL, TTL prompt. Notes on clipboard and PATH when run from Quick Actions.
+**Phase 2: macOS Finder Quick Action**: (2.1 done: `up --notify` and `--json` errors) install script, notification with the URL, TTL prompt. Notes on clipboard and PATH when run from Quick Actions.
 
 **Phase 3: extras (ideas, not committed)**
 

@@ -5,6 +5,7 @@ import { CliError } from './errors.ts';
 import { createStyle, type Style } from './format.ts';
 import { History } from './history.ts';
 import { readStdin, prompt } from './io.ts';
+import { sendNotification } from './notify.ts';
 
 /** Everything a command needs from the outside world, so commands are easy to test. */
 export interface Context {
@@ -20,6 +21,8 @@ export interface Context {
   err(text: string): void;
   client(): FastlinkClient;
   copy(text: string): Promise<boolean>;
+  /** Best-effort macOS notification (no-op elsewhere). Returns whether one was posted. */
+  notify(subtitle: string, body: string): Promise<boolean>;
   readStdin(): Promise<Buffer>;
   prompt(question: string, opts?: { secret?: boolean }): Promise<string>;
 }
@@ -38,6 +41,7 @@ export function createContext(env: NodeJS.ProcessEnv = process.env): Context {
     err: (text) => process.stderr.write(`${text}\n`),
     client: () => clientFromConfig(config),
     copy: (text) => copyToClipboard(text, env),
+    notify: (subtitle, body) => sendNotification(subtitle, body),
     readStdin,
     prompt,
   };

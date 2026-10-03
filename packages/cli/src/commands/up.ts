@@ -4,9 +4,10 @@ import path from 'node:path';
 import mime from 'mime';
 import { parseDuration, type UploadResult } from '@r2-fastlink/core';
 import type { Context } from '../context.ts';
-import { CliError } from '../errors.ts';
+import { CliError, ReportedError, errorJson, errorText } from '../errors.ts';
 import { clock, formatBytes } from '../format.ts';
 import type { HistoryEntry } from '../history.ts';
+import { sendNotification } from '../notify.ts';
 
 export interface UpOptions {
   ttl?: string;
@@ -17,6 +18,8 @@ export interface UpOptions {
   /** Commander sets this to false for `--no-copy`. */
   copy?: boolean;
   quiet?: boolean;
+  /** Post a macOS notification with the result (for launchers without a terminal). */
+  notify?: boolean;
 }
 
 interface Source {
@@ -69,7 +72,38 @@ function readSource(file: string, maxBytes: number): Source {
   };
 }
 
+/**
+ * Entry point from the CLI: the context is built lazily, and building it can fail (unreadable
+ * config or history). With no Context there is no `ctx.notify`, so notify directly.
+ */
+export async function upWithContext(
+  files: string[],
+  opts: UpOptions,
+  getContext: () => Context,
+  notify: (subtitle: string, body: string) => Promise<boolean> = sendNotification,
+): Promise<void> {
+  let ctx: Context;
+  try {
+    ctx = getContext();
+  } catch (err) {
+    if (opts.notify) await notify('Upload failed', errorText(err));
+    throw err;
+  }
+  await up(files, opts, ctx);
+}
+
 export async function up(files: string[], opts: UpOptions, ctx: Context): Promise<void> {
+  try {
+    await uploadAll(files, opts, ctx);
+  } catch (err) {
+    // The error still propagates (stderr/JSON + exit code); the notification is the only
+    // feedback a launcher with no terminal gets.
+    if (opts.notify) await ctx.notify('Upload failed', errorText(err));
+    throw err;
+  }
+}
+
+async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promise<void> {
   const useStdin = files.length === 0 || (files.length === 1 && files[0] === '-');
   if (useStdin && ctx.stdinIsTTY) {
     throw new CliError(
@@ -85,6 +119,8 @@ export async function up(files: string[], opts: UpOptions, ctx: Context): Promis
   const { style } = ctx;
 
   const results: UploadResult[] = [];
+  // --json with several files: one array in target order, failures as {file, error, message}.
+  const entries: (UploadResult | ({ file: string } & ReturnType<typeof errorJson>))[] = [];
   let failures = 0;
   const targets = useStdin ? ['-'] : files;
   for (const target of targets) {
@@ -116,6 +152,7 @@ export async function up(files: string[], opts: UpOptions, ctx: Context): Promis
         maxDownloads: opts.maxDownloads,
       });
       results.push(result);
+      entries.push(result);
       ctx.history.upsert(toEntry(result, source, ttlSeconds));
       if (!opts.quiet && !opts.json) {
         ctx.err(
@@ -128,23 +165,38 @@ export async function up(files: string[], opts: UpOptions, ctx: Context): Promis
       const label = target === '-' ? 'stdin' : target;
       if (targets.length === 1) throw labelled(err, label);
       failures++;
-      ctx.err(`${style.red('✗')} ${label}: ${(err as Error).message}`);
-      if (err instanceof CliError && err.hint) ctx.err(`  ${style.dim(err.hint)}`);
+      if (opts.json) {
+        entries.push({ file: label, ...errorJson(err) });
+      } else {
+        ctx.err(`${style.red('✗')} ${label}: ${(err as Error).message}`);
+        if (err instanceof CliError && err.hint) ctx.err(`  ${style.dim(err.hint)}`);
+      }
     }
   }
 
   const urls = results.map((r) => (opts.withName ? r.urlWithName : r.url));
   if (opts.json) {
-    ctx.out(JSON.stringify(results.length === 1 ? results[0] : results, null, 2));
+    ctx.out(JSON.stringify(targets.length === 1 ? entries[0] : entries, null, 2));
   } else {
     for (const url of urls) ctx.out(url);
   }
-  if (urls.length > 0 && opts.copy !== false && ctx.config.copy) {
-    const copied = await ctx.copy(urls.join('\n'));
+  // --notify implies a clipboard copy (the notification says so) unless --no-copy.
+  const wantCopy = opts.copy !== false && (ctx.config.copy || Boolean(opts.notify));
+  let copied = false;
+  if (urls.length > 0 && wantCopy) {
+    copied = await ctx.copy(urls.join('\n'));
     if (copied && !opts.quiet && !opts.json) ctx.err(style.dim('  copied to clipboard'));
   }
   if (failures > 0) {
-    throw new CliError(`${failures} of ${targets.length} uploads failed.`);
+    // up() posts the single failure notification; successful links are still on stdout.
+    const summary = `${failures} of ${targets.length} uploads failed.`;
+    // The JSON array above already carries every failure; a second document would break parsers.
+    throw opts.json ? new ReportedError(summary) : new CliError(summary);
+  }
+  if (opts.notify) {
+    const state = copied ? 'copied' : 'ready';
+    const subtitle = urls.length === 1 ? `Link ${state}` : `${urls.length} links ${state}`;
+    await ctx.notify(subtitle, urls.join('\n'));
   }
 }
 
