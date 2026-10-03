@@ -1,6 +1,6 @@
 ---
 id: rf-hx3f
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-02T20:05:53Z
@@ -29,8 +29,14 @@ Add to the CLI (macOS only for the notification part): `r2fl up --notify` which,
 ## Acceptance Criteria
 
 - [ ] `r2fl up --notify file` on macOS shows a notification with the URL; on failure shows the error text (manual check on a Mac, recorded in a note).
-- [ ] Unit tests: notification text is correctly escaped for AppleScript (quotes, backslashes, newlines, unicode filenames); notify is a no-op on non-darwin; notify is called once per invocation with a sensible summary for 1 and N files, and with the error for failures. All with an injected runner (no real osascript in tests).
-- [ ] `--json` failure output is valid JSON with `error` and `message`, exit code 1, covered by tests for CliError and ApiError cases.
-- [ ] stdout still contains only URLs (or the JSON result) in all modes; existing tests untouched and green.
-- [ ] README documents `--notify`.
+- [x] Unit tests: notification text is correctly escaped for AppleScript (quotes, backslashes, newlines, unicode filenames); notify is a no-op on non-darwin; notify is called once per invocation with a sensible summary for 1 and N files, and with the error for failures. All with an injected runner (no real osascript in tests).
+- [x] `--json` failure output is valid JSON with `error` and `message`, exit code 1, covered by tests for CliError and ApiError cases.
+- [x] stdout still contains only URLs (or the JSON result) in all modes; existing tests untouched and green.
+- [x] README documents `--notify`.
 
+
+## Notes
+
+**2026-10-03T02:20:51Z**
+
+Branch batch-03-cli-notify-json-errors. Implemented on Linux: src/notify.ts (AppleScript escaping, absolute /usr/bin/osascript, injectable runner, 5s timeout, no-op off darwin), Context.notify, up --notify, src/report.ts (--json failures as one compact stdout line, stderr empty). Deviations: Context.notify(subtitle, body) (title is fixed 'r2-fastlink'); --notify copies even if config copy=false unless --no-copy; one notification per invocation, and on partial multi-file failure it is the 'N of M uploads failed' error (successful URLs stay on stdout/clipboard); with up --json and partial failure the results array is printed first, then the error line. Evidence: pnpm test 182 passing (CLI 80), mutation of the escaper makes tests fail, built CLI exercised against wrangler dev (cli_error, unauthorized, ttl_too_long all exit 1). AWAITING HUMAN: criterion 1 needs a real Mac. Run 'pnpm build' then 'node packages/cli/dist/index.js up <file> --notify' against any deployment or wrangler dev: expect a notification titled r2-fastlink, subtitle 'Link copied', body = URL, URL on the clipboard. Then run it with a bad endpoint/token (R2FL_TOKEN=bad) and expect subtitle 'Upload failed' with the error text. Also try a filename containing double quotes and a backslash. Tick criterion 1 and close the ticket.
