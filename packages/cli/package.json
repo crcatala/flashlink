@@ -2,6 +2,23 @@
   "name": "r2fl",
   "version": "0.0.0",
   "description": "CLI for r2-fastlink: upload a file, get a short self-expiring link",
+  "keywords": [
+    "cloudflare",
+    "r2",
+    "file-sharing",
+    "share-link",
+    "expiring-link",
+    "cli"
+  ],
+  "homepage": "https://github.com/crcatala/r2-fastlink#readme",
+  "bugs": {
+    "url": "https://github.com/crcatala/r2-fastlink/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crcatala/r2-fastlink.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
   "bin": {
     "r2fl": "./dist/index.js"
@@ -12,11 +29,16 @@
   "engines": {
     "node": ">=22.12"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {
     "commander": "^15.0.0",
