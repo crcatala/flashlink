@@ -1,6 +1,6 @@
 ---
 id: rf-og97
-status: open
+status: closed
 deps: []
 links: [rf-0q8c]
 created: 2026-10-03T14:27:41Z
@@ -54,3 +54,22 @@ A throwaway SPIKE to answer one question cheaply before any design work: does a 
 - This ticket intentionally has no `batch-NN` tag so the automated batch picker does not take it; it is run by hand with a fresh agent on the owner's Mac.
 - Any code that stays in the repo needs README/PLAN updates per the epic's invariants; a pure spike that is deleted afterwards only needs the findings recorded in a note here and, if useful, a short paragraph in docs/PLAN.md.
 
+
+**2026-10-03T15:16:45Z**
+
+Linux-side work done on branch spike/rf-og97-finder-sync (PR pending). Written and checked without a Mac:
+- macos/spike/: XcodeGen project (host app + sandboxed Finder Sync extension), run.sh (ad hoc build, install, pluginkit enable), test-handoff.sh, README (Mac test script), FINDINGS.md template.
+- Verified on Linux: HandOff.swift compiles and passes SelfTest with swiftc 6.1.2; the app and extension sources parse and typecheck only against hand-written stubs (NOT against AppKit/FinderSync, never built by Xcode); plists parse; shell encoder agrees with the Swift parser; vitest macos-spike.test.ts.
+- NOT done (needs the Mac): every acceptance criterion. Ticket stays open; fill docs/finder-sync-spike.md on the Mac.
+
+**2026-10-03T16:50:22Z**
+
+CI Mac result (GitHub macos-latest, macOS 26.6.2, Xcode 26.6, run 37138241482 on PR #11): both targets build ad hoc signed first try; extension is sandboxed with app-sandbox + user-selected.read-only; pluginkit -a/-e use registers it and lists it enabled (+); host app launches, URL scheme works, test-handoff.sh passes 6/6 awkward names. Notifications and the Finder menu NOT exercised (no Finder session on CI). Remaining for the owner's Mac: download the CI artifact (README Option A, no Xcode needed) and run the Finder steps in macos/spike/README.md.
+
+**2026-10-03T17:15:37Z**
+
+Mac run done by the owner on macOS 26.6.2 (CI-built ad hoc app): VIABLE. Root-level menu + lifetime submenu works with ad hoc signing only; all paths/awkward names/924 files and all four lifetimes arrive; notification titled r2-fastlink; no prompts; no killall needed; host app relaunches on click. Details: docs/finder-sync-spike.md, screenshots in a PR #11 comment. Follow-up design ticket rf-kecm filed; rf-kwsu rescoped to a Finder-only app and now depends on rf-kecm. Left OPEN until the owner confirms closing (PR #11 merge).
+
+**2026-10-03T17:19:08Z**
+
+Closed after the owner's OK (macOS 26.6.2 run: VIABLE, see docs/finder-sync-spike.md). The spike folder is kept as the reference for the real app (rf-kecm, rf-kwsu).
