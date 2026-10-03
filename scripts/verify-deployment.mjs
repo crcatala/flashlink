@@ -404,16 +404,25 @@ await check('Range past the end -> 416 with no-store', async () => {
   noStore(res, '416');
 });
 
+/** The link's server-side hit counter; fails loudly instead of comparing two `undefined`s. */
+async function hitCount(code) {
+  const res = await api('GET', `/links/${code}`);
+  eq(res.status, 200, `GET /api/links/${code}`);
+  const { hits } = res.json();
+  assert(Number.isInteger(hits), `GET /api/links/${code} returned hits=${JSON.stringify(hits)}`);
+  return hits;
+}
+
 await check('HEAD -> 200 with length, no body, no-store, and no hit counted', async () => {
   const link = need(S.image, 'image upload');
-  const before = (await api('GET', `/links/${link.code}`)).json().hits;
+  const before = await hitCount(link.code);
   const res = await hit(link, { method: 'HEAD', headers: { 'Accept-Encoding': 'identity' } });
   eq(res.status, 200, 'status');
   eq(res.buf.length, 0, 'body length');
   eq(header(res, 'content-length'), String(MIB), 'Content-Length');
   eq(header(res, 'content-type'), 'image/png', 'Content-Type');
   noStore(res, 'HEAD');
-  const after = (await api('GET', `/links/${link.code}`)).json().hits;
+  const after = await hitCount(link.code);
   eq(after, before, 'hit counter across a HEAD');
 });
 
@@ -538,8 +547,22 @@ if (!opts.sweeper) {
     await sleep(Math.max(0, due - Date.now()));
     while (Date.now() < deadline) {
       if ((await api('GET', `/links/${link.code}`)).status === 404) {
-        created.delete(link.code);
-        return `purged ${Math.round((Date.now() - due) / 1000)}s after it became due`;
+        // 404 only means "no longer active": the sweeper flips a row to `purging` before it
+        // deletes the object, and retries a failed R2 delete later. The row itself is removed
+        // only after R2 confirmed the delete, so a purge that now answers 404 means it is done.
+        // A 204 means the row was still there, i.e. the sweeper had not finished.
+        const detectedAfter = Math.round((Date.now() - due) / 1000);
+        await sleep(3000);
+        const confirm = await api('DELETE', `/links/${link.code}`);
+        if (confirm.status === 404) {
+          created.delete(link.code);
+          return `purged ${detectedAfter}s after it became due (row confirmed gone; R2 itself is not visible from outside)`;
+        }
+        throw new Error(
+          confirm.status === 204
+            ? `link went inactive ${detectedAfter}s after it became due but its row was still present 3 s later (sweeper mid-delete or R2 delete failing; check the Worker logs). This run purged it itself`
+            : `confirming DELETE returned ${confirm.status}`,
+        );
       }
       await sleep(5000);
     }
@@ -551,12 +574,22 @@ if (!opts.sweeper) {
 
 await check('cleanup: purge everything this run created', async () => {
   let purged = 0;
-  for (const code of created) {
-    const res = await api('DELETE', `/links/${code}`);
-    if (res.status === 204) purged++;
-    else if (res.status !== 404) throw new Error(`DELETE ${code} returned ${res.status}`);
+  const failures = [];
+  // Best effort: one failure must not leave the other links behind.
+  for (const code of [...created]) {
+    try {
+      const res = await api('DELETE', `/links/${code}`);
+      if (res.status === 204) purged++;
+      else if (res.status !== 404) failures.push(`${code}: HTTP ${res.status}`);
+      if (res.status === 204 || res.status === 404) created.delete(code);
+    } catch (err) {
+      failures.push(`${code}: ${err.message}`);
+    }
   }
-  created.clear();
+  assert(
+    failures.length === 0,
+    `${failures.length} link(s) not purged (${purged} were): ${failures.join('; ')}. They expire on their own and the sweeper removes them after the grace period`,
+  );
   return `${purged} link(s) purged`;
 });
 
