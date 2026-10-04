@@ -2,7 +2,7 @@
 
 # flashlink
 
-Upload a file to your own Cloudflare R2 bucket and get back a **short, public link that expires on its own.**
+A personal, self-hosted file sharing tool. Upload a file to **your own Cloudflare account** and get back a **short, public link that expires on its own.**
 
 ```
 $ fl up screenshot.png --ttl 2h
@@ -21,14 +21,15 @@ flashlink makes it one command (or one right-click): upload, get a short URL on 
 - **Agent-friendly links.** 8-character code, served directly: no redirect, no login, no JS. An agent can just `curl` it.
 - **Self-expiring.** Default 1 hour, up to 7 days. Expired links return `410 Gone`.
 - **Refreshable.** `fl refresh <code>` re-opens the _same_ link; `fl revoke <code>` closes it early.
-- **Private by default.** Your bucket is never public, history stays on your machine, and `fl` warns before uploading anything that looks like a secret.
-- **Yours.** One Cloudflare Worker + one Durable Object + one private R2 bucket in your own account. The free plan is enough, and size and storage limits keep costs bounded.
+- **Your own service.** There is no hosted flashlink and no account to create. One setup command deploys a Worker, a Durable Object and a private R2 bucket to your Cloudflare account (the free plan is enough), and you are its only user.
+- **Token-secured.** Uploading, refreshing and revoking need your secret upload token, generated during setup and stored as a Worker secret. The bucket is never public and there is no way to list files. Anyone you give a link to can read that file until it expires.
+- **Safe defaults.** `fl` warns before uploading anything that looks like a secret, your history stays on your machine, and size and storage limits keep costs bounded.
 
 ## Quick start
 
 You need a Cloudflare account, Node 22.12+ and [pnpm](https://pnpm.io).
 
-**1. Deploy your own** (once, about two minutes):
+**1. Deploy your own** (once; one command after logging in to Cloudflare):
 
 ```sh
 git clone https://github.com/crcatala/flashlink && cd flashlink
@@ -37,13 +38,13 @@ pnpm --filter @flashlink/worker exec wrangler login
 pnpm setup:cloudflare
 ```
 
-It prints your URL and an upload token (shown once). More options: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+It prints your Worker's URL and your upload token (shown once, so save it). More options: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 **2. Install the CLI** (macOS or Linux, Node 22.12+):
 
 ```sh
 npm i -g flashlink
-fl init --endpoint https://flashlink.<you>.workers.dev   # prompts for the token
+fl init --endpoint https://flashlink.<you>.workers.dev   # prompts for your token
 ```
 
 **3. Share a file:**
