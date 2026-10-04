@@ -7,6 +7,8 @@ the Worker is deployed from the same tag.
 
 ## [Unreleased]
 
+## [0.0.1] - 2026-10-04
+
 ### Added
 
 - Worker on Cloudflare R2 with one SQLite-backed Durable Object: short public links

@@ -1,6 +1,6 @@
 {
   "name": "flashlink",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "CLI for flashlink: upload a file, get a short self-expiring link",
   "license": "MIT",
   "author": "Christian Catalan <crcatala@gmail.com>",
