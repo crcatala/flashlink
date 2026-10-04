@@ -2,8 +2,10 @@ import { env } from 'cloudflare:workers';
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import type { LinkInfo, ServerStatus } from '@r2-fastlink/core';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { countsAsDownload } from '../src/registry.ts';
 import {
   TOKEN,
+  allowAll,
   authed,
   call,
   forbiddenRegistry,
@@ -229,6 +231,129 @@ describe('download cap', () => {
 
   it('rejects an invalid cap', async () => {
     expect((await upload('x', { maxDownloads: 0 })).status).toBe(400);
+  });
+
+  const ranged = (code: string, range: string) => call(`/${code}`, { headers: { Range: range } });
+  const infoOf = async (code: string) =>
+    (await (await authed(`/api/links/${code}`)).json()) as LinkInfo;
+
+  it('does not count an unsatisfiable range (416)', async () => {
+    const link = await uploadOk('0123456789', { maxDownloads: 1 });
+    expect((await ranged(link.code, 'bytes=50-60')).status).toBe(416);
+    expect((await infoOf(link.code)).hits).toBe(0);
+    expect((await call(`/${link.code}`)).status).toBe(200);
+    expect((await call(`/${link.code}`)).status).toBe(410);
+  });
+
+  it('counts every satisfiable ranged request, so ranges cannot get around the cap', async () => {
+    const link = await uploadOk('0123456789', { maxDownloads: 3 });
+    // A read that never touches byte 0 still uses up the cap.
+    expect((await ranged(link.code, 'bytes=1-')).status).toBe(206);
+    expect((await ranged(link.code, 'bytes=-3')).status).toBe(206);
+    expect((await infoOf(link.code)).hits).toBe(2);
+    expect((await ranged(link.code, 'bytes=0-3')).status).toBe(206);
+    expect((await infoOf(link.code)).hits).toBe(3);
+    expect((await ranged(link.code, 'bytes=4-7')).status).toBe(410);
+    expect((await call(`/${link.code}`)).status).toBe(410);
+  });
+
+  it('counts multi-range and malformed Range headers (served as a full 200)', async () => {
+    const link = await uploadOk('0123456789', { maxDownloads: 2 });
+    expect((await ranged(link.code, 'bytes=0-1,4-5')).status).toBe(200);
+    expect((await ranged(link.code, 'garbage')).status).toBe(200);
+    expect((await infoOf(link.code)).hits).toBe(2);
+    expect((await call(`/${link.code}`)).status).toBe(410);
+  });
+
+  it('still gates ranges once the cap is reached, and refresh reopens them', async () => {
+    const link = await uploadOk('0123456789', { maxDownloads: 1 });
+    expect((await call(`/${link.code}`)).status).toBe(200);
+    expect((await ranged(link.code, 'bytes=2-3')).status).toBe(410);
+    expect((await postJson(`/api/links/${link.code}/refresh`, {})).status).toBe(200);
+    expect((await ranged(link.code, 'bytes=2-3')).status).toBe(206);
+    expect((await ranged(link.code, 'bytes=2-3')).status).toBe(410);
+  });
+
+  it('does not count a 416 on an unlimited link either, but counts what it serves', async () => {
+    const link = await uploadOk('0123456789');
+    expect(link.maxDownloads).toBeNull();
+    expect((await ranged(link.code, 'bytes=50-60')).status).toBe(416);
+    expect((await call(`/${link.code}`, { method: 'HEAD' })).status).toBe(200);
+    const untouched = await infoOf(link.code);
+    expect(untouched.hits).toBe(0);
+    expect(untouched.lastHitAt).toBeNull();
+
+    expect((await ranged(link.code, 'bytes=4-7')).status).toBe(206);
+    const first = await infoOf(link.code);
+    expect(first.hits).toBe(1);
+    expect(first.lastHitAt).not.toBeNull();
+
+    expect((await call(`/${link.code}`)).status).toBe(200);
+    expect((await ranged(link.code, 'bytes=50-60')).status).toBe(416);
+    const second = await infoOf(link.code);
+    expect(second.hits).toBe(2);
+    // lastHitAt moves with each served request, and not with the 416 after it.
+    expect(Date.parse(second.lastHitAt!)).toBeGreaterThanOrEqual(Date.parse(first.lastHitAt!));
+  });
+
+  it('does not count HEAD', async () => {
+    const link = await uploadOk('0123456789', { maxDownloads: 1 });
+    expect((await call(`/${link.code}`, { method: 'HEAD' })).status).toBe(200);
+    expect((await infoOf(link.code)).hits).toBe(0);
+  });
+
+  it('makes exactly one registry call per fetch, ranged or not', async () => {
+    const link = await uploadOk('0123456789', { maxDownloads: 5 });
+    const calls: string[] = [];
+    const counting = new Proxy(env.REGISTRY, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop);
+        if (prop !== 'get') return typeof value === 'function' ? value.bind(target) : value;
+        return (id: DurableObjectId) =>
+          new Proxy(target.get(id), {
+            get(stub, method) {
+              const member = Reflect.get(stub, method);
+              if (typeof member !== 'function') return member;
+              return (...args: unknown[]) => {
+                calls.push(String(method));
+                return member.apply(stub, args);
+              };
+            },
+          });
+      },
+    }) as typeof env.REGISTRY;
+    const limits = { LIMIT_IP: allowAll, LIMIT_GLOBAL: allowAll };
+    const variants: Record<string, string>[] = [
+      {},
+      { Range: 'bytes=0-3' },
+      { Range: 'bytes=4-' },
+      { Range: 'bytes=50-60' },
+    ];
+    for (const headers of variants) {
+      calls.length = 0;
+      await run(`/${link.code}`, { REGISTRY: counting, ...limits }, { headers });
+      expect(calls, JSON.stringify(headers)).toEqual(['resolve']);
+    }
+  });
+});
+
+describe('countsAsDownload', () => {
+  it.each([
+    [null, true],
+    ['', true],
+    ['bytes=0-', true],
+    ['bytes=0-3', true],
+    ['bytes=1-', true],
+    ['bytes=4-7', true],
+    ['bytes=-3', true],
+    ['bytes=-100', true],
+    ['bytes=0-1,4-5', true],
+    ['garbage', true],
+    ['bytes=50-60', false],
+    ['bytes=10-', false],
+    ['bytes=-0', false],
+  ])('Range %j on a 10-byte file -> %s', (header, expected) => {
+    expect(countsAsDownload(header, 10)).toBe(expected);
   });
 });
 
