@@ -199,7 +199,7 @@ export class Registry extends DurableObject<Env> {
 
   /**
    * Resolve a code for serving. With `count`, atomically records the hit unless the request is
-   * unsatisfiable (PLAN section 9). `range` is the raw `Range` header, so the one registry call
+   * unsatisfiable (docs/ARCHITECTURE.md, download-cap accounting). `range` is the raw `Range` header, so the one registry call
    * per fetch both decides and records. Every satisfiable GET counts, ranged or not, so a ranged
    * read cannot get around the cap; a 416 serves no bytes and is free.
    */

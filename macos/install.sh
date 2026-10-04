@@ -279,7 +279,7 @@ else
   cat >&2 <<'MSG'
 WARNING: a Quick Action cannot find both `fl` and `node`, so it would fail.
   - Run this installer from a Terminal where `fl --version` works (it records where fl and
-    node live). Install the CLI first if needed (see "Install the CLI" in the README).
+    node live). Install the CLI first if needed (see the README quick start).
   - Or install a standalone binary, which needs neither: install.sh --binary FILE
   - Or put the directories yourself, colon separated, in the first line of
     ~/.config/flashlink/quick-action-path (for example: /Users/me/.local/bin:/opt/homebrew/bin).
