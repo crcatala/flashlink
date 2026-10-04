@@ -31,6 +31,10 @@ Non-goals
 
 ## 2. Architecture
 
+<p align="center"><img src="assets/how-it-works.svg" width="100%" alt="Animated diagram: fl up sends a file from your machine to a Worker in your Cloudflare account, which stores it in a private R2 bucket and records it in the Registry; an agent fetches the short link and gets 200, then 410 Gone after the hour, and 200 again after fl refresh" /></p>
+
+In detail:
+
 ```
 ┌────────────┐   POST/PUT /api/links (bearer token)
 │   fl CLI   │─────────────────────────────────────────┐
