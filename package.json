@@ -1,5 +1,6 @@
 {
   "name": "r2-fastlink",
+  "version": "0.0.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -16,10 +17,17 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "release": "node scripts/release.mjs release",
+    "release:dry": "release-it --dry-run",
+    "release:publish": "node scripts/release.mjs publish",
+    "release:prep": "bash scripts/prep-release.sh"
   },
   "devDependencies": {
+    "@release-it/keep-a-changelog": "^8.0.1",
     "prettier": "^3.9.9",
+    "release-it": "^21.1.0",
     "typescript": "~5.9.3"
   },
   "pnpm": {

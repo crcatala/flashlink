@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Refuses a release tag that does not match the CLI's version, so the npm package, the release
-// binaries and `r2fl --version` can never disagree.
+// Refuses a release tag that does not match the CLI's version (and the root package.json, which
+// release-it bumps and copies into the CLI), so the npm package, the release binaries and
+// `r2fl --version` can never disagree.
 //
 //   node scripts/check-release-tag.mjs v0.1.0     (the release workflow passes $GITHUB_REF_NAME)
 
@@ -17,6 +18,13 @@ const tag = process.argv[2];
 if (!tag) {
   console.error('usage: check-release-tag.mjs <tag>   (for example v0.1.0)');
   process.exit(2);
+}
+const rootVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+if (rootVersion !== version) {
+  console.error(
+    `The root package.json is ${rootVersion} but packages/cli is ${version}; release-it keeps them in sync, so fix whichever was edited by hand.`,
+  );
+  process.exit(1);
 }
 if (!/^\d+\.\d+\.\d+$/.test(version)) {
   console.error(

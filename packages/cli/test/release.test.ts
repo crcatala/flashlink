@@ -5,6 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
+import {
+  changelogSection,
+  publishProblems,
+  setPackageVersion,
+  type PublishState,
+} from '../../../scripts/release-lib.mjs';
 
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 
@@ -43,14 +49,174 @@ describe('npm package', () => {
     expect(pkg.engines.node).toBe('>=22.12');
   });
 
-  it('builds and tests before any publish, and publishes publicly with provenance', () => {
+  it('builds and tests before any publish, and publishes publicly (from a maintainer machine, so no provenance)', () => {
     expect(pkg.scripts.prepublishOnly).toBe('pnpm run build && pnpm run test');
-    expect(pkg.publishConfig).toEqual({ access: 'public', provenance: true });
+    expect(pkg.publishConfig).toEqual({ access: 'public' });
   });
 
-  it('points at the repository, for the npm page and for provenance', () => {
+  it('points at the repository, for the npm page', () => {
     expect(pkg.repository.url).toBe('git+https://github.com/crcatala/r2-fastlink.git');
     expect(pkg.repository.directory).toBe('packages/cli');
+  });
+});
+
+describe('release tooling', () => {
+  const read = (...parts: string[]) => fs.readFileSync(path.join(root, ...parts), 'utf8');
+  const rootPkg = JSON.parse(read('package.json')) as {
+    version: string;
+    scripts: Record<string, string>;
+  };
+
+  it('keeps one version: the root package.json and the CLI agree', () => {
+    expect(rootPkg.version).toBe(pkg.version);
+  });
+
+  it('check-release-tag also refuses when the root and the CLI versions differ', () => {
+    // Run the script against a copy of the repo layout with a mismatched root version.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-tag-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'scripts'));
+      fs.mkdirSync(path.join(dir, 'packages', 'cli'), { recursive: true });
+      fs.copyFileSync(
+        path.join(root, 'scripts', 'check-release-tag.mjs'),
+        path.join(dir, 'scripts', 'check-release-tag.mjs'),
+      );
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+      fs.writeFileSync(
+        path.join(dir, 'packages', 'cli', 'package.json'),
+        JSON.stringify({ version: '1.0.1' }),
+      );
+      const r = spawnSync(
+        process.execPath,
+        [path.join(dir, 'scripts', 'check-release-tag.mjs'), 'v1.0.1'],
+        {
+          encoding: 'utf8',
+        },
+      );
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('root package.json is 1.0.0');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('release-it never publishes to npm or creates the GitHub Release itself', () => {
+    const config = JSON.parse(read('.release-it.json')) as {
+      npm: { publish: boolean };
+      github: { release: boolean };
+      git: { requireBranch: string; tagName: string };
+      hooks: Record<string, string[]>;
+    };
+    expect(config.npm.publish).toBe(false);
+    expect(config.github.release).toBe(false);
+    expect(config.git).toMatchObject({ requireBranch: 'main', tagName: 'v${version}' });
+    expect(config.hooks['after:bump']).toEqual([
+      'node scripts/release.mjs sync-version ${version}',
+    ]);
+    expect(config.hooks['before:init']).toContain('pnpm run verify');
+  });
+
+  it('wires the maintainer commands', () => {
+    expect(rootPkg.scripts).toMatchObject({
+      release: 'node scripts/release.mjs release',
+      'release:dry': 'release-it --dry-run',
+      'release:publish': 'node scripts/release.mjs publish',
+      'release:prep': 'bash scripts/prep-release.sh',
+    });
+    expect(rootPkg.scripts.verify).toBe(
+      'pnpm format:check && pnpm typecheck && pnpm test && pnpm build',
+    );
+  });
+
+  it('CI creates the GitHub Release from the changelog and has no npm publishing', () => {
+    const workflow = read('.github', 'workflows', 'release.yml');
+    expect(workflow).toContain('node scripts/release.mjs notes "$GITHUB_REF_NAME"');
+    expect(workflow).toContain('--notes-file');
+    expect(workflow).not.toMatch(/npm publish|NPM_TOKEN|id-token|provenance/);
+  });
+
+  describe('setPackageVersion', () => {
+    const text = '{\n  "name": "x",\n  "version": "0.0.0",\n  "private": true\n}\n';
+    it('changes only the version, keeping the formatting', () => {
+      expect(setPackageVersion(text, '0.1.0')).toBe(text.replace('0.0.0', '0.1.0'));
+    });
+    it('rejects a bad version and a file without one', () => {
+      expect(() => setPackageVersion(text, 'v1')).toThrow(/not a version/);
+      expect(() => setPackageVersion('{}', '1.0.0')).toThrow(/no "version"/);
+    });
+  });
+
+  describe('changelogSection', () => {
+    const md = [
+      '# Changelog',
+      '',
+      '## [Unreleased]',
+      '',
+      '## [0.2.0] - 2026-11-01',
+      '',
+      '### Fixed',
+      '',
+      '- A thing.',
+      '',
+      '## [0.1.0] - 2026-10-04',
+      '',
+      '### Added',
+      '',
+      '- First.',
+      '',
+      '[Unreleased]: https://github.com/x/y/compare/v0.2.0...HEAD',
+      '[0.2.0]: https://github.com/x/y/compare/v0.1.0...v0.2.0',
+      '[0.1.0]: https://github.com/x/y/releases/tag/v0.1.0',
+      '',
+    ].join('\n');
+    it('returns the body for a version or a tag, without the heading or link references', () => {
+      expect(changelogSection(md, '0.2.0')).toBe('### Fixed\n\n- A thing.');
+      expect(changelogSection(md, 'v0.1.0')).toBe('### Added\n\n- First.');
+    });
+    it('returns null for a missing or empty section', () => {
+      expect(changelogSection(md, '0.3.0')).toBeNull();
+      expect(changelogSection(md, 'Unreleased')).toBeNull();
+      expect(changelogSection(md, '0.1')).toBeNull();
+    });
+  });
+
+  describe('publishProblems', () => {
+    const ok: PublishState = {
+      cliVersion: '0.1.0',
+      rootVersion: '0.1.0',
+      branch: 'main',
+      clean: true,
+      tagsAtHead: ['v0.1.0'],
+      tagOnRemote: true,
+      publishedOnNpm: false,
+      npmUser: 'someone',
+      dryRun: false,
+    };
+    it('has nothing to say when everything is in order', () => {
+      expect(publishProblems(ok)).toEqual([]);
+    });
+    it.each([
+      ['a version mismatch', { rootVersion: '0.2.0' }, /must match/],
+      ['another branch', { branch: 'feature' }, /not main/],
+      ['a dirty tree', { clean: false }, /uncommitted/],
+      ['an untagged HEAD', { tagsAtHead: [] }, /not tagged v0\.1\.0/],
+      ['a tag for another version', { tagsAtHead: ['v0.0.9'] }, /not tagged v0\.1\.0/],
+      ['an unpushed tag', { tagOnRemote: false }, /not on origin/],
+      ['an unknown remote tag', { tagOnRemote: null }, /not on origin/],
+      ['an already published version', { publishedOnNpm: true }, /already on npm/],
+      ['an unknown npm state', { publishedOnNpm: null }, /Could not check/],
+      ['no npm login', { npmUser: null }, /not logged in/],
+      [
+        'a non-release version',
+        { cliVersion: 'x', rootVersion: 'x', tagsAtHead: ['vx'] },
+        /not a release version/,
+      ],
+    ])('refuses %s', (_label, patch, message) => {
+      expect(publishProblems({ ...ok, ...patch }).join('\n')).toMatch(message);
+    });
+    it('a dry run does not need the tag on origin', () => {
+      expect(publishProblems({ ...ok, tagOnRemote: false, dryRun: true })).toEqual([]);
+    });
   });
 });
 
