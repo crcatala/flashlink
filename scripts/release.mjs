@@ -3,13 +3,20 @@
 //
 //   node scripts/release.mjs release [release-it args]   release-it, then publish to npm (`pnpm release`)
 //   node scripts/release.mjs publish [--dry-run]         publish packages/cli to npm from this machine
+//   node scripts/release.mjs check-version <version>     refuse anything but a plain X.Y.Z (release-it hook, before the bump)
 //   node scripts/release.mjs sync-version <version>      copy the version into packages/cli (release-it hook)
 //   node scripts/release.mjs notes <version|tag>         print that version's CHANGELOG section (the release notes)
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { changelogSection, publishProblems, setPackageVersion } from './release-lib.mjs';
+import {
+  changelogSection,
+  gitState,
+  isReleaseVersion,
+  publishProblems,
+  setPackageVersion,
+} from './release-lib.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cliDir = path.join(root, 'packages', 'cli');
@@ -19,13 +26,12 @@ const fail = (msg) => {
   process.exit(1);
 };
 
-function out(cmd, args, opts = {}) {
+function out(cmd, args) {
   try {
     return execFileSync(cmd, args, {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      ...opts,
     }).trim();
   } catch {
     return null;
@@ -35,14 +41,10 @@ function out(cmd, args, opts = {}) {
 function publish(dryRun) {
   const cliVersion = JSON.parse(read('packages', 'cli', 'package.json')).version;
   const tag = `v${cliVersion}`;
-  const remoteTag = out('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]);
   const state = {
     cliVersion,
     rootVersion: JSON.parse(read('package.json')).version,
-    branch: out('git', ['rev-parse', '--abbrev-ref', 'HEAD']) ?? '?',
-    clean: out('git', ['status', '--porcelain', '--untracked-files=no']) === '',
-    tagsAtHead: (out('git', ['tag', '--points-at', 'HEAD']) ?? '').split('\n').filter(Boolean),
-    tagOnRemote: remoteTag === null ? null : remoteTag !== '',
+    ...gitState(root, tag),
     // `npm view` exits 1 with E404 for an unpublished version; anything else (network) is "unknown".
     publishedOnNpm: (() => {
       const r = spawnSync('npm', ['view', `r2fl@${cliVersion}`, 'version'], { encoding: 'utf8' });
@@ -82,6 +84,15 @@ switch (command) {
   case 'publish':
     publish(rest.includes('--dry-run'));
     break;
+  case 'check-version': {
+    const version = rest[0] ?? '';
+    if (!isReleaseVersion(version)) {
+      fail(
+        `"${version}" is not a release version. Releases are plain X.Y.Z (CI rejects any other tag), so prereleases are not supported; pick a patch, minor or major version.`,
+      );
+    }
+    break;
+  }
   case 'sync-version': {
     const version = rest[0];
     if (!version) fail('usage: release.mjs sync-version <version>');
@@ -99,5 +110,5 @@ switch (command) {
     break;
   }
   default:
-    fail('usage: release.mjs release|publish|sync-version|notes (see RELEASING.md)');
+    fail('usage: release.mjs release|publish|check-version|sync-version|notes (see RELEASING.md)');
 }

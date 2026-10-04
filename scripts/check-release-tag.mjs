@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Refuses a release tag that does not match the CLI's version (and the root package.json, which
-// release-it bumps and copies into the CLI), so the npm package, the release binaries and
-// `r2fl --version` can never disagree.
+// `pnpm release` bumps and copies into the CLI), so the npm package, the release binaries and
+// `r2fl --version` can never disagree. Versions are not edited by hand: see RELEASING.md.
 //
 //   node scripts/check-release-tag.mjs v0.1.0     (the release workflow passes $GITHUB_REF_NAME)
 
@@ -35,7 +35,8 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) {
 if (tag !== `v${version}`) {
   console.error(
     `Tag ${tag} does not match packages/cli/package.json (version ${version}, so the tag must be v${version}).\n` +
-      'Bump the version in a commit, then tag that commit.',
+      'Do not tag by hand or edit the version: `pnpm release` bumps it, writes the changelog, tags and pushes (RELEASING.md). To undo this tag: git push origin :refs/tags/' +
+      tag,
   );
   process.exit(1);
 }

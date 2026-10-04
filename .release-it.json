@@ -13,6 +13,7 @@
   "npm": { "publish": false },
   "hooks": {
     "before:init": ["bash scripts/check-changelog.sh", "pnpm run verify"],
+    "before:bump": ["node scripts/release.mjs check-version ${version}"],
     "after:bump": ["node scripts/release.mjs sync-version ${version}"]
   },
   "plugins": {

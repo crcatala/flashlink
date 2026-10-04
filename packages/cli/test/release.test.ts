@@ -7,6 +7,9 @@ import { describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import {
   changelogSection,
+  gitState,
+  isReleaseVersion,
+  parseRemoteTagCommit,
   publishProblems,
   setPackageVersion,
   type PublishState,
@@ -30,6 +33,9 @@ describe('scripts/check-release-tag.mjs', () => {
     const r = check('v99.0.0');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`must be v${pkg.version}`);
+    // It must not send people to the old by-hand flow.
+    expect(r.stderr).toContain('pnpm release');
+    expect(r.stderr).not.toContain('Bump the version in a commit');
   });
 
   it('refuses a tag without the v prefix, or with a suffix', () => {
@@ -203,13 +209,43 @@ describe('release tooling', () => {
     });
   });
 
+  describe('release versions (plain X.Y.Z only, like the CI tag check)', () => {
+    it('accepts X.Y.Z and refuses prereleases, builds and v-prefixes', () => {
+      expect(isReleaseVersion('0.1.0')).toBe(true);
+      expect(isReleaseVersion('10.20.30')).toBe(true);
+      for (const bad of ['0.1.0-rc.1', '0.1.0+build', 'v0.1.0', '0.1', '']) {
+        expect(isReleaseVersion(bad), bad).toBe(false);
+      }
+    });
+
+    const run = (...args: string[]) =>
+      spawnSync(process.execPath, [path.join(root, 'scripts', 'release.mjs'), ...args], {
+        encoding: 'utf8',
+      });
+    it('`release.mjs check-version` (the release-it before:bump hook) refuses a prerelease before anything is changed', () => {
+      expect(run('check-version', '0.2.0').status).toBe(0);
+      const r = run('check-version', '0.2.0-rc.1');
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('prereleases are not supported');
+      expect(run('check-version').status).toBe(1);
+    });
+
+    it('release-it runs that check before it bumps anything', () => {
+      const config = JSON.parse(read('.release-it.json')) as { hooks: Record<string, string[]> };
+      expect(config.hooks['before:bump']).toEqual([
+        'node scripts/release.mjs check-version ${version}',
+      ]);
+    });
+  });
+
   describe('setPackageVersion', () => {
     const text = '{\n  "name": "x",\n  "version": "0.0.0",\n  "private": true\n}\n';
     it('changes only the version, keeping the formatting', () => {
       expect(setPackageVersion(text, '0.1.0')).toBe(text.replace('0.0.0', '0.1.0'));
     });
-    it('rejects a bad version and a file without one', () => {
-      expect(() => setPackageVersion(text, 'v1')).toThrow(/not a version/);
+    it('rejects a bad version, a prerelease and a file without one', () => {
+      expect(() => setPackageVersion(text, 'v1')).toThrow(/not a release version/);
+      expect(() => setPackageVersion(text, '0.2.0-rc.1')).toThrow(/prereleases are not supported/);
       expect(() => setPackageVersion('{}', '1.0.0')).toThrow(/no "version"/);
     });
   });
@@ -248,6 +284,90 @@ describe('release tooling', () => {
     });
   });
 
+  describe('the remote tag (a real repository with a local bare origin)', () => {
+    const sh = (cwd: string, ...args: string[]) => {
+      const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], {
+        cwd,
+        encoding: 'utf8',
+      });
+      if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    function setup() {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-remote-'));
+      const origin = path.join(dir, 'origin.git');
+      const work = path.join(dir, 'work');
+      fs.mkdirSync(work);
+      sh(dir, 'init', '-q', '--bare', origin);
+      sh(work, 'init', '-q', '-b', 'main');
+      sh(work, 'remote', 'add', 'origin', origin);
+      fs.writeFileSync(path.join(work, 'a.txt'), '1');
+      sh(work, 'add', '.');
+      sh(work, 'commit', '-q', '-m', 'one');
+      return { dir, work };
+    }
+
+    it('parses ls-remote output: the peeled commit of an annotated tag, or the plain one', () => {
+      const out = `${'1'.repeat(40)}\trefs/tags/v1.0.0\n${'2'.repeat(40)}\trefs/tags/v1.0.0^{}\n`;
+      expect(parseRemoteTagCommit(out, 'v1.0.0')).toBe('2'.repeat(40));
+      expect(parseRemoteTagCommit(`${'3'.repeat(40)}\trefs/tags/v1.0.0\n`, 'v1.0.0')).toBe(
+        '3'.repeat(40),
+      );
+      expect(parseRemoteTagCommit(`${'3'.repeat(40)}\trefs/tags/v1.0.01\n`, 'v1.0.0')).toBeNull();
+      expect(parseRemoteTagCommit('', 'v1.0.0')).toBeNull();
+    });
+
+    it('sees an annotated tag pushed from HEAD as the same commit, and a moved local tag as different code', () => {
+      const { dir, work } = setup();
+      try {
+        // release-it style: annotated tag on the release commit, pushed with the branch.
+        sh(work, 'tag', '-a', 'v0.1.0', '-m', 'Release 0.1.0');
+        sh(work, 'push', '-q', '--follow-tags', 'origin', 'main');
+        const head = sh(work, 'rev-parse', 'HEAD');
+        let state = gitState(work, 'v0.1.0');
+        expect(state).toMatchObject({
+          branch: 'main',
+          clean: true,
+          headCommit: head,
+          remoteTagCommit: head,
+        });
+        expect(state.tagsAtHead).toContain('v0.1.0');
+        const base = {
+          cliVersion: '0.1.0',
+          rootVersion: '0.1.0',
+          publishedOnNpm: false,
+          npmUser: 'me',
+          dryRun: false,
+        };
+        expect(publishProblems({ ...base, ...state })).toEqual([]);
+
+        // Re-release locally: a new commit and the same tag name moved onto it, not pushed.
+        fs.writeFileSync(path.join(work, 'a.txt'), '2');
+        sh(work, 'commit', '-q', '-am', 'two');
+        sh(work, 'tag', '-f', '-a', 'v0.1.0', '-m', 'Release 0.1.0 again');
+        state = gitState(work, 'v0.1.0');
+        expect(state.remoteTagCommit).toBe(head);
+        expect(state.headCommit).not.toBe(head);
+        expect(publishProblems({ ...base, ...state }).join('\n')).toMatch(/different code/);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('reports a tag that is not on origin, and an origin that cannot be asked', () => {
+      const { dir, work } = setup();
+      try {
+        sh(work, 'tag', '-a', 'v0.1.0', '-m', 'Release 0.1.0');
+        sh(work, 'push', '-q', 'origin', 'main');
+        expect(gitState(work, 'v0.1.0').remoteTagCommit).toBeNull();
+        sh(work, 'remote', 'set-url', 'origin', path.join(dir, 'missing.git'));
+        expect(gitState(work, 'v0.1.0').remoteTagCommit).toBeUndefined();
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe('publishProblems', () => {
     const ok: PublishState = {
       cliVersion: '0.1.0',
@@ -255,7 +375,8 @@ describe('release tooling', () => {
       branch: 'main',
       clean: true,
       tagsAtHead: ['v0.1.0'],
-      tagOnRemote: true,
+      headCommit: 'a'.repeat(40),
+      remoteTagCommit: 'a'.repeat(40),
       publishedOnNpm: false,
       npmUser: 'someone',
       dryRun: false,
@@ -269,8 +390,23 @@ describe('release tooling', () => {
       ['a dirty tree', { clean: false }, /uncommitted/],
       ['an untagged HEAD', { tagsAtHead: [] }, /not tagged v0\.1\.0/],
       ['a tag for another version', { tagsAtHead: ['v0.0.9'] }, /not tagged v0\.1\.0/],
-      ['an unpushed tag', { tagOnRemote: false }, /not on origin/],
-      ['an unknown remote tag', { tagOnRemote: null }, /not on origin/],
+      ['an unpushed tag', { remoteTagCommit: null }, /not on origin/],
+      ['an unreachable origin', { remoteTagCommit: undefined }, /Could not ask origin/],
+      [
+        'a tag on origin that points to another commit',
+        { remoteTagCommit: 'b'.repeat(40) },
+        /bbbbbbbbbb, but HEAD is aaaaaaaaaa.*different code/,
+      ],
+      [
+        'a prerelease version',
+        {
+          cliVersion: '0.2.0-rc.1',
+          rootVersion: '0.2.0-rc.1',
+          tagsAtHead: ['v0.2.0-rc.1'],
+          remoteTagCommit: 'a'.repeat(40),
+        },
+        /not a release version/,
+      ],
       ['an already published version', { publishedOnNpm: true }, /already on npm/],
       ['an unknown npm state', { publishedOnNpm: null }, /Could not check/],
       ['no npm login', { npmUser: null }, /not logged in/],
@@ -283,7 +419,8 @@ describe('release tooling', () => {
       expect(publishProblems({ ...ok, ...patch }).join('\n')).toMatch(message);
     });
     it('a dry run does not need the tag on origin', () => {
-      expect(publishProblems({ ...ok, tagOnRemote: false, dryRun: true })).toEqual([]);
+      expect(publishProblems({ ...ok, remoteTagCommit: null, dryRun: true })).toEqual([]);
+      expect(publishProblems({ ...ok, remoteTagCommit: 'b'.repeat(40), dryRun: true })).toEqual([]);
     });
   });
 });

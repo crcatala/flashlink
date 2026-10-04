@@ -14,7 +14,7 @@ halves with different homes:
 
 - Push access to `crcatala/r2-fastlink` and a clean checkout of `main` (`git pull --ff-only`).
 - Logged in to npm as a maintainer of `r2fl` (`npm whoami`; `npm login` otherwise).
-- Node 22.21+ (release-it 21's requirement; the project itself needs 22.12+), pnpm, and `pnpm install` done.
+- Node `^22.22.2`, `^24.15.0` or 26+ (what release-it 21 and its changelog plugin declare in `engines`; the project itself only needs 22.12+), pnpm, and `pnpm install` done.
 
 ## Every release
 
@@ -27,12 +27,12 @@ halves with different homes:
    format, typecheck, tests, build.)
 3. **Release.** `pnpm release` (or `pnpm release patch|minor|major`). It:
    1. checks the Unreleased section and runs `pnpm verify`;
-   2. asks for the version and shows the changelog;
+   2. asks for the version (plain `X.Y.Z` only: prereleases are refused before anything changes, because CI would reject their tag) and shows the changelog;
    3. bumps `version` in the root `package.json` and copies it into `packages/cli/package.json`;
    4. moves the Unreleased entries under `## [X.Y.Z] - date` in `CHANGELOG.md`;
    5. commits `chore: release vX.Y.Z`, tags `vX.Y.Z` and pushes both to `main`;
    6. runs the npm publish step: it checks again that you are on a clean `main` with `HEAD` tagged, the tag
-      is on `origin`, the version is not on npm and you are logged in, then runs `npm publish --access public`
+      is on `origin` and points at `HEAD`, the version is not on npm and you are logged in, then runs `npm publish --access public`
       in `packages/cli` (which builds and tests first, and asks for your one-time password if you use 2FA).
 4. **Check.**
    - CI: the Release workflow is green and the release page lists `r2fl-darwin-arm64`, `r2fl-darwin-x64`,
