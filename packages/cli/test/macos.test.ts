@@ -63,6 +63,9 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-macos-'));
   write(path.join(dir, 'bin', 'fl'), FAKE_FLASHLINK);
   write(path.join(dir, 'bin', 'node'), '#!/bin/sh\nexit 0\n'); // only has to be found
+  // A real macOS has osacompile on PATH; without this install.sh would build the real applet into
+  // the test's $HOME. Tests that care about the applet overwrite it.
+  write(path.join(dir, 'bin', 'osacompile'), '#!/bin/sh\nexit 1\n');
   write(path.join(dir, 'fake-osascript'), FAKE_OSASCRIPT);
   write(path.join(dir, 'fake-shell'), FAKE_SHELL);
   fs.mkdirSync(path.join(dir, 'log'));
