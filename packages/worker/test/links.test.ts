@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import type { LinkInfo, ServerStatus } from '@flashlink/core';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { countsAsDownload } from '../src/registry.ts';
 import {
   TOKEN,
@@ -316,7 +316,8 @@ describe('download cap', () => {
               if (typeof member !== 'function') return member;
               return (...args: unknown[]) => {
                 calls.push(String(method));
-                return member.apply(stub, args);
+                // Reflect.apply, not member.apply: on an RPC stub `.apply` is a remote method.
+                return Reflect.apply(member, stub, args);
               };
             },
           });
@@ -331,7 +332,8 @@ describe('download cap', () => {
     ];
     for (const headers of variants) {
       calls.length = 0;
-      await run(`/${link.code}`, { REGISTRY: counting, ...limits }, { headers });
+      const res = await run(`/${link.code}`, { REGISTRY: counting, ...limits }, { headers });
+      expect(res.status, JSON.stringify(headers)).toBeLessThan(500);
       expect(calls, JSON.stringify(headers)).toEqual(['resolve']);
     }
   });
@@ -489,12 +491,18 @@ describe('limits and validation', () => {
   });
 
   it('does not leave a pending row or object when the body is shorter than declared', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {}); // the Worker logs the failure
     const res = await authed('/api/links', {
       method: 'POST',
       headers: { 'Content-Length': '50', 'Content-Type': 'text/plain' },
       body: 'short',
     });
     expect(res.ok).toBe(false);
+    expect(logged).toHaveBeenCalledWith(
+      'upload failed',
+      expect.objectContaining({ message: expect.stringContaining('size mismatch') }),
+    );
+    logged.mockRestore();
     expect((await env.BUCKET.list()).objects).toHaveLength(0);
   });
 });

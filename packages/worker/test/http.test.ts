@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { generateCode } from '../src/code.ts';
 import { parseLimits } from '../src/config.ts';
 import {
@@ -107,7 +107,10 @@ describe('withinLimit', () => {
         throw new Error('boom');
       },
     };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {}); // it logs the failure
     expect(await withinLimit(broken, 'k')).toBe(true);
+    expect(logged).toHaveBeenCalledWith('rate limiter failed open', expect.any(Error));
+    logged.mockRestore();
   });
   it('reflects the limiter outcome', async () => {
     expect(await withinLimit({ limit: async () => ({ success: false }) }, 'k')).toBe(false);

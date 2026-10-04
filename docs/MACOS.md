@@ -12,7 +12,7 @@ No clone, no Bun, no Node needed:
 curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest
 ```
 
-That downloads the latest release's standalone `fl` for your Mac (Apple Silicon or Intel), the Quick Actions and the notifier, checks each download against the release's `SHA256SUMS`, and installs them. To pin a version use `--version v0.1.0`. A fork sets `FLASHLINK_REPO=<you>/<fork>` for the installer.
+That downloads the latest release's standalone `fl` for your Mac (Apple Silicon or Intel), the Quick Actions and the notifier, checks each download against the release's `SHA256SUMS`, and installs them. To pin a version use `--version v0.0.1`. A fork sets `FLASHLINK_REPO=<you>/<fork>` for the installer.
 
 If the repository is private, `curl` cannot read the release; use the GitHub CLI (`gh auth login` once), which the installer falls back to by itself:
 
@@ -59,7 +59,7 @@ The release's `flashlink-darwin-arm64` / `flashlink-darwin-x64` is the CLI compi
 
 The Quick Actions then run that file directly. If it is missing, or cannot start (exit 126/127), they fall back to the login-shell lookup described below. It is a second copy of `fl`, used only by the Quick Actions: your own `fl` is untouched.
 
-`fl --version` prints the release and the git commit it was built from (for example `0.1.0 (a1b2c3d)`; `-dirty` for a local build with uncommitted changes), and the lifetime dialog shows the same line under "Link lifetime", so you can tell a stale install from a fresh one.
+`fl --version` prints the release and the git commit it was built from (for example `0.0.1 (a1b2c3d)`; `-dirty` for a local build with uncommitted changes), and the lifetime dialog shows the same line under "Link lifetime", so you can tell a stale install from a fresh one.
 
 To build one yourself, `pnpm build:binary` (or `sh scripts/build-binary.sh darwin-arm64`; it cross-compiles, so Linux works too) and `sh macos/install.sh --binary dist/bin/flashlink-darwin-arm64`; `pnpm install:macos` does both for your architecture.
 

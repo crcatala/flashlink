@@ -492,6 +492,7 @@ describe('scripts/package-release.sh', () => {
           encoding: 'utf8',
         }).stdout;
         expect(list).toContain('macos/fl-quick.sh');
+        expect(list).not.toContain('qa.sh'); // maintainer-only
         expect(list).toContain('macos/Share via flashlink.workflow/Contents/Info.plist');
       } finally {
         fs.rmSync(out, { recursive: true, force: true });

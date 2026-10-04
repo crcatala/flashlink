@@ -96,10 +96,10 @@ the GitHub Release.
 To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just
 `dist/`, `LICENSE`, `package.json` and the README).
 
-## The first release (0.1.0)
+## The first release (0.0.1)
 
-The version is still `0.0.0`, so `pnpm release minor` gives `0.1.0`. `CHANGELOG.md` already holds the first
-release's entries under Unreleased; edit them instead of drafting from scratch. Before tagging:
+`0.0.1` was the first release. The checklist below is what it needed, kept for forks and for reference.
+From here on, `pnpm release patch|minor|major` is all a release needs. Before the first tag:
 
 - The GitHub repository is named `flashlink` (the installer, the docs and the landing page all use
   `crcatala/flashlink`) and is **public**. The installer's `curl` download and `releases/latest` links

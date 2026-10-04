@@ -2,7 +2,7 @@
 # Build everything a GitHub Release carries, into one folder (default dist/release):
 #
 #   flashlink-darwin-arm64, flashlink-darwin-x64   standalone binaries (scripts/build-binary.sh)
-#   flashlink-macos-support.tar.gz            the macos/ folder (Quick Actions, wrapper, notifier source)
+#   flashlink-macos-support.tar.gz            the macos/ folder (Quick Actions, wrapper, notifier source; not qa.sh)
 #   install.sh, uninstall.sh             copies of macos/install.sh and macos/uninstall.sh, so one
 #                                        curl command can run them without a checkout
 #   SHA256SUMS                           checksums of all of the above
@@ -25,8 +25,9 @@ for target in darwin-arm64 darwin-x64; do
   cp "$root/dist/bin/flashlink-$target" "$out/flashlink-$target"
 done
 
-# The archive holds the macos/ folder as it is checked in.
-tar -czf "$out/flashlink-macos-support.tar.gz" -C "$root" macos
+# The archive holds the macos/ folder as it is checked in, minus qa.sh (a maintainer's manual QA
+# script that install.sh never uses).
+tar -czf "$out/flashlink-macos-support.tar.gz" --exclude=macos/qa.sh -C "$root" macos
 cp "$root/macos/install.sh" "$root/macos/uninstall.sh" "$out/"
 
 (
