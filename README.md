@@ -40,6 +40,19 @@ R2 stays private. The Worker enforces expiry on every request, which is what let
 
 You need a Cloudflare account, Node 22.12+ and [pnpm](https://pnpm.io).
 
+**One command.** Log in once, then let the setup script do the steps below:
+
+```sh
+git clone https://github.com/crcatala/r2-fastlink && cd r2-fastlink
+pnpm install
+pnpm --filter @r2-fastlink/worker exec wrangler login   # once
+pnpm setup:cloudflare                                   # add --dry-run to see the plan first
+```
+
+It creates the private bucket, deploys the Worker, generates a token and stores it as the Worker secret `R2FL_TOKEN` (sent to wrangler on stdin, never as an argument or into a file), adds the 30-day lifecycle rule, then prints your URL, the token **once**, and the `r2fl init` command to run next. It is safe to re-run: it reuses the bucket and rule, redeploys, and keeps your existing token (`--rotate-token` replaces it, and the old one stops working). It stops instead of guessing if it cannot read the state of your account. It deploys to `*.workers.dev`; to change the limits, edit `packages/worker/wrangler.jsonc` before running it (see below). (It is `setup:cloudflare` because `pnpm setup` is a built-in pnpm command.)
+
+**Step by step.** The same thing by hand, if you prefer to see each command:
+
 ```sh
 git clone https://github.com/crcatala/r2-fastlink && cd r2-fastlink
 pnpm install
@@ -252,7 +265,7 @@ git tag v0.1.0 && git push origin v0.1.0
 - **GitHub Release:** `r2fl-darwin-arm64`, `r2fl-darwin-x64`, `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, built on a Linux runner.
 - **npm:** (on a GitHub-hosted runner, because npm provenance does not accept others, and from a public repository) `npm publish --provenance --access public` for `r2fl` (it builds and tests first). It needs an npm automation token stored as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions); without it the job only prints a warning, so a fork can release binaries alone. Nothing is ever published from a branch or from a local machine.
 
-To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `package.json` and the README).
+To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `LICENSE`, `package.json` and the README).
 
 ```
 packages/core     shared types, duration parsing, API client
@@ -262,4 +275,4 @@ packages/cli      the `r2fl` command
 
 ## License
 
-To be decided before the repo goes public.
+[MIT](LICENSE), © 2026 Christian Catalan.

@@ -2,6 +2,8 @@
   "name": "r2fl",
   "version": "0.0.0",
   "description": "CLI for r2-fastlink: upload a file, get a short self-expiring link",
+  "license": "MIT",
+  "author": "Christian Catalan <crcatala@gmail.com>",
   "keywords": [
     "cloudflare",
     "r2",
@@ -24,7 +26,8 @@
     "r2fl": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22.12"
