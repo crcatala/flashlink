@@ -1,6 +1,4 @@
-<p align="center"><img src="docs/assets/logo.svg" alt="flashlink logo" width="96" height="96" /></p>
-
-# flashlink
+<h1><img src="docs/assets/logo.svg" width="40" height="40" align="top" alt="" /> flashlink</h1>
 
 A personal, self-hosted file sharing tool. Upload a file to **your own Cloudflare account** and get back a **short, public link that expires on its own.**
 
