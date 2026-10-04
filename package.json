@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "pnpm --filter r2fl build",
+    "setup:cloudflare": "node scripts/setup.mjs",
     "build:binary": "sh scripts/build-binary.sh",
     "install:macos": "sh scripts/install-macos.sh",
     "uninstall:macos": "sh macos/uninstall.sh",

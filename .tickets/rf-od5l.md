@@ -44,3 +44,7 @@ AWAITING HUMAN: (1) Decide the license first (rf-cr7d), then add LICENSE and the
 **2026-10-03T21:35:27Z**
 
 Review follow-up on PR #14: the npm-publish job now runs on ubuntu-latest (npm provenance does not work from third-party runners such as Ubicloud). Together with 'public repository' this is a precondition of the first publish. AWAITING HUMAN items above are unchanged.
+
+**2026-10-04T00:38:47Z**
+
+2026-10-03 batch-10: AWAITING HUMAN item (1) is done: license decided (MIT, Christian Catalan, 2026) and added (rf-cr7d closed); packages/cli now has the license field, author, and ships LICENSE in the npm tarball (verified with npm pack --dry-run). Items 2-5 unchanged. Release tooling (version bump, changelog) is proposed in rf-in0j; do it before tagging v0.1.0.
