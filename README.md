@@ -252,7 +252,7 @@ git tag v0.1.0 && git push origin v0.1.0
 - **GitHub Release:** `r2fl-darwin-arm64`, `r2fl-darwin-x64`, `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, built on a Linux runner.
 - **npm:** (on a GitHub-hosted runner, because npm provenance does not accept others, and from a public repository) `npm publish --provenance --access public` for `r2fl` (it builds and tests first). It needs an npm automation token stored as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions); without it the job only prints a warning, so a fork can release binaries alone. Nothing is ever published from a branch or from a local machine.
 
-To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `package.json` and the README).
+To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `LICENSE`, `package.json` and the README).
 
 ```
 packages/core     shared types, duration parsing, API client
@@ -262,4 +262,4 @@ packages/cli      the `r2fl` command
 
 ## License
 
-To be decided before the repo goes public.
+[MIT](LICENSE), © 2026 Christian Catalan.

@@ -37,8 +37,8 @@ describe('scripts/check-release-tag.mjs', () => {
 });
 
 describe('npm package', () => {
-  it('ships only dist (plus the README npm adds) and keeps the r2fl bin', () => {
-    expect(pkg.files).toEqual(['dist']);
+  it('ships only dist and the LICENSE (plus the README npm adds) and keeps the r2fl bin', () => {
+    expect(pkg.files).toEqual(['dist', 'LICENSE']);
     expect(pkg.bin).toEqual({ r2fl: './dist/index.js' });
     expect(pkg.engines.node).toBe('>=22.12');
   });
@@ -51,6 +51,24 @@ describe('npm package', () => {
   it('points at the repository, for the npm page and for provenance', () => {
     expect(pkg.repository.url).toBe('git+https://github.com/crcatala/r2-fastlink.git');
     expect(pkg.repository.directory).toBe('packages/cli');
+  });
+});
+
+describe('license', () => {
+  const read = (...parts: string[]) => fs.readFileSync(path.join(root, ...parts), 'utf8');
+
+  it('is MIT in the root and every package.json', () => {
+    for (const dir of ['.', 'packages/core', 'packages/worker', 'packages/cli']) {
+      const manifest = JSON.parse(read(dir, 'package.json')) as { license?: string };
+      expect(manifest.license, dir).toBe('MIT');
+    }
+  });
+
+  it('has a LICENSE file naming the holder and year, copied into the npm package unchanged', () => {
+    const license = read('LICENSE');
+    expect(license).toMatch(/^MIT License\n\nCopyright \(c\) 2026 Christian Catalan\n/);
+    // npm only packs files inside the package directory, so the CLI keeps its own copy.
+    expect(read('packages', 'cli', 'LICENSE')).toBe(license);
   });
 });
 

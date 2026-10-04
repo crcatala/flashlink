@@ -250,7 +250,7 @@ Implementation notes, where phase 1 refined this plan:
 
 ## 9. Open questions and future ideas
 
-- **License** (MIT is the likely choice) before the repo goes public. Needs the owner's decision (`rf-cr7d`); `packages/cli/package.json` gets its `license` field and the repo a `LICENSE` file at that point, before the first npm publish.
+- **License: MIT, © 2026 Christian Catalan** (decided by the owner, `rf-cr7d`). `LICENSE` at the root, a byte-identical copy in `packages/cli` (npm packs only files inside the package directory; a test keeps them equal), and `"license": "MIT"` in all four `package.json` files. Runtime dependencies of the shipped CLI and Worker are MIT (`commander`, `mime`, `hono`); `pnpm licenses list` also shows Apache-2.0, ISC, BSD-3-Clause, MPL-2.0, CC0 and LGPL-3.0 packages, all development-only (wrangler/miniflare and their `sharp` image libraries, test tooling) and not redistributed in the CLI package, the Worker bundle or the binaries.
 - **Large files:** above ~100 MB needs presigned multipart uploads direct to R2. Deferred.
 - **Cache positive lookups** at the edge for popular links to reduce DO calls. Adds revoke lag (bounded by cache TTL); deferred until there's a reason.
 - **Keyed check characters** in the code would let the Worker reject most random guesses without a DO call, but shrink the effective guess space. Not adopted with 8-character codes.
