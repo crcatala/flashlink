@@ -4,6 +4,8 @@
 
 A personal, self-hosted file sharing tool. Upload a file to **your own Cloudflare account** and get back a **short, public link that expires on its own.**
 
+<p align="center"><img src="docs/assets/demo.svg" width="100%" alt="Animated demo: fl up uploads screenshot.png and prints a short link, an agent on another machine fetches it, the link expires with 410 Gone, and fl refresh re-opens the same link" /></p>
+
 ```
 $ fl up screenshot.png --ttl 2h
 ✓ screenshot.png (1.2 MB) · expires 14:32
