@@ -134,7 +134,7 @@
         width: 100%;
         background: var(--volt);
         transform-origin: left;
-        animation: burn 6s linear infinite;
+        animation: burn 4s linear 1 forwards;
       }
       @keyframes burn {
         from {
@@ -314,6 +314,7 @@ HTTP/2 410
           </p>
           <pre class="term"><span class="p">$</span> git clone https://github.com/crcatala/flashlink
 <span class="p">$</span> cd flashlink &amp;&amp; pnpm install
+<span class="p">$</span> pnpm --filter @flashlink/worker exec wrangler login
 <span class="p">$</span> pnpm setup:cloudflare</pre>
           <p class="note">
             Full instructions are in the
