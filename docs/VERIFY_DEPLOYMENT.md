@@ -1,14 +1,14 @@
 # Verifying a real deployment
 
-Everything in phase 1 was built and tested against local simulators (workerd via `wrangler dev` and `@cloudflare/vitest-pool-workers`). This runbook is how you confirm it on a real Cloudflare account. It splits the work into a script that automates the HTTP checks and a short list of things only a person with the dashboard can check. Tracked by ticket `rf-rxkx`.
+Everything was built and tested against local simulators (workerd via `wrangler dev` and `@cloudflare/vitest-pool-workers`). This runbook is how you confirm it on a real Cloudflare account. It splits the work into a script that automates the HTTP checks and a short list of things only a person with the dashboard can check.
 
 You need: the deployed Worker URL, the upload token, a machine with Node 22.12+ and a clone of this repo. Use your own account. The script uploads a few throwaway files (about 50 MiB at peak), leaves nothing behind, and counts about 8 uploads against the daily cap.
 
-## 1. Deploy from a clean state (checklist item 1)
+## 1. Deploy from a clean state
 
-Follow the README ["Deploy your own"](../README.md#deploy-your-own) section literally, in a fresh clone, on the account you want to verify. Do not paste commands from memory. Write down every step that fails, needs a flag the README does not mention, or is unclear, and fix the README in the same PR as your notes.
+Follow ["Deploy your own"](DEPLOY.md) literally, in a fresh clone, on the account you want to verify. Do not paste commands from memory. Write down every step that fails, needs a flag the guide does not mention, or is unclear, and fix the guide.
 
-## 2. Run the script (checklist items 3 to 7)
+## 2. Run the script
 
 ```sh
 export FLASHLINK_TOKEN=<the value you stored with `wrangler secret put FLASHLINK_TOKEN`>
@@ -19,25 +19,25 @@ It prints one line per check (`PASS`, `FAIL`, `WARN`, `SKIP`) and a summary, and
 
 What it covers:
 
-| Checklist item                       | Checks                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3 uploads of several sizes           | tiny text, HTML, ~1 MiB binary, a large file near the limit (default 49 MiB); each fetched back and compared by SHA-256; upload and download time for the large file; 413 for one byte over `MAX_FILE_BYTES`                                                                                                                                                     |
-| 4 `Content-Length` through the proxy | every upload above succeeds only if the Worker saw the right length (the Worker also rejects a stored size mismatch); a chunked upload without `Content-Length` is either refused (411) or accepted with the edge-supplied length and stored intact (real Cloudflare does the latter), and a chunked upload over the cap is refused (413); 400 for an empty body |
-| 5 fetch semantics                    | `Cache-Control: no-store` on 200, 206, 404, 410, 416 and HEAD; `nosniff`, `Referrer-Policy`, `Accept-Ranges`, `Content-Disposition`; `Range` (first bytes, suffix, open-ended, 416); HEAD without a hit; `/<code>/<name>`; repeat 410 after expiry; no `cf-cache-status: HIT` on any Worker response                                                             |
-| 6 lifecycle                          | 5 s TTL (200, then 410), refresh keeps the same URL, revoke then refresh, purge then 404, re-upload under the same code (and 409 when the code is live), `--max-downloads`                                                                                                                                                                                       |
-| 7 rate limiting                      | normal use is never throttled (the script paces itself to 45 requests/min), then a flood of bogus-code requests until the first 429; reports the threshold                                                                                                                                                                                                       |
-| 9 (part) sweeper                     | with `--sweeper`, uploads a 1 s link, waits for it to go inactive, then confirms the sweeper really finished (its row is gone, which happens only after R2 confirmed the delete; the object itself is not visible from outside). See section 4                                                                                                                   |
-| 8 (part) custom domain               | WARN if the returned URLs use a different origin than `--endpoint`; all fetches use the returned URLs                                                                                                                                                                                                                                                            |
+| Area                               | Checks                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| uploads of several sizes           | tiny text, HTML, ~1 MiB binary, a large file near the limit (default 49 MiB); each fetched back and compared by SHA-256; upload and download time for the large file; 413 for one byte over `MAX_FILE_BYTES`                                                                                                                                                     |
+| `Content-Length` through the proxy | every upload above succeeds only if the Worker saw the right length (the Worker also rejects a stored size mismatch); a chunked upload without `Content-Length` is either refused (411) or accepted with the edge-supplied length and stored intact (real Cloudflare does the latter), and a chunked upload over the cap is refused (413); 400 for an empty body |
+| fetch semantics                    | `Cache-Control: no-store` on 200, 206, 404, 410, 416 and HEAD; `nosniff`, `Referrer-Policy`, `Accept-Ranges`, `Content-Disposition`; `Range` (first bytes, suffix, open-ended, 416); HEAD without a hit; `/<code>/<name>`; repeat 410 after expiry; no `cf-cache-status: HIT` on any Worker response                                                             |
+| lifecycle                          | 5 s TTL (200, then 410), refresh keeps the same URL, revoke then refresh, purge then 404, re-upload under the same code (and 409 when the code is live), `--max-downloads`                                                                                                                                                                                       |
+| rate limiting                      | normal use is never throttled (the script paces itself to 45 requests/min), then a flood of bogus-code requests until the first 429; reports the threshold                                                                                                                                                                                                       |
+| sweeper                            | with `--sweeper`, uploads a 1 s link, waits for it to go inactive, then confirms the sweeper really finished (its row is gone, which happens only after R2 confirmed the delete; the object itself is not visible from outside). See section 4                                                                                                                   |
+| custom domain                      | WARN if the returned URLs use a different origin than `--endpoint`; all fetches use the returned URLs                                                                                                                                                                                                                                                            |
 
 Read the result like this:
 
-- `FAIL`: a defect. File a bug ticket under epic `rf-dek6` (`tk create "..." -t bug --parent rf-dek6`) with the check name and detail, or fix it in the PR with a regression test.
-- `WARN`: something to look at, not necessarily a bug. The rate-limit probe warns if it saw no 429 within `--probe-requests` requests. The limiter is per Cloudflare location and approximate, so try `--probe-requests 400` before calling it broken. Note the threshold you observe either way; it is the number for PLAN section 4.
-- The rate-limit probe usually WARNs on a real account: the binding is lenient (it admitted about 3 to 10 times the configured rate in the owner's test) and a short burst finishes before its counters sync. To check that it is attached and enforcing, temporarily lower the limit and look for some 429s: in `packages/worker`, `cp wrangler.jsonc wrangler.test.jsonc`, change `LIMIT_IP` to `"limit": 3, "period": 10` in the copy, `pnpm exec wrangler deploy -c wrangler.test.jsonc`, run `for i in $(seq 1 40); do curl -s -o /dev/null -w '%{http_code}\n' https://<your-worker>/AAAAAAAA; done | sort | uniq -c`, then restore with a plain `pnpm exec wrangler deploy` and delete the copy. Any 429 means it works.
+- `FAIL`: a defect. The check name and detail say what broke; fix it and add a regression test.
+- `WARN`: something to look at, not necessarily a bug. The rate-limit probe warns if it saw no 429 within `--probe-requests` requests. The limiter is per Cloudflare location and approximate, so try `--probe-requests 400` before calling it broken. Note the threshold you observe either way; it is the number for [ARCHITECTURE section 4](ARCHITECTURE.md#4-security-and-abuse-prevention).
+- The rate-limit probe usually WARNs on a real account: the binding is lenient (it admitted about 3 to 10 times the configured rate when measured) and a short burst finishes before its counters sync. To check that it is attached and enforcing, temporarily lower the limit and look for some 429s: in `packages/worker`, `cp wrangler.jsonc wrangler.test.jsonc`, change `LIMIT_IP` to `"limit": 3, "period": 10` in the copy, `pnpm exec wrangler deploy -c wrangler.test.jsonc`, run `for i in $(seq 1 40); do curl -s -o /dev/null -w '%{http_code}\n' https://<your-worker>/AAAAAAAA; done | sort | uniq -c`, then restore with a plain `pnpm exec wrangler deploy` and delete the copy. Any 429 means it works.
 - The rate-limit probe runs last and leaves your IP throttled on the Worker (`/api` and `/<code>`) for up to a minute. Wait before running anything else against the deployment.
-- Replace your Worker hostname with `<worker-url>` before pasting output into a ticket note if you do not want it in the repo history.
+- Replace your Worker hostname with `<worker-url>` before pasting output anywhere public (an issue, a note in the repo).
 
-## 3. Check the CLI against the deployment (checklist item 3, CLI half)
+## 3. Check the CLI against the deployment
 
 ```sh
 pnpm install && pnpm build
@@ -59,20 +59,20 @@ The script already checked these HTTP behaviors; this block confirms the CLI dri
 
 ## 4. Things only the dashboard can show
 
-**Item 2: one SQLite-backed Durable Object instance.** After the script has run (it makes many uploads and fetches), open the Worker in the Cloudflare dashboard, go to its Durable Objects view and open the `Registry` class. Confirm: storage backend is SQLite, and exactly **one** object exists. More than one means something creates instances per link or per IP; that breaks the design (epic invariant 1), so file a P1 bug.
+**One SQLite-backed Durable Object instance.** After the script has run (it makes many uploads and fetches), open the Worker in the Cloudflare dashboard, go to its Durable Objects view and open the `Registry` class. Confirm: storage backend is SQLite, and exactly **one** object exists. More than one means something creates instances per link or per IP; that breaks the design (exactly one instance; see [ARCHITECTURE section 3](ARCHITECTURE.md#3-key-decisions-and-rationale)), so treat it as a high-priority bug.
 
 Where to look: Workers & Pages, Durable Objects, then the `flashlink_Registry` namespace. The "Durable Object instances" list may show two rows that are really one object: `registry` (requests that arrived by name) and a bare hex ID (requests that arrived by ID only, such as alarms). Compare the IDs: if the hex ID under `registry` equals the other row's ID, it is one object, and the rows' request counts add up to the total. The data explorer shows the SQLite tables of that object (`links`, `uploads`); it does not list instances.
 
-**Item 8: custom domain (optional).** Attach a custom domain or route to the Worker in the dashboard, set `PUBLIC_BASE_URL` in `packages/worker/wrangler.jsonc` to it, `wrangler deploy`, then re-run the script with `--endpoint https://<custom domain>`. The "URL origin matches" check should PASS and `fl up` should print URLs on that domain.
+**Custom domain (optional).** Attach a custom domain or route to the Worker in the dashboard, set `PUBLIC_BASE_URL` in `packages/worker/wrangler.jsonc` to it, `wrangler deploy`, then re-run the script with `--endpoint https://<custom domain>`. The "URL origin matches" check should PASS and `fl up` should print URLs on that domain.
 
-**Item 9: usage after a day.** Come back after about 24 hours of normal use (or leave a few links around) and compare the dashboard with [PLAN section 5](PLAN.md#5-cost-model):
+**Usage after a day.** Come back after about 24 hours of normal use (or leave a few links around) and compare the dashboard with [ARCHITECTURE section 5](ARCHITECTURE.md#5-cost-model):
 
 - Durable Object **requests**: roughly one per fetch of a live link (`resolve`), two per upload (`allocate` and `commit`), one per API call, plus one per sweeper alarm. A value far above that points at a loop or at unfiltered junk traffic reaching the Registry.
 - Durable Object **duration (GB-s)**: should be near zero while idle. A steadily climbing value means something keeps the Registry awake.
 - **Rows written**: a handful per upload and per alarm. Large numbers mean unexpected writes.
 - Worker requests and R2 operations: sanity-check against what you actually did.
 
-**Item 9: the sweeper on a real account.** Temporarily deploy with a short grace period and run the sweeper check, then restore it:
+**The sweeper on a real account.** Temporarily deploy with a short grace period and run the sweeper check, then restore it:
 
 ```sh
 cd packages/worker
@@ -84,7 +84,7 @@ cd packages/worker && pnpm exec wrangler deploy      # back to the committed val
 
 The `sweeper purges an expired link` check should PASS (the alarm fires within seconds of the grace period passing). Confirm `curl -s https://<your-worker>/api/status -H "Authorization: Bearer $FLASHLINK_TOKEN"` reports `purgeGraceSeconds` 604800 again after the restore.
 
-**Item 10: lifecycle rule.**
+**Lifecycle rule.**
 
 ```sh
 cd packages/worker && pnpm exec wrangler r2 bucket lifecycle list flashlink
@@ -94,6 +94,4 @@ Expect a rule `expire-strays` on prefix `objects/` that expires objects after 30
 
 ## 5. Record the results
 
-1. `tk add-note rf-rxkx "<script summary line, notable WARN/FAIL lines, answers for items 2, 8, 9, 10, README fixes>"`.
-2. Tick the acceptance criteria in `.tickets/rf-rxkx.md` that you verified: every checklist item executed (and noted); README corrected where it diverged; defects ticketed or fixed with a regression test; PLAN section 5 updated if real numbers differ (and the "not verified on a real account" caveat in the phase 1 notes removed); no secrets, account IDs or tokens committed.
-3. If every criterion is ticked, `tk close rf-rxkx`. That also unblocks `rf-dd4u`, `rf-dt1g`, `rf-v39y` and `rf-l2ym`.
+Keep the script's summary line, any `WARN` or `FAIL` lines, and what you saw in the dashboard. If a real number differs from [ARCHITECTURE section 5](ARCHITECTURE.md#5-cost-model), update it. Do not commit secrets, account IDs or tokens.

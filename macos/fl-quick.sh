@@ -31,7 +31,7 @@ CONFIG_DIR=${FLASHLINK_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/flashlink}
 DATA_DIR=${FLASHLINK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flashlink}
 FLASHLINK_BIN=${FLASHLINK_QUICK_BIN:-$DATA_DIR/bin/fl}
 PATH_FILE=$CONFIG_DIR/quick-action-path
-NOT_FOUND_HINT="fl or node was not found. Run macos/install.sh again from a Terminal where fl works. See the README (Finder integration)."
+NOT_FOUND_HINT="fl or node was not found. Run macos/install.sh again from a Terminal where fl works. See docs/MACOS.md."
 
 # Directories recorded by install.sh (first line only).
 recorded_path=""
