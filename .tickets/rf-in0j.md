@@ -1,6 +1,6 @@
 ---
 id: rf-in0j
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-04T00:38:30Z
@@ -25,10 +25,16 @@ The tag-triggered release.yml (rf-od5l, rf-kphq) publishes to npm and builds the
 
 ## Acceptance Criteria
 
-- [ ] Owner confirms the design (especially the protected-main question and release-it vs release-please).
-- [ ] CHANGELOG.md (Keep a Changelog) exists with an [Unreleased] section; scripts/check-changelog.sh and scripts/prep-release.sh added and tested (bash scripts get a smoke test or shellcheck).
-- [ ] release-it configured (.release-it.json) so a dry run on a clean main bumps packages/cli, updates the changelog and prints the tag, without publishing; release:dry documented.
-- [ ] release.yml publishes the GitHub Release with the changelog section as its notes (tested script).
-- [ ] RELEASING.md (or the README Releasing section) describes the full flow, including the first release and recovery (partial release, wrong tag).
-- [ ] pnpm format:check, typecheck, test, build still pass.
+- [x] Owner confirms the design (especially the protected-main question and release-it vs release-please).
+- [x] CHANGELOG.md (Keep a Changelog) exists with an [Unreleased] section; scripts/check-changelog.sh and scripts/prep-release.sh added and tested (bash scripts get a smoke test or shellcheck).
+- [x] release-it configured (.release-it.json) so a dry run on a clean main bumps packages/cli, updates the changelog and prints the tag, without publishing; release:dry documented.
+- [x] release.yml publishes the GitHub Release with the changelog section as its notes (tested script).
+- [x] RELEASING.md (or the README Releasing section) describes the full flow, including the first release and recovery (partial release, wrong tag).
+- [x] pnpm format:check, typecheck, test, build still pass.
 
+
+## Notes
+
+**2026-10-04T01:48:56Z**
+
+2026-10-03 DONE on branch feat/release-tooling (PR to follow), owner decisions applied: main is NOT protected and stays that way (release-it pushes the release commit and tag straight to main, requireBranch main); keep release-it; npm is published MANUALLY from the owner's machine, never by CI. Built: .release-it.json (git commit/tag/push, github.release false, npm.publish false, before:init = check-changelog.sh + pnpm verify, after:bump = sync-version), @release-it/keep-a-changelog, CHANGELOG.md (Unreleased already holds the v0.1.0 entries), scripts/check-changelog.sh, scripts/prep-release.sh (prompt adapted to conventional commits), scripts/release.mjs + release-lib.mjs (release | publish | sync-version | notes), RELEASING.md, README Releasing section, PLAN Release paragraph. Commands: pnpm release:prep, release, release:dry, release:publish, verify. 'pnpm release' = release-it then the interactive npm publish (separate step because npm's OTP prompt cannot work inside a release-it hook); release:publish repeats it and refuses unless on clean main, HEAD tagged v<cli version>, tag on origin, version not on npm, logged in. One version: root package.json bumped by release-it, copied into packages/cli; check-release-tag.mjs fails CI if they differ. release.yml: npm-publish job REMOVED (no NPM_TOKEN, no id-token permission), verify job also requires a CHANGELOG entry for the tag, GitHub Release notes = that section. Deviation/consequence: dropped npm provenance (publishConfig.provenance and --provenance), because only a supported CI provider can generate it; the test and docs say so. Evidence: 35 release tests (version sync, changelog section parser, publish refusals, bash helpers in temp repos, workflow has no npm publish); REAL release-it run (not dry-run) in a scratch clone with a local bare origin: hooks ran, root and cli both 0.1.0, CHANGELOG heading '## [0.1.0] - date', 'chore: release v0.1.0' commit + annotated tag pushed, notes/tag checks pass; publish step run against a fake npm (right args, cwd packages/cli, refuses on dirty tree / not logged in). Not verified: a real npm publish and the GitHub Release job (they need the first real tag; tracked in rf-od5l and rf-kphq). Note: release-it does not run hooks in --dry-run, so release:dry previews only the version/changelog/git steps.

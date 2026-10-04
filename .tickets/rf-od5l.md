@@ -48,3 +48,7 @@ Review follow-up on PR #14: the npm-publish job now runs on ubuntu-latest (npm p
 **2026-10-04T00:38:47Z**
 
 2026-10-03 batch-10: AWAITING HUMAN item (1) is done: license decided (MIT, Christian Catalan, 2026) and added (rf-cr7d closed); packages/cli now has the license field, author, and ships LICENSE in the npm tarball (verified with npm pack --dry-run). Items 2-5 unchanged. Release tooling (version bump, changelog) is proposed in rf-in0j; do it before tagging v0.1.0.
+
+**2026-10-04T01:48:56Z**
+
+2026-10-03 UPDATE (rf-in0j, owner decision): npm is published manually from the owner's machine, NOT by CI. The npm-publish job, the NPM_TOKEN secret and npm provenance are gone, so AWAITING HUMAN items 2 (repo must be public for provenance) and 3 (create NPM_TOKEN) no longer apply. New steps: (a) npm login on the machine you release from (an account that may publish the new package r2fl; use a granular token or 2FA); (b) make the repo public when ready; (c) from a clean main: pnpm release:prep, edit/commit CHANGELOG.md (the 0.1.0 entries are already under Unreleased), then 'pnpm release minor' (checks, bump to 0.1.0, changelog, commit, tag, push, then npm publish, asking for your OTP); (d) verify: npm view r2fl version; npx -y r2fl@latest --help from a clean dir. Details in RELEASING.md. Tick the middle criterion and close once (d) passes.

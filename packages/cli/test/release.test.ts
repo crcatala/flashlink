@@ -135,6 +135,74 @@ describe('release tooling', () => {
     expect(workflow).not.toMatch(/npm publish|NPM_TOKEN|id-token|provenance/);
   });
 
+  describe('scripts/check-changelog.sh and prep-release.sh', () => {
+    const sh = (script: string, cwd: string, ...args: string[]) =>
+      spawnSync('bash', [path.join(root, 'scripts', script), ...args], { cwd, encoding: 'utf8' });
+    const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-rel-'));
+
+    it('check-changelog accepts an Unreleased section with an item', () => {
+      const dir = tmp();
+      try {
+        fs.writeFileSync(
+          path.join(dir, 'CHANGELOG.md'),
+          '# C\n\n## [Unreleased]\n\n### Fixed\n\n- Something.\n\n## [0.1.0]\n\n### Added\n\n- Old.\n',
+        );
+        expect(sh('check-changelog.sh', dir).status).toBe(0);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('check-changelog refuses an empty Unreleased section even when older releases have items', () => {
+      const dir = tmp();
+      try {
+        fs.writeFileSync(
+          path.join(dir, 'CHANGELOG.md'),
+          '# C\n\n## [Unreleased]\n\n## [0.1.0]\n\n### Added\n\n- Old.\n',
+        );
+        const r = sh('check-changelog.sh', dir);
+        expect(r.status).toBe(1);
+        expect(r.stderr).toContain('no unreleased user-facing entries');
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('prep-release lists the commits since the last tag with the prompt, without Co-Authored-By', () => {
+      const dir = tmp();
+      const git = (...a: string[]) =>
+        spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], {
+          cwd: dir,
+          encoding: 'utf8',
+        });
+      try {
+        git('init', '-q');
+        fs.writeFileSync(path.join(dir, 'a.txt'), '1');
+        git('add', '.');
+        git('commit', '-q', '-m', 'feat: old thing');
+        git('tag', 'v0.1.0');
+        fs.writeFileSync(path.join(dir, 'a.txt'), '2');
+        git(
+          'commit',
+          '-q',
+          '-am',
+          'fix(cli): new thing\n\nBody text.\n\nCo-Authored-By: Someone <s@example.com>',
+        );
+        const r = sh('prep-release.sh', dir);
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain('Changes since: v0.1.0');
+        expect(r.stdout).toContain('Changelog prompt');
+        expect(r.stdout).toContain('fix(cli): new thing');
+        expect(r.stdout).toContain('Body text.');
+        expect(r.stdout).not.toContain('feat: old thing');
+        expect(r.stdout).not.toMatch(/Co-Authored-By/i);
+        expect(sh('prep-release.sh', dir, 'nope').status).toBe(1);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe('setPackageVersion', () => {
     const text = '{\n  "name": "x",\n  "version": "0.0.0",\n  "private": true\n}\n';
     it('changes only the version, keeping the formatting', () => {
