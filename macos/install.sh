@@ -6,6 +6,7 @@
 #   ~/.local/bin/fl-quick                                                (wrapper both call)
 #   ~/.config/flashlink/quick-action-path       (where fl and node were found in THIS terminal)
 #   ~/.local/share/flashlink/bin/fl           (only with --binary: standalone fl, no node needed)
+#   ~/.local/share/flashlink/bin/flashlink    (only with --binary: symlink to fl, the same alias the npm package has)
 #   ~/.local/share/flashlink/notify/flashlink.app   (posts the notifications; see notify-applet.applescript)
 #
 # Usage: install.sh [--binary FILE | --latest | --version TAG]
@@ -236,6 +237,10 @@ if [ -n "$binary_src" ]; then
   if env -i HOME="$HOME" PATH="$minimal_path" "$new_file" --version >/dev/null 2>&1; then
     mv -f "$new_file" "$bin_file"
     echo "installed: $bin_file ($(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version))"
+    # The npm package has both bins, so the standalone one does too: `flashlink` is a relative
+    # symlink to `fl`, so it follows every update of the binary.
+    ln -sf fl "$data_dir/bin/flashlink"
+    echo "installed: $data_dir/bin/flashlink -> fl"
   else
     rm -f "$new_file"
     binary_failed=1

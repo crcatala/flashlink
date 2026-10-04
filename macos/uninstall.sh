@@ -20,11 +20,16 @@ if [ -e "$bin_dir/fl-quick" ]; then
 fi
 
 data_dir=${FLASHLINK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flashlink}
+# `flashlink` is a symlink to `fl`, so test with -L: -e is false for a dangling link.
+if [ -L "$data_dir/bin/flashlink" ]; then
+  rm -f "$data_dir/bin/flashlink"
+  echo "removed: $data_dir/bin/flashlink"
+fi
 if [ -e "$data_dir/bin/fl" ]; then
   rm -f "$data_dir/bin/fl"
-  rmdir "$data_dir/bin" 2>/dev/null || true
   echo "removed: $data_dir/bin/fl"
 fi
+rmdir "$data_dir/bin" 2>/dev/null || true
 
 if [ -e "$data_dir/notify" ]; then
   rm -rf "${data_dir:?}/notify"

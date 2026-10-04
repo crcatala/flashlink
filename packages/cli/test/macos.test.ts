@@ -587,10 +587,19 @@ describe('install.sh and uninstall.sh', () => {
     expect(fs.statSync(bin).mode & 0o111).not.toBe(0);
     expect(i.stdout).toContain(`installed: ${bin}`);
     expect(i.stderr).not.toContain('WARNING');
+    // The alias is a relative symlink to fl, and it runs the same binary.
+    const alias = path.join(path.dirname(bin), 'flashlink');
+    expect(fs.lstatSync(alias).isSymbolicLink()).toBe(true);
+    expect(fs.readlinkSync(alias)).toBe('fl');
+    expect(spawnSync(alias, ['--version'], { encoding: 'utf8' }).stdout).toBe(
+      spawnSync(bin, ['--version'], { encoding: 'utf8' }).stdout,
+    );
+    expect(i.stdout).toContain(`installed: ${alias} -> fl`);
 
     const u = run(uninstall, []);
     expect(u.status).toBe(0);
     expect(u.stdout).toContain(`removed: ${bin}`);
+    expect(u.stdout).toContain(`removed: ${alias}`);
     expect(files(home)).toEqual(before); // history.json is still there
     expect(fs.existsSync(path.dirname(bin))).toBe(false);
   });
@@ -616,6 +625,7 @@ describe('install.sh and uninstall.sh', () => {
     const bin = path.join(dir, 'home', '.local', 'share', 'flashlink', 'bin');
     expect(fs.existsSync(path.join(bin, 'fl'))).toBe(false);
     expect(fs.existsSync(path.join(bin, 'fl.new'))).toBe(false);
+    expect(fs.existsSync(path.join(bin, 'flashlink'))).toBe(false);
     // The Quick Actions are still installed and use the login-shell fallback.
     expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'fl-quick'))).toBe(true);
   });
@@ -648,6 +658,9 @@ describe('install.sh and uninstall.sh', () => {
     const r = run(install, ['--binary', v2], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
     expect(fs.readFileSync(bin, 'utf8')).toContain('2.0.0');
+    // The alias follows the update, because it points at fl.
+    const alias = path.join(path.dirname(bin), 'flashlink');
+    expect(spawnSync(alias, ['--version'], { encoding: 'utf8' }).stdout).toContain('2.0.0');
   });
 
   it('says Quick Actions will not find a binary installed under a custom data directory', () => {
