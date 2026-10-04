@@ -90,7 +90,7 @@ npm i -g r2fl                  # or run it without installing: npx r2fl --help
 r2fl init --endpoint https://fl.example.com      # prompts for your upload token
 ```
 
-Works on macOS and Linux (Node 22.12+). Releases are published from this repository by a version tag (see [Releasing](#releasing)); if `npm i -g r2fl` reports that the package does not exist, no release has been published yet, so install from a clone instead:
+Works on macOS and Linux (Node 22.12+). Releases are published by the maintainer (see [Releasing](#releasing)); if `npm i -g r2fl` reports that the package does not exist, no release has been published yet, so install from a clone instead:
 
 ```sh
 pnpm install && pnpm build
@@ -254,16 +254,17 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
 
 ### Releasing
 
-One version number: `version` in `packages/cli/package.json`. To release, bump it in a commit, merge, then tag that commit and push the tag:
+Maintainers: one command from a clean `main` on your machine, logged in to npm (`npm login`) and GitHub:
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+pnpm release:prep     # commits since the last tag + a prompt to draft the CHANGELOG.md entries
+# ...edit CHANGELOG.md under "## [Unreleased]", commit it to main...
+pnpm release          # release-it: checks, bump, changelog, commit, tag, push; then npm publish
 ```
 
-`.github/workflows/release.yml` (it refuses a tag that does not match the version) runs the checks, then does two independent things:
+`pnpm release` runs format, typecheck, tests and the build, asks for the new version (or `pnpm release minor`), moves the changelog entries under it, bumps the version (one version for everything: the root `package.json`, copied into `packages/cli`), commits `chore: release vX.Y.Z`, tags and pushes. It then publishes `r2fl` to npm from your machine (npm asks for your one-time password if you use 2FA). **npm is never published from CI**, so there is no npm token in the repository and no npm provenance. `pnpm release:dry` previews the release; `pnpm release:publish` repeats just the npm step if it failed. Full flow, the first release and recovery: [`RELEASING.md`](RELEASING.md).
 
-- **GitHub Release:** `r2fl-darwin-arm64`, `r2fl-darwin-x64`, `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, built on a Linux runner.
-- **npm:** (on a GitHub-hosted runner, because npm provenance does not accept others, and from a public repository) `npm publish --provenance --access public` for `r2fl` (it builds and tests first). It needs an npm automation token stored as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions); without it the job only prints a warning, so a fork can release binaries alone. Nothing is ever published from a branch or from a local machine.
+The pushed tag triggers `.github/workflows/release.yml`, which checks the tag against the version and the changelog, then creates the **GitHub Release** (notes taken from `CHANGELOG.md`) with `r2fl-darwin-arm64`, `r2fl-darwin-x64`, `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, built on a Linux runner.
 
 To check what npm would receive without publishing: `cd packages/cli && npm pack --dry-run` (just `dist/`, `LICENSE`, `package.json` and the README).
 

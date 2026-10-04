@@ -48,3 +48,7 @@ PR #14 CI is green, including the new 'binaries' job (both darwin builds, checks
 **2026-10-03T21:35:27Z**
 
 Review follow-up on PR #14: (1) npm-publish job moved to ubuntu-latest (npm provenance rejects third-party runners); (2) install.sh stages the new binary as r2fl.new, signs and start-checks it, and only then replaces the installed one, so a failed update keeps the working binary and exits 1 (previously it deleted the old binary and exited 0); (3) --latest/--version always fetch and verify the release's support archive instead of using whatever macos/ files sit next to the script. 3 regression tests fail on the old install.sh. AWAITING HUMAN items above are unchanged.
+
+**2026-10-04T01:48:56Z**
+
+2026-10-03 UPDATE (rf-in0j): the release is now started by 'pnpm release' on the owner's machine (release-it pushes the v* tag); the workflow no longer has an npm job and takes the GitHub Release notes from CHANGELOG.md (a tag without a changelog section or with mismatched root/cli versions fails the verify job). AWAITING HUMAN steps unchanged except step (2): instead of bumping and tagging by hand, run the release flow in RELEASING.md; confirm the release page also shows the changelog section as notes.
