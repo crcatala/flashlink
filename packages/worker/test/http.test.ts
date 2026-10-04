@@ -10,7 +10,7 @@ import {
   withCharset,
   withinLimit,
 } from '../src/http.ts';
-import { CODE_REGEX } from '@r2-fastlink/core';
+import { CODE_REGEX } from '@flashlink/core';
 
 describe('generateCode', () => {
   it('produces valid 8-char base58 codes', () => {

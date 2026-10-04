@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono';
-import { CODE_REGEX, type RefreshResult, type UploadResult } from '@r2-fastlink/core';
+import { CODE_REGEX, type RefreshResult, type UploadResult } from '@flashlink/core';
 import { isAuthorized } from './auth.ts';
 import { parseLimits } from './config.ts';
 import type { Env } from './env.ts';
@@ -22,14 +22,14 @@ api.use('*', async (c, next) => {
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
   if (!(await withinLimit(c.env.LIMIT_IP, ip))) return rateLimited();
 
-  const token = c.env.R2FL_TOKEN;
+  const token = c.env.FLASHLINK_TOKEN;
   if (!token) {
     return errorResponse(
       500,
       'not_configured',
       c.env.UPLOAD_TOKEN
-        ? 'The secret UPLOAD_TOKEN was renamed to R2FL_TOKEN. Run `wrangler secret put R2FL_TOKEN`.'
-        : 'R2FL_TOKEN is not configured on the server.',
+        ? 'The secret UPLOAD_TOKEN was renamed to FLASHLINK_TOKEN. Run `wrangler secret put FLASHLINK_TOKEN`.'
+        : 'FLASHLINK_TOKEN is not configured on the server.',
     );
   }
   if (!(await isAuthorized(c.req.raw, token))) {

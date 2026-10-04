@@ -1,14 +1,14 @@
 // The logic of scripts/setup.mjs, with every side effect behind an injected `io` so it can be
 // tested without a Cloudflare account. Plain ESM, no dependencies.
 
-export const TOKEN_SECRET = 'R2FL_TOKEN';
+export const TOKEN_SECRET = 'FLASHLINK_TOKEN';
 export const LIFECYCLE_RULE = 'expire-strays';
 export const LIFECYCLE_PREFIX = 'objects/';
 export const LIFECYCLE_DAYS = 30;
 
 const HELP = `Usage: pnpm setup:cloudflare [options]
 
-Sets up your own Cloudflare account for r2-fastlink: private R2 bucket, Worker + Durable Object,
+Sets up your own Cloudflare account for flashlink: private R2 bucket, Worker + Durable Object,
 upload token (as the Worker secret ${TOKEN_SECRET}), and a 30-day safety-net lifecycle rule.
 Safe to re-run: it reuses what exists, redeploys, and never replaces your token unless asked.
 
@@ -16,7 +16,7 @@ Safe to re-run: it reuses what exists, redeploys, and never replaces your token 
   --rotate-token   generate a new token and replace the existing secret (old token stops working)
   -h, --help       show this help
 
-You must be logged in to Cloudflare first (\`pnpm --filter @r2-fastlink/worker exec wrangler login\`)
+You must be logged in to Cloudflare first (\`pnpm --filter @flashlink/worker exec wrangler login\`)
 or have CLOUDFLARE_API_TOKEN set.`;
 
 export function parseSetupArgs(argv) {
@@ -56,7 +56,7 @@ export function isAuthenticated(whoamiOutput) {
 }
 
 /**
- * `wrangler secret list` prints JSON: [{"name":"R2FL_TOKEN","type":"secret_text"}].
+ * `wrangler secret list` prints JSON: [{"name":"FLASHLINK_TOKEN","type":"secret_text"}].
  * Returns null when the output is not that, so the caller can stop instead of assuming "no
  * secrets" (which would replace an existing token).
  */
@@ -85,7 +85,7 @@ export function findWorkerUrl(deployOutput, worker) {
 }
 
 export function summary({ url, token, keptToken }) {
-  const lines = ['', 'Done. Your r2-fastlink is deployed.', ''];
+  const lines = ['', 'Done. Your flashlink is deployed.', ''];
   lines.push(`  URL:    ${url ?? '(wrangler did not print one; see the deploy output above)'}`);
   if (token) {
     lines.push(
@@ -102,7 +102,7 @@ export function summary({ url, token, keptToken }) {
   lines.push(
     '',
     'Next, on the machine you upload from:',
-    `  r2fl init --endpoint ${url ?? '<your worker url>'}     # paste the token when asked`,
+    `  fl init --endpoint ${url ?? '<your worker url>'}     # paste the token when asked`,
     `  node scripts/verify-deployment.mjs --endpoint ${url ?? '<your worker url>'}   # optional full check (needs ${TOKEN_SECRET} in the environment)`,
     '',
   );
@@ -145,7 +145,7 @@ export async function runSetup(opts, io) {
   if (!isAuthenticated(who.stdout)) {
     throw new SetupError(
       'You are not logged in to Cloudflare.',
-      'Run `pnpm --filter @r2-fastlink/worker exec wrangler login` (or set CLOUDFLARE_API_TOKEN), then re-run.',
+      'Run `pnpm --filter @flashlink/worker exec wrangler login` (or set CLOUDFLARE_API_TOKEN), then re-run.',
     );
   }
 
@@ -179,7 +179,7 @@ export async function runSetup(opts, io) {
   if (!names) {
     throw new SetupError(
       'Could not read the output of `wrangler secret list`.',
-      'Setup stops here rather than risk replacing your existing token. Set it by hand with `wrangler secret put R2FL_TOKEN` (see the README).',
+      'Setup stops here rather than risk replacing your existing token. Set it by hand with `wrangler secret put FLASHLINK_TOKEN` (see the README).',
     );
   }
   const existing = names.includes(TOKEN_SECRET);

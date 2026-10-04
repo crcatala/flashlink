@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_FILE_BYTES, HARD_MAX_FILE_BYTES, parseDuration } from '@r2-fastlink/core';
+import { DEFAULT_MAX_FILE_BYTES, HARD_MAX_FILE_BYTES, parseDuration } from '@flashlink/core';
 import { CliError } from './errors.ts';
 import { readJson, writeJsonAtomic } from './fsutil.ts';
 import { parseSize } from './format.ts';
@@ -36,13 +36,13 @@ export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 type Env = Record<string, string | undefined>;
 
-/** Read the config file (if any) and apply R2FL_* environment overrides. */
+/** Read the config file (if any) and apply FLASHLINK_* environment overrides. */
 export function loadConfig(env: Env = process.env): Config {
   const stored = readJson<Partial<Config>>(configPath(env)) ?? {};
   const config: Config = { ...DEFAULT_CONFIG, ...stored };
-  if (env.R2FL_ENDPOINT) config.endpoint = env.R2FL_ENDPOINT;
-  if (env.R2FL_TOKEN) config.token = env.R2FL_TOKEN;
-  if (env.R2FL_TTL) config.defaultTtl = env.R2FL_TTL;
+  if (env.FLASHLINK_ENDPOINT) config.endpoint = env.FLASHLINK_ENDPOINT;
+  if (env.FLASHLINK_TOKEN) config.token = env.FLASHLINK_TOKEN;
+  if (env.FLASHLINK_TTL) config.defaultTtl = env.FLASHLINK_TTL;
   return config;
 }
 

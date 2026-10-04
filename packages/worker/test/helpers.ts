@@ -2,7 +2,7 @@ import { env, exports } from 'cloudflare:workers';
 import { runInDurableObject } from 'cloudflare:test';
 import worker from '../src/index.ts';
 import type { Env } from '../src/env.ts';
-import type { UploadResult } from '@r2-fastlink/core';
+import type { UploadResult } from '@flashlink/core';
 
 export const TOKEN = 'test-token-test-token-test-token-0123';
 export const BASE = 'https://fl.test';

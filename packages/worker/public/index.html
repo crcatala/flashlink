@@ -3,46 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>r2-fastlink</title>
+    <title>flashlink</title>
     <meta
       name="description"
       content="Upload a file to your own Cloudflare R2 bucket and get a short public link that expires on its own."
     />
     <meta name="robots" content="noindex" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0a0a0a" />
     <style>
       :root {
-        --bg: #fbfaf8;
-        --fg: #1b1a18;
-        --muted: #6b675f;
-        --line: #e6e2da;
-        --card: #ffffff;
-        --accent: #d9650a;
-        --term-bg: #12151c;
-        --term-fg: #e8e6e1;
-        --term-dim: #8b909c;
-        --term-green: #7ee2a8;
-        --term-accent: #ffb066;
-        --radius: 14px;
+        --bg: #0a0a0a;
+        --fg: #fafaf5;
+        --muted: #a3a39a;
+        --line: #262622;
+        --volt: #ffe600;
+        --ink: #0a0a0a;
         --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
         --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0e1015;
-          --fg: #ece9e3;
-          --muted: #9a968d;
-          --line: #232733;
-          --card: #151821;
-          --accent: #f6821f;
-          --term-bg: #0a0c11;
-        }
-      }
       * {
         box-sizing: border-box;
-      }
-      html {
-        -webkit-text-size-adjust: 100%;
       }
       body {
         margin: 0;
@@ -51,111 +32,175 @@
         font: 17px/1.6 var(--sans);
       }
       a {
-        color: var(--accent);
+        color: var(--volt);
         text-underline-offset: 3px;
       }
-      a:focus-visible,
-      button:focus-visible {
-        outline: 2px solid var(--accent);
+      a:focus-visible {
+        outline: 3px solid var(--volt);
         outline-offset: 3px;
-        border-radius: 4px;
       }
       .wrap {
-        max-width: 760px;
+        max-width: 880px;
         margin: 0 auto;
-        padding: 0 20px;
+        padding: 0 22px;
       }
       header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 22px 0;
+        padding: 24px 0;
       }
       .brand {
         display: inline-flex;
         align-items: center;
-        gap: 10px;
-        font: 600 17px var(--mono);
+        gap: 12px;
+        font: 800 20px var(--sans);
+        letter-spacing: -0.02em;
         color: var(--fg);
         text-decoration: none;
       }
-      .brand svg {
-        width: 28px;
-        height: 28px;
+      .brand img {
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
       }
       nav a {
-        font-size: 15px;
-        color: var(--muted);
+        font: 600 14px var(--mono);
+        color: var(--ink);
+        background: var(--volt);
+        padding: 7px 12px;
         text-decoration: none;
-      }
-      nav a:hover {
-        color: var(--fg);
+        border-radius: 6px;
       }
       h1 {
-        font-size: clamp(32px, 6vw, 50px);
-        line-height: 1.1;
-        letter-spacing: -0.02em;
-        margin: 44px 0 16px;
+        font: 900 clamp(48px, 11vw, 112px)/0.95 var(--sans);
+        letter-spacing: -0.05em;
+        margin: 56px 0 22px;
         text-wrap: balance;
       }
-      h1 em {
-        font-style: normal;
-        color: var(--accent);
+      h1 span {
+        background: var(--volt);
+        color: var(--ink);
+        padding: 0 0.12em;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
       }
       .lede {
-        font-size: 19px;
+        font-size: 20px;
         color: var(--muted);
-        max-width: 60ch;
-        margin: 0 0 32px;
+        max-width: 52ch;
+        margin: 0 0 36px;
         text-wrap: pretty;
+      }
+      .lede b {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      /* the link that burns out */
+      .ticket {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px 20px;
+        border: 2px solid var(--volt);
+        border-radius: 12px;
+        padding: 18px 22px;
+        font-family: var(--mono);
+      }
+      .ticket .url {
+        font-size: clamp(15px, 3.6vw, 22px);
+        font-weight: 700;
+        color: var(--volt);
+        word-break: break-all;
+      }
+      .ticket .meta {
+        margin-left: auto;
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .bar {
+        width: 120px;
+        height: 6px;
+        background: var(--line);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        width: 100%;
+        background: var(--volt);
+        transform-origin: left;
+        animation: burn 6s linear infinite;
+      }
+      @keyframes burn {
+        from {
+          transform: scaleX(1);
+        }
+        to {
+          transform: scaleX(0);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .bar i {
+          animation: none;
+          transform: scaleX(0.55);
+        }
       }
       pre,
       code {
         font-family: var(--mono);
       }
       .term {
-        background: var(--term-bg);
-        color: var(--term-fg);
-        border-radius: var(--radius);
-        padding: 20px 22px;
-        font-size: 14.5px;
-        line-height: 1.7;
+        background: #111110;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        margin: 22px 0 0;
         overflow-x: auto;
-        margin: 0;
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 14.5px;
+        line-height: 1.75;
+        padding: 20px 22px;
       }
-      .term .p {
-        color: var(--term-accent);
+      .p {
+        color: var(--volt);
       }
-      .term .ok {
-        color: var(--term-green);
+      .ok {
+        color: #7ef0a8;
       }
-      .term .d {
-        color: var(--term-dim);
+      .d {
+        color: var(--muted);
       }
       section {
-        padding: 44px 0 0;
+        padding: 64px 0 0;
       }
       h2 {
-        font-size: 22px;
-        letter-spacing: -0.01em;
-        margin: 0 0 14px;
+        font: 800 28px/1.1 var(--sans);
+        letter-spacing: -0.03em;
+        margin: 0 0 20px;
       }
       .grid {
         display: grid;
-        gap: 14px;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        margin-top: 8px;
+        gap: 0;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
       }
       .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        padding: 18px 18px 16px;
+        padding: 22px;
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        margin: 0 -1px -1px 0;
       }
       .card h3 {
-        margin: 0 0 6px;
-        font-size: 16px;
+        margin: 0 0 8px;
+        font: 700 13px var(--mono);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--volt);
       }
       .card p {
         margin: 0;
@@ -163,66 +208,32 @@
         font-size: 15px;
         line-height: 1.55;
       }
-      ol.steps {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-        counter-reset: step;
-        display: grid;
-        gap: 18px;
-      }
-      ol.steps li {
-        counter-increment: step;
-        display: grid;
-        grid-template-columns: 30px 1fr;
-        gap: 12px;
-        align-items: start;
-      }
-      ol.steps li::before {
-        content: counter(step);
-        display: grid;
-        place-items: center;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: var(--card);
-        border: 1px solid var(--line);
-        font: 600 13px var(--mono);
+      .steps p {
+        margin: 22px 0 0;
         color: var(--muted);
-        margin-top: 2px;
+        font-size: 15px;
       }
-      ol.steps p {
-        margin: 0 0 8px;
-      }
-      ol.steps .term {
-        padding: 12px 16px;
-        font-size: 13.5px;
+      .steps .term {
+        margin-top: 8px;
       }
       .note {
         color: var(--muted);
         font-size: 15px;
       }
-      code.inline {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 1px 6px;
-        font-size: 0.9em;
-      }
       footer {
-        margin-top: 64px;
-        padding: 26px 0 40px;
+        margin-top: 72px;
+        padding: 26px 0 44px;
         border-top: 1px solid var(--line);
         color: var(--muted);
         font-size: 14px;
       }
       @media (max-width: 520px) {
-        body {
-          font-size: 16px;
-        }
         .term {
-          font-size: 13px;
-          padding: 16px;
+          font-size: 12.5px;
+          padding: 14px;
+        }
+        .ticket .meta {
+          margin-left: 0;
         }
       }
     </style>
@@ -230,129 +241,89 @@
   <body>
     <div class="wrap">
       <header>
-        <a class="brand" href="/">
-          <svg viewBox="0 0 32 32" aria-hidden="true">
-            <rect width="32" height="32" rx="7" fill="#0b0f19" />
-            <path
-              d="M9 17.5 17.5 9m-3 14L23 14.5"
-              stroke="#f6821f"
-              stroke-width="3"
-              stroke-linecap="round"
-            />
-            <circle cx="12" cy="20" r="3" fill="none" stroke="#fff" stroke-width="2.4" />
-            <circle cx="20" cy="12" r="3" fill="none" stroke="#fff" stroke-width="2.4" />
-          </svg>
-          r2-fastlink
-        </a>
-        <nav><a href="https://github.com/crcatala/r2-fastlink">GitHub</a></nav>
+        <a class="brand" href="/"><img src="/favicon.svg" alt="" />flashlink</a>
+        <nav><a href="https://github.com/crcatala/flashlink">GitHub</a></nav>
       </header>
-
       <main>
-        <h1>Share a file with an agent. <em>Let the link expire on its own.</em></h1>
+        <h1>Share it. <span>Gone in an hour.</span></h1>
         <p class="lede">
-          Upload to your own Cloudflare R2 bucket and get a short public link that stops working
-          after an hour, or whatever you choose. Need it again later? Refresh it and the same link
-          works for another window.
+          Upload a file to <b>your own Cloudflare R2 bucket</b> and hand a coding agent a short link
+          that stops working on its own. Need it again? Refresh the same link.
         </p>
-
+        <div class="ticket" role="img" aria-label="A link that counts down to expiry">
+          <span class="url">fl.example.com/k3F9xQ2m</span>
+          <span class="meta"
+            >expires in 1h <span class="bar"><i></i></span
+          ></span>
+        </div>
         <pre
           class="term"
           aria-label="Example terminal session"
-        ><span class="p">$</span> r2fl up screenshot.png
+        ><span class="p">$</span> fl up screenshot.png
 <span class="ok">✓</span> screenshot.png <span class="d">(1.2 MB) · expires 14:32</span>
 https://fl.example.com/k3F9xQ2m
-
-<span class="p">$</span> curl -sI https://fl.example.com/k3F9xQ2m | head -1
-HTTP/2 200
 
 <span class="d"># an hour later…</span>
 <span class="p">$</span> curl -sI https://fl.example.com/k3F9xQ2m | head -1
 HTTP/2 410
 
-<span class="p">$</span> r2fl refresh k3F9xQ2m --ttl 30m
+<span class="p">$</span> fl refresh k3F9xQ2m --ttl 30m
 <span class="ok">✓</span> k3F9xQ2m is live again until 15:41</pre>
 
         <section aria-labelledby="why">
-          <h2 id="why">Built for handing files to coding agents</h2>
+          <h2 id="why">Built for handing files to coding agents.</h2>
           <div class="grid">
             <div class="card">
-              <h3>Short and direct</h3>
+              <h3>Short + direct</h3>
               <p>
                 Eight characters, served as the raw file with the right content type. No redirects,
-                no login, nothing for an agent to trip over.
+                no login.
               </p>
             </div>
             <div class="card">
-              <h3>Expires by itself</h3>
+              <h3>Self-expiring</h3>
               <p>
                 One hour by default, set globally or per upload. Close a link early or cap its
-                downloads when you need to.
+                downloads.
               </p>
             </div>
             <div class="card">
               <h3>Yours alone</h3>
               <p>
                 One Worker, one Durable Object and a private bucket in your own Cloudflare account.
-                History stays on your machine.
               </p>
             </div>
           </div>
         </section>
 
-        <section aria-labelledby="use">
-          <h2 id="use">Already set up? Upload with the CLI</h2>
-          <ol class="steps">
-            <li>
-              <div>
-                <p>Point the CLI at this Worker with your upload token:</p>
-                <pre
-                  class="term"
-                ><span class="p">$</span> r2fl init --endpoint https://fl.example.com</pre>
-              </div>
-            </li>
-            <li>
-              <div>
-                <p>Upload, with an optional lifetime:</p>
-                <pre class="term"><span class="p">$</span> r2fl up report.pdf
-<span class="p">$</span> r2fl up build.log --ttl 15m
-<span class="p">$</span> cat trace.txt | r2fl up --name trace.txt</pre>
-              </div>
-            </li>
-            <li>
-              <div>
-                <p>Manage links from your local history:</p>
-                <pre class="term"><span class="p">$</span> r2fl ls
-<span class="p">$</span> r2fl refresh k3F9xQ2m
-<span class="p">$</span> r2fl revoke k3F9xQ2m</pre>
-              </div>
-            </li>
-          </ol>
+        <section class="steps" aria-labelledby="use">
+          <h2 id="use">Already set up?</h2>
+          <pre class="term"><span class="p">$</span> fl init --endpoint https://fl.example.com
+<span class="p">$</span> fl up report.pdf
+<span class="p">$</span> fl up build.log --ttl 15m
+<span class="p">$</span> cat trace.txt | fl up --name trace.txt
+<span class="p">$</span> fl ls
+<span class="p">$</span> fl revoke k3F9xQ2m</pre>
         </section>
 
         <section aria-labelledby="own">
-          <h2 id="own">Curious? Run your own</h2>
+          <h2 id="own">Run your own.</h2>
           <p class="note" style="margin-top: 0">
-            This is a personal, single-user tool, so there is nothing to sign up for here. To try
-            it, fork the repo and deploy it to your own Cloudflare account. It runs on the free
-            plan.
+            A personal, single-user tool, so there is nothing to sign up for here. Deploy it to your
+            own Cloudflare account; the free plan is enough.
           </p>
-          <pre
-            class="term"
-          ><span class="p">$</span> git clone https://github.com/crcatala/r2-fastlink
-<span class="p">$</span> cd r2-fastlink &amp;&amp; pnpm install
-<span class="p">$</span> pnpm --filter @r2-fastlink/worker exec wrangler r2 bucket create r2-fastlink --no-update-config
-<span class="p">$</span> pnpm --filter @r2-fastlink/worker exec wrangler secret put R2FL_TOKEN
-<span class="p">$</span> pnpm --filter @r2-fastlink/worker deploy</pre>
+          <pre class="term"><span class="p">$</span> git clone https://github.com/crcatala/flashlink
+<span class="p">$</span> cd flashlink &amp;&amp; pnpm install
+<span class="p">$</span> pnpm setup:cloudflare</pre>
           <p class="note">
             Full instructions are in the
-            <a href="https://github.com/crcatala/r2-fastlink#deploy-your-own">README</a>.
+            <a href="https://github.com/crcatala/flashlink#deploy-your-own">README</a>.
           </p>
         </section>
       </main>
-
       <footer>
         Links on this site are unlisted and expire automatically. Nothing is browsable here.
-        <a href="https://github.com/crcatala/r2-fastlink">Source on GitHub</a>.
+        <a href="https://github.com/crcatala/flashlink">Source on GitHub</a>.
       </footer>
     </div>
   </body>

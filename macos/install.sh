@@ -1,15 +1,15 @@
 #!/bin/sh
-# Install the Finder Quick Actions ("Share via r2-fastlink") for the current user.
+# Install the Finder Quick Actions ("Share via flashlink") for the current user.
 #
-#   ~/Library/Services/Share via r2-fastlink.workflow                      (asks for a lifetime)
-#   ~/Library/Services/Share via r2-fastlink (default lifetime).workflow   (no question)
-#   ~/.local/bin/r2fl-quick                                                (wrapper both call)
-#   ~/.config/r2fl/quick-action-path       (where r2fl and node were found in THIS terminal)
-#   ~/.local/share/r2fl/bin/r2fl           (only with --binary: standalone r2fl, no node needed)
-#   ~/.local/share/r2fl/notify/r2-fastlink.app   (posts the notifications; see notify-applet.applescript)
+#   ~/Library/Services/Share via flashlink.workflow                      (asks for a lifetime)
+#   ~/Library/Services/Share via flashlink (default lifetime).workflow   (no question)
+#   ~/.local/bin/fl-quick                                                (wrapper both call)
+#   ~/.config/flashlink/quick-action-path       (where fl and node were found in THIS terminal)
+#   ~/.local/share/flashlink/bin/fl           (only with --binary: standalone fl, no node needed)
+#   ~/.local/share/flashlink/notify/flashlink.app   (posts the notifications; see notify-applet.applescript)
 #
 # Usage: install.sh [--binary FILE | --latest | --version TAG]
-#   --binary FILE  a standalone r2fl built by scripts/build-binary.sh (copy it to the Mac first).
+#   --binary FILE  a standalone fl built by scripts/build-binary.sh (copy it to the Mac first).
 #                  The Quick Actions then run it directly and no longer need node or a PATH.
 #   --latest       download the newest GitHub release's binary for this Mac and install it as
 #   --version TAG  --binary does (TAG is for example v0.1.0 or 0.1.0). The download is checked
@@ -19,10 +19,10 @@
 #   (no option)    an already installed binary is left as it is.
 #
 # Downloads use curl (which sets no quarantine flag) and fall back to `gh release download`, which
-# is what works while the repository is private. R2FL_REPO (default crcatala/r2-fastlink) names a
+# is what works while the repository is private. FLASHLINK_REPO (default crcatala/flashlink) names a
 # fork's repository.
 #
-# Nothing here contains a token or endpoint: that stays in the r2fl config file.
+# Nothing here contains a token or endpoint: that stays in the fl config file.
 # Remove everything again with macos/uninstall.sh.
 
 set -eu
@@ -70,33 +70,33 @@ esac
 here=$(cd "$(dirname "$0")" && pwd)
 services="$HOME/Library/Services"
 bin_dir="$HOME/.local/bin"
-config_dir=${R2FL_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/r2fl}
+config_dir=${FLASHLINK_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/flashlink}
 path_file="$config_dir/quick-action-path"
-data_dir=${R2FL_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/r2fl}
-bin_file="$data_dir/bin/r2fl"
+data_dir=${FLASHLINK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flashlink}
+bin_file="$data_dir/bin/fl"
 notify_dir="$data_dir/notify"
-applet="$notify_dir/r2-fastlink.app"
+applet="$notify_dir/flashlink.app"
 # What a Quick Action starts with. Your Terminal already has a full PATH, so testing there would
-# find r2fl even when the Quick Action cannot. Overridable only so tests can use a fake r2fl.
-minimal_path=${R2FL_QUICK_MINIMAL_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
+# find fl even when the Quick Action cannot. Overridable only so tests can use a fake fl.
+minimal_path=${FLASHLINK_QUICK_MINIMAL_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 pbs=/System/Library/CoreServices/pbs
 
-if [ "$(uname -s)" != "Darwin" ] && [ "${R2FL_INSTALL_ANY_OS:-}" != "1" ]; then
+if [ "$(uname -s)" != "Darwin" ] && [ "${FLASHLINK_INSTALL_ANY_OS:-}" != "1" ]; then
   echo "install.sh: the Finder Quick Actions are macOS only." >&2
   exit 1
 fi
 
 # Finder starts Quick Actions without your shell's variables, so they always look in the default
 # place. A binary or notifier installed elsewhere would be installed but never found.
-if [ -n "${R2FL_DATA_DIR:-}" ] || [ -n "${XDG_DATA_HOME:-}" ]; then
-  echo "note: R2FL_DATA_DIR / XDG_DATA_HOME is set here, but Quick Actions do not see shell variables:" >&2
-  echo "      they look in \$HOME/.local/share/r2fl. Unset the variable and run this again to use that." >&2
+if [ -n "${FLASHLINK_DATA_DIR:-}" ] || [ -n "${XDG_DATA_HOME:-}" ]; then
+  echo "note: FLASHLINK_DATA_DIR / XDG_DATA_HOME is set here, but Quick Actions do not see shell variables:" >&2
+  echo "      they look in \$HOME/.local/share/flashlink. Unset the variable and run this again to use that." >&2
 fi
 
 # --- Fetching a release (--latest / --version) -------------------------------------------------
-repo=${R2FL_REPO:-crcatala/r2-fastlink}
-# R2FL_RELEASE_BASE (a folder or URL holding the release assets) replaces GitHub: for mirrors, tests.
-release_base=${R2FL_RELEASE_BASE:-}
+repo=${FLASHLINK_REPO:-crcatala/flashlink}
+# FLASHLINK_RELEASE_BASE (a folder or URL holding the release assets) replaces GitHub: for mirrors, tests.
+release_base=${FLASHLINK_RELEASE_BASE:-}
 work=""
 cleanup() { [ -z "$work" ] || rm -rf "$work"; }
 trap cleanup EXIT
@@ -155,29 +155,29 @@ if [ -n "$download" ]; then
       exit 1
       ;;
   esac
-  work=$(mktemp -d "${TMPDIR:-/tmp}/r2fl-install.XXXXXX")
+  work=$(mktemp -d "${TMPDIR:-/tmp}/flashlink-install.XXXXXX")
   echo "Downloading ${release_tag:-the latest release} ($target)..." >&2
   fetch SHA256SUMS "$work/SHA256SUMS"
-  fetch "r2fl-$target" "$work/r2fl-$target"
-  verify "$work/r2fl-$target" "r2fl-$target"
-  binary_src="$work/r2fl-$target"
+  fetch "flashlink-$target" "$work/flashlink-$target"
+  verify "$work/flashlink-$target" "flashlink-$target"
+  binary_src="$work/flashlink-$target"
   # Always take the Quick Action files from the same release as the binary, even from inside a
   # checkout: a pinned version must not mix in whatever commit the checkout happens to be at. (It
   # also covers `curl | sh`, where no other file is next to this script.)
-  fetch r2fl-macos-support.tar.gz "$work/support.tar.gz"
-  verify "$work/support.tar.gz" r2fl-macos-support.tar.gz
+  fetch flashlink-macos-support.tar.gz "$work/support.tar.gz"
+  verify "$work/support.tar.gz" flashlink-macos-support.tar.gz
   mkdir "$work/support"
   tar -xzf "$work/support.tar.gz" -C "$work/support"
   here="$work/support/macos"
 fi
-if [ ! -f "$here/r2fl-quick.sh" ] || [ ! -d "$here/Share via r2-fastlink.workflow" ]; then
+if [ ! -f "$here/fl-quick.sh" ] || [ ! -d "$here/Share via flashlink.workflow" ]; then
   echo "install.sh: the Quick Action files are not next to this script. Run it from the macos/ folder, or use --latest." >&2
   exit 1
 fi
 
 mkdir -p "$services" "$bin_dir"
 
-for name in "Share via r2-fastlink" "Share via r2-fastlink (default lifetime)"; do
+for name in "Share via flashlink" "Share via flashlink (default lifetime)"; do
   rm -rf "${services:?}/$name.workflow"
   cp -R "$here/$name.workflow" "$services/$name.workflow"
   # Files that came from a downloaded zip may be quarantined, and Gatekeeper then blocks them.
@@ -185,11 +185,11 @@ for name in "Share via r2-fastlink" "Share via r2-fastlink (default lifetime)"; 
   echo "installed: $services/$name.workflow"
 done
 
-install -m 755 "$here/r2fl-quick.sh" "$bin_dir/r2fl-quick"
-echo "installed: $bin_dir/r2fl-quick"
+install -m 755 "$here/fl-quick.sh" "$bin_dir/fl-quick"
+echo "installed: $bin_dir/fl-quick"
 
 # The notifier applet: notifications from plain osascript belong to Script Editor, which a click
-# on them opens. Ones from this applet belong to "r2-fastlink" and a click does nothing.
+# on them opens. Ones from this applet belong to "flashlink" and a click does nothing.
 if command -v osacompile >/dev/null 2>&1; then
   mkdir -p "$notify_dir/pending"
   chmod 700 "$notify_dir/pending" # the queued messages hold links to your uploads
@@ -198,7 +198,7 @@ if command -v osacompile >/dev/null 2>&1; then
     # No Dock icon, a stable identity for the notification settings, then sign it again (ad hoc).
     defaults write "$applet/Contents/Info" LSUIElement -bool true >/dev/null 2>&1 || true
     defaults write "$applet/Contents/Info" CFBundleIdentifier -string dev.r2fastlink.notify >/dev/null 2>&1 || true
-    defaults write "$applet/Contents/Info" CFBundleName -string r2-fastlink >/dev/null 2>&1 || true
+    defaults write "$applet/Contents/Info" CFBundleName -string flashlink >/dev/null 2>&1 || true
     xattr -dr com.apple.quarantine "$applet" 2>/dev/null || true
     if command -v codesign >/dev/null 2>&1; then
       codesign --force --deep --sign - "$applet" >/dev/null 2>&1 || true
@@ -242,17 +242,17 @@ if [ -n "$binary_src" ]; then
     if [ -x "$bin_file" ]; then
       echo "WARNING: the new binary does not start on this Mac (wrong architecture or blocked). Your previous binary was kept: $bin_file" >&2
     else
-      echo "WARNING: the binary does not start on this Mac (wrong architecture or blocked), so it was not installed; the Quick Actions will use your own r2fl instead." >&2
+      echo "WARNING: the binary does not start on this Mac (wrong architecture or blocked), so it was not installed; the Quick Actions will use your own fl instead." >&2
     fi
   fi
 fi
 
-# A Quick Action starts with a bare PATH, but this terminal can find r2fl and node. Record the
+# A Quick Action starts with a bare PATH, but this terminal can find fl and node. Record the
 # directories they live in so the wrapper can use them (edit the file by hand if you like).
-r2fl_bin=$(command -v r2fl 2>/dev/null || true)
+fl_bin=$(command -v fl 2>/dev/null || true)
 node_bin=$(command -v node 2>/dev/null || true)
-if [ -n "$r2fl_bin" ] && [ -n "$node_bin" ]; then
-  recorded=$(dirname "$r2fl_bin")
+if [ -n "$fl_bin" ] && [ -n "$node_bin" ]; then
+  recorded=$(dirname "$fl_bin")
   [ "$(dirname "$node_bin")" = "$recorded" ] || recorded="$recorded:$(dirname "$node_bin")"
   mkdir -p "$config_dir"
   printf '%s\n' "$recorded" >"$path_file"
@@ -262,22 +262,22 @@ fi
 # Check it the way a Quick Action will run it: a bare environment, through the installed wrapper.
 echo
 if env -i HOME="$HOME" USER="${USER:-}" PATH="$minimal_path" \
-  R2FL_CONFIG_DIR="$config_dir" R2FL_QUICK_SHELL="${R2FL_QUICK_SHELL:-/bin/zsh}" \
-  "$bin_dir/r2fl-quick" --check >/dev/null 2>&1; then
-  echo "r2fl and node are found the way a Quick Action will look for them."
-  r2fl_cmd=$r2fl_bin
-  [ ! -x "$bin_file" ] || r2fl_cmd=$bin_file
-  if [ "$("$r2fl_cmd" config get endpoint 2>/dev/null | tail -n 1)" = "(not set)" ]; then
-    echo "r2fl is not configured yet: run \`$r2fl_cmd init --endpoint https://<your worker>\` first." >&2
+  FLASHLINK_CONFIG_DIR="$config_dir" FLASHLINK_QUICK_SHELL="${FLASHLINK_QUICK_SHELL:-/bin/zsh}" \
+  "$bin_dir/fl-quick" --check >/dev/null 2>&1; then
+  echo "fl and node are found the way a Quick Action will look for them."
+  fl_cmd=$fl_bin
+  [ ! -x "$bin_file" ] || fl_cmd=$bin_file
+  if [ "$("$fl_cmd" config get endpoint 2>/dev/null | tail -n 1)" = "(not set)" ]; then
+    echo "fl is not configured yet: run \`$fl_cmd init --endpoint https://<your worker>\` first." >&2
   fi
 else
   cat >&2 <<'MSG'
-WARNING: a Quick Action cannot find both `r2fl` and `node`, so it would fail.
-  - Run this installer from a Terminal where `r2fl --version` works (it records where r2fl and
+WARNING: a Quick Action cannot find both `fl` and `node`, so it would fail.
+  - Run this installer from a Terminal where `fl --version` works (it records where fl and
     node live). Install the CLI first if needed (see "Install the CLI" in the README).
   - Or install a standalone binary, which needs neither: install.sh --binary FILE
   - Or put the directories yourself, colon separated, in the first line of
-    ~/.config/r2fl/quick-action-path (for example: /Users/me/.local/bin:/opt/homebrew/bin).
+    ~/.config/flashlink/quick-action-path (for example: /Users/me/.local/bin:/opt/homebrew/bin).
 MSG
 fi
 
@@ -285,8 +285,8 @@ cat <<'MSG'
 
 Enable it (first time only):
   System Settings -> Keyboard -> Keyboard Shortcuts... -> Services -> Files and Folders
-  and tick "Share via r2-fastlink" (and the "(default lifetime)" one if you want it).
-Use it: right-click a file in Finder -> Quick Actions (or Services) -> Share via r2-fastlink.
+  and tick "Share via flashlink" (and the "(default lifetime)" one if you want it).
+Use it: right-click a file in Finder -> Quick Actions (or Services) -> Share via flashlink.
 The first notification may need allowing: System Settings -> Notifications -> Script Editor.
 MSG
 

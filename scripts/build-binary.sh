@@ -1,11 +1,11 @@
 #!/bin/sh
-# Compile the r2fl CLI into standalone executables (the Bun runtime and the bundled CLI in one
+# Compile the fl CLI into standalone executables (the Bun runtime and the bundled CLI in one
 # file), so the macOS Quick Action does not depend on the user's node, PATH or version manager.
 #
 #   scripts/build-binary.sh                  # darwin-arm64 and darwin-x64
 #   scripts/build-binary.sh darwin-arm64     # one target (also: darwin-x64, linux-x64, linux-arm64)
 #
-# Output: dist/bin/r2fl-<target>. Needs Bun (https://bun.sh). Bun cross-compiles, so this works on
+# Output: dist/bin/flashlink-<target>. Needs Bun (https://bun.sh). Bun cross-compiles, so this works on
 # Linux too. A binary built here is NOT signed: macos/install.sh ad hoc signs it on the Mac.
 
 set -eu
@@ -15,7 +15,7 @@ out="$root/dist/bin"
 
 if ! command -v bun >/dev/null 2>&1; then
   cat >&2 <<'MSG'
-Bun is needed to build the standalone r2fl binary, but `bun` was not found.
+Bun is needed to build the standalone fl binary, but `bun` was not found.
 
 Why: a Finder Quick Action starts with a bare PATH, so it cannot rely on your node. Bun compiles
 the CLI into one self-contained file (about 60 MB) that needs neither node nor PATH. It is only
@@ -24,7 +24,7 @@ used to BUILD that file; running it does not need Bun.
 To continue, install Bun and run this again:
   brew install oven-sh/bun/bun        (or see https://bun.sh)
 
-Prefer not to install Bun? The Quick Actions also work with your own r2fl and node (they are
+Prefer not to install Bun? The Quick Actions also work with your own fl and node (they are
 looked up in your login shell); nothing is built:
   sh macos/install.sh
 MSG
@@ -41,7 +41,7 @@ MSG
   exit 1
 fi
 
-# The git commit goes into `r2fl --version` (and the Quick Action's lifetime dialog), so you can
+# The git commit goes into `fl --version` (and the Quick Action's lifetime dialog), so you can
 # tell which build is installed. "-dirty" marks uncommitted changes.
 build_id=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || true)
 if [ -n "$build_id" ] && [ -n "$(git -C "$root" status --porcelain 2>/dev/null)" ]; then
@@ -60,6 +60,6 @@ for target in "$@"; do
       ;;
   esac
   bun build --compile "--target=bun-$target" "$root/packages/cli/src/index.ts" \
-    --define "__R2FL_BUILD__=\"${build_id:-unknown}\"" --outfile "$out/r2fl-$target"
-  echo "built: dist/bin/r2fl-$target"
+    --define "__FLASHLINK_BUILD__=\"${build_id:-unknown}\"" --outfile "$out/flashlink-$target"
+  echo "built: dist/bin/flashlink-$target"
 done

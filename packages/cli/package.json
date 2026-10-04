@@ -1,7 +1,7 @@
 {
-  "name": "r2fl",
+  "name": "flashlink",
   "version": "0.0.0",
-  "description": "CLI for r2-fastlink: upload a file, get a short self-expiring link",
+  "description": "CLI for flashlink: upload a file, get a short self-expiring link",
   "license": "MIT",
   "author": "Christian Catalan <crcatala@gmail.com>",
   "keywords": [
@@ -12,18 +12,19 @@
     "expiring-link",
     "cli"
   ],
-  "homepage": "https://github.com/crcatala/r2-fastlink#readme",
+  "homepage": "https://github.com/crcatala/flashlink#readme",
   "bugs": {
-    "url": "https://github.com/crcatala/r2-fastlink/issues"
+    "url": "https://github.com/crcatala/flashlink/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/crcatala/r2-fastlink.git",
+    "url": "git+https://github.com/crcatala/flashlink.git",
     "directory": "packages/cli"
   },
   "type": "module",
   "bin": {
-    "r2fl": "./dist/index.js"
+    "fl": "./dist/index.js",
+    "flashlink": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -47,7 +48,7 @@
     "mime": "^4.1.0"
   },
   "devDependencies": {
-    "@r2-fastlink/core": "workspace:*",
+    "@flashlink/core": "workspace:*",
     "@types/node": "^24.0.0",
     "tsup": "^8.5.1",
     "tsx": "^4.20.0",

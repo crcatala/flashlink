@@ -8,5 +8,5 @@ export default defineConfig({
   clean: true,
   banner: { js: '#!/usr/bin/env node' },
   // The shared core is workspace-only TypeScript source: bundle it into the CLI.
-  noExternal: ['@r2-fastlink/core'],
+  noExternal: ['@flashlink/core'],
 });

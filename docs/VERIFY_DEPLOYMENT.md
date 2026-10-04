@@ -11,7 +11,7 @@ Follow the README ["Deploy your own"](../README.md#deploy-your-own) section lite
 ## 2. Run the script (checklist items 3 to 7)
 
 ```sh
-export R2FL_TOKEN=<the value you stored with `wrangler secret put R2FL_TOKEN`>
+export FLASHLINK_TOKEN=<the value you stored with `wrangler secret put FLASHLINK_TOKEN`>
 node scripts/verify-deployment.mjs --endpoint https://<your-worker>.<subdomain>.workers.dev
 ```
 
@@ -41,17 +41,17 @@ Read the result like this:
 
 ```sh
 pnpm install && pnpm build
-ln -s "$PWD/packages/cli/dist/index.js" ~/.local/bin/r2fl      # if not already linked
-r2fl init --endpoint https://<your-worker>                      # paste the token when prompted
-r2fl up README.md                                               # small text; open the URL in a browser too
+ln -s "$PWD/packages/cli/dist/index.js" ~/.local/bin/fl      # if not already linked
+fl init --endpoint https://<your-worker>                      # paste the token when prompted
+fl up README.md                                               # small text; open the URL in a browser too
 head -c $((51*1024*1024)) /dev/urandom > /tmp/51mb.bin
-r2fl up /tmp/51mb.bin                                           # the client should refuse (51 MiB > 50 MiB)
-r2fl config set maxFileBytes 100MB
-r2fl up /tmp/51mb.bin                                           # the server should answer 413 ("File is 53477376 bytes; the limit is 52428800.")
-r2fl config set maxFileBytes 50MB                               # restore
-r2fl up README.md --ttl 5s --no-copy                            # prints the URL; keep it
+fl up /tmp/51mb.bin                                           # the client should refuse (51 MiB > 50 MiB)
+fl config set maxFileBytes 100MB
+fl up /tmp/51mb.bin                                           # the server should answer 413 ("File is 53477376 bytes; the limit is 52428800.")
+fl config set maxFileBytes 50MB                               # restore
+fl up README.md --ttl 5s --no-copy                            # prints the URL; keep it
 sleep 6; curl -si <that url> | head -1                          # HTTP/2 410
-r2fl refresh                                                    # latest upload, same URL
+fl refresh                                                    # latest upload, same URL
 curl -si <that url> | head -1                                   # HTTP/2 200
 ```
 
@@ -61,9 +61,9 @@ The script already checked these HTTP behaviors; this block confirms the CLI dri
 
 **Item 2: one SQLite-backed Durable Object instance.** After the script has run (it makes many uploads and fetches), open the Worker in the Cloudflare dashboard, go to its Durable Objects view and open the `Registry` class. Confirm: storage backend is SQLite, and exactly **one** object exists. More than one means something creates instances per link or per IP; that breaks the design (epic invariant 1), so file a P1 bug.
 
-Where to look: Workers & Pages, Durable Objects, then the `r2-fastlink_Registry` namespace. The "Durable Object instances" list may show two rows that are really one object: `registry` (requests that arrived by name) and a bare hex ID (requests that arrived by ID only, such as alarms). Compare the IDs: if the hex ID under `registry` equals the other row's ID, it is one object, and the rows' request counts add up to the total. The data explorer shows the SQLite tables of that object (`links`, `uploads`); it does not list instances.
+Where to look: Workers & Pages, Durable Objects, then the `flashlink_Registry` namespace. The "Durable Object instances" list may show two rows that are really one object: `registry` (requests that arrived by name) and a bare hex ID (requests that arrived by ID only, such as alarms). Compare the IDs: if the hex ID under `registry` equals the other row's ID, it is one object, and the rows' request counts add up to the total. The data explorer shows the SQLite tables of that object (`links`, `uploads`); it does not list instances.
 
-**Item 8: custom domain (optional).** Attach a custom domain or route to the Worker in the dashboard, set `PUBLIC_BASE_URL` in `packages/worker/wrangler.jsonc` to it, `wrangler deploy`, then re-run the script with `--endpoint https://<custom domain>`. The "URL origin matches" check should PASS and `r2fl up` should print URLs on that domain.
+**Item 8: custom domain (optional).** Attach a custom domain or route to the Worker in the dashboard, set `PUBLIC_BASE_URL` in `packages/worker/wrangler.jsonc` to it, `wrangler deploy`, then re-run the script with `--endpoint https://<custom domain>`. The "URL origin matches" check should PASS and `fl up` should print URLs on that domain.
 
 **Item 9: usage after a day.** Come back after about 24 hours of normal use (or leave a few links around) and compare the dashboard with [PLAN section 5](PLAN.md#5-cost-model):
 
@@ -82,12 +82,12 @@ node scripts/verify-deployment.mjs --endpoint https://<your-worker> --sweeper --
 cd packages/worker && pnpm exec wrangler deploy      # back to the committed value (7 days)
 ```
 
-The `sweeper purges an expired link` check should PASS (the alarm fires within seconds of the grace period passing). Confirm `curl -s https://<your-worker>/api/status -H "Authorization: Bearer $R2FL_TOKEN"` reports `purgeGraceSeconds` 604800 again after the restore.
+The `sweeper purges an expired link` check should PASS (the alarm fires within seconds of the grace period passing). Confirm `curl -s https://<your-worker>/api/status -H "Authorization: Bearer $FLASHLINK_TOKEN"` reports `purgeGraceSeconds` 604800 again after the restore.
 
 **Item 10: lifecycle rule.**
 
 ```sh
-cd packages/worker && pnpm exec wrangler r2 bucket lifecycle list r2-fastlink
+cd packages/worker && pnpm exec wrangler r2 bucket lifecycle list flashlink
 ```
 
 Expect a rule `expire-strays` on prefix `objects/` that expires objects after 30 days.

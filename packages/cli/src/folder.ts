@@ -201,7 +201,7 @@ export function zipFolder(dir: string, opts: FolderOptions): FolderZip {
     throw new CliError(
       `The folder holds ${formatBytes(rawBytes)} of files (${files.length}), too much to zip ` +
         `against the ${formatBytes(opts.maxBytes)} limit.`,
-      'Leave things out with --exclude, or raise the limit with `r2fl config set maxFileBytes <size>`.',
+      'Leave things out with --exclude, or raise the limit with `fl config set maxFileBytes <size>`.',
     );
   }
 
@@ -225,7 +225,7 @@ export function zipFolder(dir: string, opts: FolderOptions): FolderZip {
       throw new CliError(
         `The zip is over the ${formatBytes(opts.maxBytes)} limit (already ${formatBytes(zip.bytes)} ` +
           `after ${zip.count} of ${files.length} files).`,
-        'Leave things out with --exclude, or raise the limit with `r2fl config set maxFileBytes <size>` (the server enforces its own cap too).',
+        'Leave things out with --exclude, or raise the limit with `fl config set maxFileBytes <size>` (the server enforces its own cap too).',
       );
     }
   }
@@ -233,7 +233,7 @@ export function zipFolder(dir: string, opts: FolderOptions): FolderZip {
   if (bytes.length > opts.maxBytes) {
     throw new CliError(
       `The zip is ${formatBytes(bytes.length)}, over the ${formatBytes(opts.maxBytes)} limit.`,
-      'Leave things out with --exclude, or raise the limit with `r2fl config set maxFileBytes <size>` (the server enforces its own cap too).',
+      'Leave things out with --exclude, or raise the limit with `fl config set maxFileBytes <size>` (the server enforces its own cap too).',
     );
   }
   return { bytes, name, files: files.length, rawBytes, skipped, secrets };

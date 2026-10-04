@@ -21,7 +21,7 @@ afterEach(() => h.cleanup());
 
 const hours = (n: number) => n * 3600_000;
 
-describe('r2fl refresh', () => {
+describe('fl refresh', () => {
   it('re-opens an expired link under the same URL and updates history', async () => {
     h.server.now += hours(2);
     expect(entryStatus(h.ctx.history.find('AAAAAAA1')!, h.server.now)).toBe('expired');
@@ -92,13 +92,13 @@ describe('r2fl refresh', () => {
   });
 });
 
-describe('r2fl revoke', () => {
+describe('fl revoke', () => {
   it('closes a link now and marks history revoked', async () => {
     await revoke('AAAAAAA1', {}, h.ctx);
     const entry = h.ctx.history.find('AAAAAAA1')!;
     expect(entry.state).toBe('revoked');
     expect(entryStatus(entry, h.server.now)).toBe('revoked');
-    expect(h.stderr.join('\n')).toContain('r2fl refresh AAAAAAA1');
+    expect(h.stderr.join('\n')).toContain('fl refresh AAAAAAA1');
   });
 
   it('--purge deletes from the server and marks history purged', async () => {
@@ -114,7 +114,7 @@ describe('r2fl revoke', () => {
   });
 });
 
-describe('r2fl ls', () => {
+describe('fl ls', () => {
   it('shows newest first with live/expired/revoked/purged statuses', async () => {
     await up([h.file('b.txt', 'b')], {}, h.ctx); // AAAAAAA2
     await up([h.file('c.txt', 'c')], {}, h.ctx); // AAAAAAA3

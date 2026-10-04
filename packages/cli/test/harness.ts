@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { FastlinkClient, type LinkInfo } from '@r2-fastlink/core';
+import { FastlinkClient, type LinkInfo } from '@flashlink/core';
 import { DEFAULT_CONFIG } from '../src/config.ts';
 import type { Context } from '../src/context.ts';
 import { createStyle } from '../src/format.ts';
@@ -159,14 +159,17 @@ export interface Harness {
 }
 
 export function makeHarness(overrides: Partial<Context['config']> = {}): Harness {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-test-'));
   const server = new FakeServer();
   const stdout: string[] = [];
   const stderr: string[] = [];
   const clipboard: string[] = [];
   const notifications: { subtitle: string; body: string }[] = [];
   const stdin = { data: Buffer.alloc(0), isTTY: false, interactive: false };
-  const env = { R2FL_CONFIG_DIR: path.join(dir, 'config'), R2FL_DATA_DIR: path.join(dir, 'data') };
+  const env = {
+    FLASHLINK_CONFIG_DIR: path.join(dir, 'config'),
+    FLASHLINK_DATA_DIR: path.join(dir, 'data'),
+  };
   const config = { ...DEFAULT_CONFIG, endpoint: ENDPOINT, token: 'secret-token', ...overrides };
   const ctx: Context = {
     config,

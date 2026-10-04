@@ -1,4 +1,4 @@
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 import { describe, expect, it } from 'vitest';
 import { CliError, ReportedError, errorJson } from '../src/errors.ts';
 import { reportFailure } from '../src/report.ts';
@@ -58,8 +58,8 @@ describe('human failures', () => {
     expect(stderr).toBe('error: Nope.\nTry this.\n');
   });
 
-  it('points at `r2fl init` for a 401', () => {
+  it('points at `fl init` for a 401', () => {
     const { stderr } = run(new ApiError(401, 'unauthorized', 'Missing or invalid token.'), false);
-    expect(stderr).toContain('Check your token with `r2fl init`.');
+    expect(stderr).toContain('Check your token with `fl init`.');
   });
 });

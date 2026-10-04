@@ -1,4 +1,4 @@
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 import type { Context } from '../context.ts';
 import { formatBytes, table, timeLeft, truncate, clock } from '../format.ts';
 import { entryStatus, type EntryStatus } from '../history.ts';
@@ -30,9 +30,7 @@ export async function ls(opts: LsOptions, ctx: Context): Promise<void> {
     return;
   }
   if (entries.length === 0) {
-    ctx.err(
-      opts.live ? 'No live links.' : 'No history yet. Upload something with `r2fl up <file>`.',
-    );
+    ctx.err(opts.live ? 'No live links.' : 'No history yet. Upload something with `fl up <file>`.');
     return;
   }
 

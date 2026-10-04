@@ -1,10 +1,10 @@
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 import { loadConfig, parseConfigValue, saveConfig } from '../config.ts';
 import { clientFromConfig, type Context } from '../context.ts';
 import { CliError } from '../errors.ts';
 import { formatBytes } from '../format.ts';
 import { configPath } from '../paths.ts';
-import { formatDuration } from '@r2-fastlink/core';
+import { formatDuration } from '@flashlink/core';
 
 export interface InitOptions {
   endpoint?: string;
@@ -18,13 +18,13 @@ export interface InitOptions {
 export async function init(opts: InitOptions, ctx: Context): Promise<void> {
   const interactive = ctx.stdinIsTTY;
   let endpoint = opts.endpoint ?? ctx.config.endpoint;
-  let token = opts.token ?? ctx.env.R2FL_TOKEN;
+  let token = opts.token ?? ctx.env.FLASHLINK_TOKEN;
   if (!endpoint) {
     if (!interactive) throw new CliError('Missing --endpoint.', 'Pass --endpoint and --token.');
     endpoint = await ctx.prompt('Worker URL (e.g. https://fl.example.com): ');
   }
   if (!token) {
-    if (!interactive) throw new CliError('Missing --token (or R2FL_TOKEN).');
+    if (!interactive) throw new CliError('Missing --token (or FLASHLINK_TOKEN).');
     token = await ctx.prompt('Upload token: ', { secret: true });
   }
 
@@ -48,7 +48,7 @@ export async function init(opts: InitOptions, ctx: Context): Promise<void> {
       if (err instanceof ApiError && err.status === 401) {
         throw new CliError(
           'The server rejected that token (401).',
-          'Check R2FL_TOKEN on the Worker.',
+          'Check FLASHLINK_TOKEN on the Worker.',
         );
       }
       if (err instanceof ApiError) {

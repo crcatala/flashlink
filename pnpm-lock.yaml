@@ -30,7 +30,7 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0
     devDependencies:
-      '@r2-fastlink/core':
+      '@flashlink/core':
         specifier: workspace:*
         version: link:../core
       '@types/node':
@@ -54,7 +54,7 @@ importers:
 
   packages/worker:
     dependencies:
-      '@r2-fastlink/core':
+      '@flashlink/core':
         specifier: workspace:*
         version: link:../core
       hono:

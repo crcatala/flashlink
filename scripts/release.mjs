@@ -47,7 +47,9 @@ function publish(dryRun) {
     ...gitState(root, tag),
     // `npm view` exits 1 with E404 for an unpublished version; anything else (network) is "unknown".
     publishedOnNpm: (() => {
-      const r = spawnSync('npm', ['view', `r2fl@${cliVersion}`, 'version'], { encoding: 'utf8' });
+      const r = spawnSync('npm', ['view', `flashlink@${cliVersion}`, 'version'], {
+        encoding: 'utf8',
+      });
       if (r.status === 0) return r.stdout.trim() === cliVersion;
       return /E404/.test(r.stderr) ? false : null;
     })(),
@@ -56,10 +58,10 @@ function publish(dryRun) {
   };
   const problems = publishProblems(state);
   if (problems.length > 0) {
-    fail(`Not publishing r2fl ${cliVersion}:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+    fail(`Not publishing fl ${cliVersion}:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
   }
   console.error(
-    `Publishing r2fl ${cliVersion} to npm as ${state.npmUser}${dryRun ? ' (dry run)' : ''}...`,
+    `Publishing fl ${cliVersion} to npm as ${state.npmUser}${dryRun ? ' (dry run)' : ''}...`,
   );
   // Inherit stdio: npm asks for your one-time password here, if your account uses 2FA for publishing.
   const r = spawnSync('npm', ['publish', '--access', 'public', ...(dryRun ? ['--dry-run'] : [])], {
@@ -68,7 +70,7 @@ function publish(dryRun) {
   });
   if (r.status !== 0)
     fail('npm publish failed. Fix the cause and run `pnpm release:publish` again.');
-  if (!dryRun) console.error(`Published. Check: npm view r2fl@${cliVersion}`);
+  if (!dryRun) console.error(`Published. Check: npm view flashlink@${cliVersion}`);
 }
 
 const [command, ...rest] = process.argv.slice(2);

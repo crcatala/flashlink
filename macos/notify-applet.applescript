@@ -1,10 +1,10 @@
--- r2-fastlink notifier: the applet install.sh builds from this file with osacompile.
+-- flashlink notifier: the applet install.sh builds from this file with osacompile.
 --
 -- Why it exists: notifications posted by plain `osascript` belong to Script Editor, so clicking
 -- one opens Script Editor's Open dialog. A notification posted from this applet belongs to the
--- applet ("r2-fastlink"), and a click just relaunches it with nothing to do, so it quits again.
+-- applet ("flashlink"), and a click just relaunches it with nothing to do, so it quits again.
 --
--- Protocol: `r2fl up --notify` writes one file per notification into the "pending" folder next to
+-- Protocol: `fl up --notify` writes one file per notification into the "pending" folder next to
 -- this app (line 1: subtitle, line 2: text; written under a dot name and renamed, so a file is
 -- never half written) and then runs `open -g -j` on the app. The data is only ever read as text and
 -- handed to `display notification`; it is never run as code.
@@ -51,7 +51,7 @@ on drainQueue(pendingDir)
 				set bodyText to ""
 				if (count of parts) ≥ 1 then set subtitleText to item 1 of parts
 				if (count of parts) ≥ 2 then set bodyText to item 2 of parts
-				display notification bodyText with title "r2-fastlink" subtitle subtitleText
+				display notification bodyText with title "flashlink" subtitle subtitleText
 				set handled to handled + 1
 			end try
 		end if

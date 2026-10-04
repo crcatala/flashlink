@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { CODE_REGEX } from '@r2-fastlink/core';
+import { CODE_REGEX } from '@flashlink/core';
 import type { Env } from './env.ts';
 import {
   contentDisposition,

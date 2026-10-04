@@ -1,4 +1,4 @@
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 import { CliError, ReportedError, errorJson } from './errors.ts';
 
 export interface ReportIO {
@@ -25,7 +25,7 @@ export function reportFailure(err: unknown, jsonMode: boolean, io: ReportIO): vo
     if (err.hint) io.stderr(`${err.hint}\n`);
   } else if (err instanceof ApiError) {
     io.stderr(`${red('error:')} ${err.message}\n`);
-    if (err.status === 401) io.stderr('Check your token with `r2fl init`.\n');
+    if (err.status === 401) io.stderr('Check your token with `fl init`.\n');
   } else if (err instanceof Error && err.message === 'Cancelled') {
     io.stderr('\n');
   } else {

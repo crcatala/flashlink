@@ -59,7 +59,7 @@
 				<key>ActionParameters</key>
 				<dict>
 					<key>COMMAND_STRING</key>
-					<string>"$HOME/.local/bin/r2fl-quick" "$@"</string>
+					<string>"$HOME/.local/bin/fl-quick" --no-prompt "$@"</string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>
 					<key>inputMethod</key>
@@ -84,7 +84,7 @@
 				<key>Class Name</key>
 				<string>RunShellScriptAction</string>
 				<key>InputUUID</key>
-				<string>4DBCB5F0-FBE6-5AEB-8792-A87391E904F1</string>
+				<string>F922C43C-77D1-51B6-80F3-4099BB4A4F8E</string>
 				<key>Keywords</key>
 				<array>
 					<string>Shell</string>
@@ -94,9 +94,9 @@
 					<string>Unix</string>
 				</array>
 				<key>OutputUUID</key>
-				<string>5B1AAF4D-B101-5F0B-B95C-D8BCCD4AC96E</string>
+				<string>1A7C82EE-99AF-54CB-828C-2258592A462D</string>
 				<key>UUID</key>
-				<string>F8F575D3-FD38-5D28-AC80-0338C304FBB3</string>
+				<string>A8C20453-4A4A-5E89-BCA6-D9A5A1D7A135</string>
 				<key>UnlocalizedApplications</key>
 				<array>
 					<string>Automator</string>

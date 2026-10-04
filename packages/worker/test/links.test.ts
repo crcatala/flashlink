@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
-import type { LinkInfo, ServerStatus } from '@r2-fastlink/core';
+import type { LinkInfo, ServerStatus } from '@flashlink/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { countsAsDownload } from '../src/registry.ts';
 import {

@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_FILE_BYTES, HARD_MAX_FILE_BYTES, type ServerLimits } from '@r2-fastlink/core';
+import { DEFAULT_MAX_FILE_BYTES, HARD_MAX_FILE_BYTES, type ServerLimits } from '@flashlink/core';
 import type { Env } from './env.ts';
 
 const DAY = 86400;

@@ -2,14 +2,14 @@
 
 > **Where the code is:** the spike project (`macos/spike/`, its CI workflow `.github/workflows/macos-spike.yml` and its test) is **not on `main`**. It lives at the git tag `spike-finder-sync` (PR #11, closed unmerged). To look at it: `git checkout spike-finder-sync`, or bring just the folder into a working tree with `git checkout spike-finder-sync -- macos/spike .github/workflows/macos-spike.yml`. File names in this document (`run.sh`, `install.sh`, `README.md`) refer to that folder.
 >
-> **Status:** a native Finder app is deferred. The standalone `r2fl` binary (PR #12) removed the PATH dependency that motivated the spike, without a second client; see [PLAN.md](PLAN.md) and ticket `rf-kecm` (decision 13). If a root-level menu is wanted later, this extension and its hand-off are the starting point, as a thin shell that spawns the binary.
+> **Status:** a native Finder app is deferred. The standalone `fl` binary (PR #12) removed the PATH dependency that motivated the spike, without a second client; see [PLAN.md](PLAN.md) and ticket `rf-kecm` (decision 13). If a root-level menu is wanted later, this extension and its hand-off are the starting point, as a thin shell that spawns the binary.
 
 Run on 2026-10-03. Screenshots are in a comment on PR #11.
 
 ## Verdict
 
 **VIABLE.** A Finder Sync extension signed only with an ad hoc ("Sign to Run Locally") signature loads
-on macOS 26.6.2, shows **Share via r2-fastlink ▸ 15 minutes / 1 hour / 1 day / 7 days** at the **root**
+on macOS 26.6.2, shows **Share via flashlink ▸ 15 minutes / 1 hour / 1 day / 7 days** at the **root**
 of Finder's context menu, and hands every selected path plus the chosen lifetime to a helper app. No
 paid Apple Developer account, no team id, no provisioning profile, no App Group, no notarization.
 
@@ -24,7 +24,7 @@ paid Apple Developer account, no team id, no provisioning profile, no App Group,
 
 | #   | Step                                                        | Result                                                                                                                                                                                                                               |
 | --- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | `test-handoff.sh`, notification from r2-fastlink            | PASS, 6/6 awkward names. Notification is titled "r2-fastlink", not Script Editor (screenshots).                                                                                                                                      |
+| 1   | `test-handoff.sh`, notification from flashlink              | PASS, 6/6 awkward names. Notification is titled "flashlink", not Script Editor (screenshots).                                                                                                                                        |
 | 2   | Root-level menu with submenu                                | PASS. At the root, next to Quick Actions and Services, not inside Quick Actions (screenshot).                                                                                                                                        |
 | 3   | Locations (with `directoryURLs = ["/"]`)                    | Every location the owner tried showed the menu. The background of a Finder folder shows none, which is expected (the spike only handles selected items). Which volumes were tried was not itemized; Downloads is in the screenshots. |
 | 3   | Same list with `WATCH=home`                                 | Not tried, and not needed: `/` already works (see below).                                                                                                                                                                            |
@@ -33,7 +33,7 @@ paid Apple Developer account, no team id, no provisioning profile, no App Group,
 | 6   | Large selection                                             | PASS. 924 files in one selection (15m): all received, notification "would share 924 file(s) ...". The URL hand-off did not hit a limit.                                                                                              |
 | 7   | Survives logout/login                                       | Reported as working as expected (not itemized separately).                                                                                                                                                                           |
 | 7   | Reinstall/rebuild                                           | The new build loads without `killall Finder` or any `pluginkit` command by hand (`install.sh` runs `pluginkit` itself).                                                                                                              |
-| 7   | Hand-off relaunches the host app if it is quit              | PASS. After `killall r2-fastlink` the next click started it again (the URL scheme launches it).                                                                                                                                      |
+| 7   | Hand-off relaunches the host app if it is quit              | PASS. After `killall flashlink` the next click started it again (the URL scheme launches it).                                                                                                                                        |
 | 8   | Gatekeeper / privacy prompts                                | None. The app came from CI; `install.sh` strips the quarantine flag.                                                                                                                                                                 |
 | -   | Extension enabling                                          | The menu appeared right after `install.sh` (`pluginkit -a` + `pluginkit -e use`); nothing had to be enabled in System Settings.                                                                                                      |
 
@@ -65,10 +65,10 @@ dropped from the real app, unless a later reason to narrow the watched set appea
 
 ## Recommendation
 
-**Update 2026-10-03:** this was overtaken by PR #12. The Quick Action now runs a standalone `r2fl` binary, which removes the PATH and node dependency without a second client, so a native app is **deferred**. The original recommendation is kept below for the record.
+**Update 2026-10-03:** this was overtaken by PR #12. The Quick Action now runs a standalone `fl` binary, which removes the PATH and node dependency without a second client, so a native app is **deferred**. The original recommendation is kept below for the record.
 
 **Update 2026-10-03:** the spike stands as proof that the root-level menu is possible. The recommendation below
-(a real app with its own upload code) was overtaken by PR #12: the Quick Action now runs a standalone `r2fl`
+(a real app with its own upload code) was overtaken by PR #12: the Quick Action now runs a standalone `fl`
 binary, which removes the PATH and node dependency without a second client. A native app is therefore
 **deferred**. If the root-level menu is wanted later, build it as a thin Finder Sync shell that spawns that
 binary (`rf-kecm` decision 13, Option B), reusing this spike's extension and hand-off. The Quick Action stays

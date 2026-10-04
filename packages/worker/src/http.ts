@@ -1,4 +1,4 @@
-import type { ApiErrorBody, ApiErrorCode } from '@r2-fastlink/core';
+import type { ApiErrorBody, ApiErrorCode } from '@flashlink/core';
 
 export function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {

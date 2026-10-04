@@ -12,7 +12,7 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>Share via r2-fastlink</string>
+				<string>Share via flashlink (default lifetime)</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>runWorkflowAsService</string>

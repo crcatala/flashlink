@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 import { extractCode } from '../code.ts';
 import type { Context } from '../context.ts';
 import { CliError } from '../errors.ts';
@@ -69,7 +69,7 @@ async function reupload(code: string, ttlSeconds: number, ctx: Context) {
     // "the same content" the way a file can, and silently sending a different zip is worse.
     throw new CliError(
       `${gone}; it was a zipped folder (${entry.sourcePath}), which can't be re-uploaded safely.`,
-      'Upload the folder again with `r2fl up` to get a new link.',
+      'Upload the folder again with `fl up` to get a new link.',
     );
   }
   let bytes: Buffer;
@@ -81,7 +81,7 @@ async function reupload(code: string, ttlSeconds: number, ctx: Context) {
   if (createHash('sha256').update(bytes).digest('hex') !== entry.sha256) {
     throw new CliError(
       `${gone}, and ${entry.sourcePath} has changed since it was uploaded.`,
-      'Upload it again with `r2fl up` to get a new link.',
+      'Upload it again with `fl up` to get a new link.',
     );
   }
   ctx.err(

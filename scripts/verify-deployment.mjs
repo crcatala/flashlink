@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Black-box verification of a running r2-fastlink deployment (real Cloudflare or `wrangler dev`).
+// Black-box verification of a running flashlink deployment (real Cloudflare or `wrangler dev`).
 //
-//   R2FL_TOKEN=<upload token> node scripts/verify-deployment.mjs --endpoint https://<worker-url>
+//   FLASHLINK_TOKEN=<upload token> node scripts/verify-deployment.mjs --endpoint https://<worker-url>
 //
 // It talks plain HTTP only (Node 22+, no dependencies), uploads a few throwaway files, exercises
 // fetch/expiry/refresh/revoke/purge, probes the rate limiter, then purges everything it created.
@@ -10,9 +10,9 @@ import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const HELP = `Usage: R2FL_TOKEN=... node scripts/verify-deployment.mjs --endpoint <url> [options]
+const HELP = `Usage: FLASHLINK_TOKEN=... node scripts/verify-deployment.mjs --endpoint <url> [options]
 
-  --endpoint <url>        Worker base URL (or env R2FL_ENDPOINT)
+  --endpoint <url>        Worker base URL (or env FLASHLINK_ENDPOINT)
   --large-mb <n>          size of the large upload in MiB (default 49, capped below the server limit)
   --skip-large            skip the large upload and the over-limit (413) upload
   --sweeper               also test the sweeper alarm (needs PURGE_GRACE_SECONDS <= 300 on the server)
@@ -22,7 +22,7 @@ const HELP = `Usage: R2FL_TOKEN=... node scripts/verify-deployment.mjs --endpoin
                           the per-IP limit is 60/min and also covers /api
   -h, --help              show this help
 
-The token is read from the environment only (R2FL_TOKEN) so it never shows up in a process list.`;
+The token is read from the environment only (FLASHLINK_TOKEN) so it never shows up in a process list.`;
 
 const { values: opts } = parseArgs({
   options: {
@@ -42,11 +42,11 @@ if (opts.help) {
   process.exit(0);
 }
 
-const endpointArg = opts.endpoint ?? process.env.R2FL_ENDPOINT;
-const token = process.env.R2FL_TOKEN;
+const endpointArg = opts.endpoint ?? process.env.FLASHLINK_ENDPOINT;
+const token = process.env.FLASHLINK_TOKEN;
 if (!endpointArg || !token) {
   console.error(HELP);
-  console.error('\nerror: --endpoint (or R2FL_ENDPOINT) and R2FL_TOKEN are required.');
+  console.error('\nerror: --endpoint (or FLASHLINK_ENDPOINT) and FLASHLINK_TOKEN are required.');
   process.exit(2);
 }
 let endpoint;
