@@ -10,8 +10,13 @@ export interface LinkInfo {
   expired: boolean;
   /** Per-window download cap, or null for unlimited. */
   maxDownloads: number | null;
-  /** Total fetches over the link's lifetime. */
+  /**
+   * Total counted fetches over the link's lifetime: every satisfiable `GET`, ranged or not, with
+   * or without a cap. A `HEAD`, a `416` and a request for an unknown, expired or exhausted link
+   * are not counted. The same count is what `maxDownloads` limits (per window).
+   */
   hits: number;
+  /** When `hits` last increased; null while the link has never been fetched. */
   lastHitAt: string | null;
 }
 

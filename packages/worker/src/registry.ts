@@ -34,10 +34,12 @@ export type ResolveResult =
   | { status: 'expired' | 'exhausted'; link: LinkInfo }
   | { status: 'notfound' };
 
-/** Whether a GET with this `Range` header (or none) is a download for the cap and hit count. */
+/**
+ * Whether a GET with this `Range` header (or none) is counted against the cap and in `hits`:
+ * every satisfiable request is, ranged or not; only a 416 is free.
+ */
 export function countsAsDownload(rangeHeader: string | null, size: number): boolean {
-  const range = parseRange(rangeHeader, size);
-  return range === null || (range !== 'unsatisfiable' && range.start === 0);
+  return parseRange(rangeHeader, size) !== 'unsatisfiable';
 }
 
 export type MutateResult =
@@ -196,11 +198,10 @@ export class Registry extends DurableObject<Env> {
   // ---- reads ------------------------------------------------------------------------
 
   /**
-   * Resolve a code for serving. With `count`, atomically records the hit when the request is
-   * a download under the cap policy (PLAN section 9): a GET that is satisfiable and is either
-   * not ranged or starts at offset 0. `range` is the raw `Range` header, so the one registry
-   * call per fetch both decides and records. Later ranges of a ranged client, and 416s, never
-   * consume the cap (the cap still gates them: an exhausted link serves nothing).
+   * Resolve a code for serving. With `count`, atomically records the hit unless the request is
+   * unsatisfiable (PLAN section 9). `range` is the raw `Range` header, so the one registry call
+   * per fetch both decides and records. Every satisfiable GET counts, ranged or not, so a ranged
+   * read cannot get around the cap; a 416 serves no bytes and is free.
    */
   async resolve(code: string, count: boolean, range?: string | null): Promise<ResolveResult> {
     const now = Date.now();

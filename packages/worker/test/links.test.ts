@@ -245,26 +245,22 @@ describe('download cap', () => {
     expect((await call(`/${link.code}`)).status).toBe(410);
   });
 
-  it('counts a ranged client once: the range from offset 0 counts, later ranges do not', async () => {
+  it('counts every satisfiable ranged request, so ranges cannot get around the cap', async () => {
     const link = await uploadOk('0123456789', { maxDownloads: 3 });
+    // A read that never touches byte 0 still uses up the cap.
+    expect((await ranged(link.code, 'bytes=1-')).status).toBe(206);
+    expect((await ranged(link.code, 'bytes=-3')).status).toBe(206);
+    expect((await infoOf(link.code)).hits).toBe(2);
     expect((await ranged(link.code, 'bytes=0-3')).status).toBe(206);
-    expect((await infoOf(link.code)).hits).toBe(1);
-    for (const range of ['bytes=4-7', 'bytes=8-', 'bytes=-2', 'bytes=5-5']) {
-      expect((await ranged(link.code, range)).status, range).toBe(206);
-    }
-    const info = await infoOf(link.code);
-    expect(info.hits).toBe(1);
-    expect(info.lastHitAt).not.toBeNull();
-    // Two more full downloads use up the cap of 3.
-    expect((await call(`/${link.code}`)).status).toBe(200);
-    expect((await ranged(link.code, 'bytes=0-')).status).toBe(206);
+    expect((await infoOf(link.code)).hits).toBe(3);
+    expect((await ranged(link.code, 'bytes=4-7')).status).toBe(410);
     expect((await call(`/${link.code}`)).status).toBe(410);
   });
 
-  it('counts a suffix range that covers the whole file and ignored multi-range headers', async () => {
+  it('counts multi-range and malformed Range headers (served as a full 200)', async () => {
     const link = await uploadOk('0123456789', { maxDownloads: 2 });
-    expect((await ranged(link.code, 'bytes=-100')).status).toBe(206);
     expect((await ranged(link.code, 'bytes=0-1,4-5')).status).toBe(200);
+    expect((await ranged(link.code, 'garbage')).status).toBe(200);
     expect((await infoOf(link.code)).hits).toBe(2);
     expect((await call(`/${link.code}`)).status).toBe(410);
   });
@@ -275,8 +271,29 @@ describe('download cap', () => {
     expect((await ranged(link.code, 'bytes=2-3')).status).toBe(410);
     expect((await postJson(`/api/links/${link.code}/refresh`, {})).status).toBe(200);
     expect((await ranged(link.code, 'bytes=2-3')).status).toBe(206);
-    expect((await ranged(link.code, 'bytes=0-3')).status).toBe(206);
     expect((await ranged(link.code, 'bytes=2-3')).status).toBe(410);
+  });
+
+  it('does not count a 416 on an unlimited link either, but counts what it serves', async () => {
+    const link = await uploadOk('0123456789');
+    expect(link.maxDownloads).toBeNull();
+    expect((await ranged(link.code, 'bytes=50-60')).status).toBe(416);
+    expect((await call(`/${link.code}`, { method: 'HEAD' })).status).toBe(200);
+    const untouched = await infoOf(link.code);
+    expect(untouched.hits).toBe(0);
+    expect(untouched.lastHitAt).toBeNull();
+
+    expect((await ranged(link.code, 'bytes=4-7')).status).toBe(206);
+    const first = await infoOf(link.code);
+    expect(first.hits).toBe(1);
+    expect(first.lastHitAt).not.toBeNull();
+
+    expect((await call(`/${link.code}`)).status).toBe(200);
+    expect((await ranged(link.code, 'bytes=50-60')).status).toBe(416);
+    const second = await infoOf(link.code);
+    expect(second.hits).toBe(2);
+    // lastHitAt moves with each served request, and not with the 416 after it.
+    expect(Date.parse(second.lastHitAt!)).toBeGreaterThanOrEqual(Date.parse(first.lastHitAt!));
   });
 
   it('does not count HEAD', async () => {
@@ -326,15 +343,15 @@ describe('countsAsDownload', () => {
     ['', true],
     ['bytes=0-', true],
     ['bytes=0-3', true],
+    ['bytes=1-', true],
+    ['bytes=4-7', true],
+    ['bytes=-3', true],
     ['bytes=-100', true],
-    ['bytes=-10', true],
-    ['bytes=1-', false],
-    ['bytes=4-7', false],
-    ['bytes=-3', false],
-    ['bytes=50-60', false],
-    ['bytes=-0', false],
     ['bytes=0-1,4-5', true],
     ['garbage', true],
+    ['bytes=50-60', false],
+    ['bytes=10-', false],
+    ['bytes=-0', false],
   ])('Range %j on a 10-byte file -> %s', (header, expected) => {
     expect(countsAsDownload(header, 10)).toBe(expected);
   });
