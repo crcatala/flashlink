@@ -14,12 +14,12 @@ import { configPath } from './paths.ts';
 import { reportFailure } from './report.ts';
 
 /** Set by scripts/build-binary.sh (the git commit); absent when running from source or npm. */
-declare const __R2FL_BUILD__: string | undefined;
+declare const __FLASHLINK_BUILD__: string | undefined;
 
 /** `0.0.0`, or `0.0.0 (a1b2c3d)` for a standalone build, so a stale install is easy to spot. */
 const VERSION =
-  typeof __R2FL_BUILD__ === 'string' && __R2FL_BUILD__
-    ? `${pkg.version} (${__R2FL_BUILD__})`
+  typeof __FLASHLINK_BUILD__ === 'string' && __FLASHLINK_BUILD__
+    ? `${pkg.version} (${__FLASHLINK_BUILD__})`
     : pkg.version;
 
 function positiveInt(value: string): number {
@@ -39,7 +39,7 @@ function optionArgs(argv: string[]): string[] {
  * Option errors are thrown, not printed, so `--json` can turn them into JSON.
  */
 function buildProgram(ctx: () => Context, quiet: boolean): Command {
-  const program = new Command('r2fl')
+  const program = new Command('fl')
     .description('Upload a file and get a short link that expires on its own.')
     .version(VERSION)
     .showHelpAfterError('(run with --help for usage)')
@@ -51,7 +51,7 @@ function buildProgram(ctx: () => Context, quiet: boolean): Command {
     .command('init')
     .description('Save your Worker URL and upload token, and verify them')
     .option('-e, --endpoint <url>', 'Worker URL, e.g. https://fl.example.com')
-    .option('-k, --token <token>', 'upload token (or set R2FL_TOKEN)')
+    .option('-k, --token <token>', 'upload token (or set FLASHLINK_TOKEN)')
     .option('-t, --ttl <duration>', 'default link lifetime, e.g. 1h')
     .option('--no-verify', 'save without contacting the server')
     .action((opts) => init(opts, ctx()));

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Refuses a release tag that does not match the CLI's version (and the root package.json, which
 // `pnpm release` bumps and copies into the CLI), so the npm package, the release binaries and
-// `r2fl --version` can never disagree. Versions are not edited by hand: see RELEASING.md.
+// `fl --version` can never disagree. Versions are not edited by hand: see RELEASING.md.
 //
 //   node scripts/check-release-tag.mjs v0.1.0     (the release workflow passes $GITHUB_REF_NAME)
 

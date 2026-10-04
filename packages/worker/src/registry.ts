@@ -5,7 +5,7 @@ import {
   type ApiErrorCode,
   type LinkInfo,
   type ServerStatus,
-} from '@r2-fastlink/core';
+} from '@flashlink/core';
 import { generateCode } from './code.ts';
 import { parseLimits } from './config.ts';
 import type { Env } from './env.ts';

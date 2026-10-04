@@ -6,14 +6,14 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const macosDir = path.resolve(import.meta.dirname, '..', '..', '..', 'macos');
-const wrapper = path.join(macosDir, 'r2fl-quick.sh');
-const WORKFLOWS = ['Share via r2-fastlink', 'Share via r2-fastlink (default lifetime)'];
+const wrapper = path.join(macosDir, 'fl-quick.sh');
+const WORKFLOWS = ['Share via flashlink', 'Share via flashlink (default lifetime)'];
 
 let dir: string;
 
-// A fake `r2fl`: answers `config get defaultTtl`, and records the arguments of `up` (NUL separated
+// A fake `fl`: answers `config get defaultTtl`, and records the arguments of `up` (NUL separated
 // so that a newline inside an argument stays visible).
-const FAKE_R2FL = `#!/bin/sh
+const FAKE_FLASHLINK = `#!/bin/sh
 if [ "$1" = --version ]; then
   printf '%s\\n' "\${FAKE_VERSION-0.0.0 (fake123)}"
   exit 0
@@ -23,8 +23,8 @@ if [ "$1" = config ] && [ "$2" = get ] && [ "$3" = defaultTtl ]; then
   printf '%s\\n' "\${FAKE_DEFAULT_TTL-1h}"
   exit 0
 fi
-for a in "$@"; do printf '%s\\0' "$a"; done >> "$FAKE_LOG/r2fl.args"
-printf '\\n' >> "$FAKE_LOG/r2fl.args"
+for a in "$@"; do printf '%s\\0' "$a"; done >> "$FAKE_LOG/fl.args"
+printf '\\n' >> "$FAKE_LOG/fl.args"
 exit "\${FAKE_UP_EXIT:-0}"
 `;
 
@@ -60,8 +60,8 @@ function write(file: string, content: string, mode = 0o755): void {
 }
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-macos-'));
-  write(path.join(dir, 'bin', 'r2fl'), FAKE_R2FL);
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-macos-'));
+  write(path.join(dir, 'bin', 'fl'), FAKE_FLASHLINK);
   write(path.join(dir, 'bin', 'node'), '#!/bin/sh\nexit 0\n'); // only has to be found
   write(path.join(dir, 'fake-osascript'), FAKE_OSASCRIPT);
   write(path.join(dir, 'fake-shell'), FAKE_SHELL);
@@ -81,8 +81,8 @@ function run(
       PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`,
       HOME: path.join(dir, 'home'),
       FAKE_LOG: path.join(dir, 'log'),
-      R2FL_QUICK_SHELL: path.join(dir, 'fake-shell'),
-      R2FL_QUICK_OSASCRIPT: path.join(dir, 'fake-osascript'),
+      FLASHLINK_QUICK_SHELL: path.join(dir, 'fake-shell'),
+      FLASHLINK_QUICK_OSASCRIPT: path.join(dir, 'fake-osascript'),
       ...env,
     },
   });
@@ -101,13 +101,13 @@ function calls(name: string): string[][] {
     .map((line) => line.split('\0').slice(0, -1));
 }
 
-const upCalls = () => calls('r2fl.args');
+const upCalls = () => calls('fl.args');
 const osaCalls = () => calls('osascript.args');
 const pickerCalls = () => osaCalls().filter((c) => c.join(' ').includes('choose from list'));
 const notifications = () => osaCalls().filter((c) => c.join(' ').includes('display notification'));
 
-describe('r2fl-quick --no-prompt', () => {
-  it('passes awkward file names to r2fl intact, after --', () => {
+describe('fl-quick --no-prompt', () => {
+  it('passes awkward file names to fl intact, after --', () => {
     const files = [
       'plain.txt',
       'with space.png',
@@ -132,22 +132,22 @@ describe('r2fl-quick --no-prompt', () => {
     expect(osaCalls()).toEqual([]);
   });
 
-  it('propagates the exit code of r2fl', () => {
+  it('propagates the exit code of fl', () => {
     for (const code of [1, 2, 3]) {
       fs.rmSync(path.join(dir, 'log'), { recursive: true });
       fs.mkdirSync(path.join(dir, 'log'));
       const r = run(wrapper, ['--no-prompt', 'a.txt'], { FAKE_UP_EXIT: String(code) });
       expect(r.status).toBe(code);
-      // r2fl itself reports failures through --notify; the wrapper adds nothing.
+      // fl itself reports failures through --notify; the wrapper adds nothing.
       expect(notifications()).toEqual([]);
     }
   });
 
-  it('posts its own notification when the login shell cannot find r2fl or node (127)', () => {
+  it('posts its own notification when the login shell cannot find fl or node (127)', () => {
     const r = run(wrapper, ['--no-prompt', 'a.txt'], { FAKE_UP_EXIT: '127' });
     expect(r.status).toBe(127);
     expect(notifications()).toHaveLength(1);
-    expect(notifications()[0]).toContain('Could not run r2fl');
+    expect(notifications()[0]).toContain('Could not run fl');
   });
 
   it('fails with usage when given no files', () => {
@@ -158,14 +158,14 @@ describe('r2fl-quick --no-prompt', () => {
   });
 });
 
-describe('r2fl-quick problem notifications', () => {
+describe('fl-quick problem notifications', () => {
   const dataDir = () => path.join(dir, 'data');
-  const applet = () => path.join(dataDir(), 'notify', 'r2-fastlink.app');
+  const applet = () => path.join(dataDir(), 'notify', 'flashlink.app');
   const pendingDir = () => path.join(dataDir(), 'notify', 'pending');
   const openCalls = () => calls('open.args');
   const env = (extra: Record<string, string> = {}) => ({
-    R2FL_DATA_DIR: dataDir(),
-    R2FL_QUICK_OPEN: path.join(dir, 'fake-open'),
+    FLASHLINK_DATA_DIR: dataDir(),
+    FLASHLINK_QUICK_OPEN: path.join(dir, 'fake-open'),
     FAKE_UP_EXIT: '127',
     ...extra,
   });
@@ -186,10 +186,10 @@ describe('r2fl-quick problem notifications', () => {
     expect(queued).toHaveLength(1);
     expect(queued[0]).not.toMatch(/^\./);
     const file = path.join(pendingDir(), queued[0]!);
-    // Same protocol as `r2fl up --notify`: subtitle, then text, one per line; owner only.
+    // Same protocol as `fl up --notify`: subtitle, then text, one per line; owner only.
     expect(fs.readFileSync(file, 'utf8').split('\n')).toEqual([
-      'Could not run r2fl',
-      expect.stringContaining('r2fl or node was not found'),
+      'Could not run fl',
+      expect.stringContaining('fl or node was not found'),
       '',
     ]);
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
@@ -225,10 +225,10 @@ describe('r2fl-quick problem notifications', () => {
   });
 });
 
-describe('r2fl-quick finding r2fl', () => {
+describe('fl-quick finding fl', () => {
   const bareEnv = (extra: Record<string, string> = {}) => ({
-    PATH: '/usr/bin:/bin', // like a Quick Action: the fake r2fl is not on it
-    R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
+    PATH: '/usr/bin:/bin', // like a Quick Action: the fake fl is not on it
+    FLASHLINK_CONFIG_DIR: path.join(dir, 'cfg'),
     ...extra,
   });
   const shellCalls = () =>
@@ -240,7 +240,7 @@ describe('r2fl-quick finding r2fl', () => {
       : [];
   const record = (line: string) => write(path.join(dir, 'cfg', 'quick-action-path'), line, 0o644);
 
-  it('finds r2fl and node through the directories recorded by the installer', () => {
+  it('finds fl and node through the directories recorded by the installer', () => {
     record(`${path.join(dir, 'bin')}\n`);
     const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
     expect(r.status).toBe(0);
@@ -258,14 +258,14 @@ describe('r2fl-quick finding r2fl', () => {
   it('retries once in an interactive login shell when the first try finds nothing', () => {
     const r = run(wrapper, ['--no-prompt', 'a.txt'], {
       FAKE_ONLY_INTERACTIVE: '1',
-      R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
+      FLASHLINK_CONFIG_DIR: path.join(dir, 'cfg'),
     });
     expect(r.status).toBe(0);
     expect(upCalls()).toEqual([['up', '--notify', '--', 'a.txt']]);
     expect(shellCalls()).toEqual(['0', '1']);
   });
 
-  it('says to re-run the installer when nothing finds r2fl', () => {
+  it('says to re-run the installer when nothing finds fl', () => {
     const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
     expect(r.status).toBe(127);
     expect(shellCalls()).toEqual(['0', '1']);
@@ -273,12 +273,12 @@ describe('r2fl-quick finding r2fl', () => {
     expect(notifications()[0]!.join(' ')).toContain('Run macos/install.sh again');
   });
 
-  it('--check succeeds only when r2fl and node are both found', () => {
+  it('--check succeeds only when fl and node are both found', () => {
     expect(run(wrapper, ['--check'], bareEnv()).status).toBe(127);
     record(path.join(dir, 'bin'));
     const ok = run(wrapper, ['--check'], bareEnv());
     expect(ok.status).toBe(0);
-    expect(ok.stdout).toContain(path.join(dir, 'bin', 'r2fl'));
+    expect(ok.stdout).toContain(path.join(dir, 'bin', 'fl'));
     expect(ok.stdout).toContain(path.join(dir, 'bin', 'node'));
   });
 
@@ -290,9 +290,9 @@ describe('r2fl-quick finding r2fl', () => {
   });
 });
 
-const BUILD = 'r2fl 0.0.0 (fake123), from PATH';
+const BUILD = 'fl 0.0.0 (fake123), from PATH';
 
-describe('r2fl-quick lifetime picker', () => {
+describe('fl-quick lifetime picker', () => {
   const cases: [string, string][] = [
     ['15 minutes', '15m'],
     ['1 hour', '1h'],
@@ -342,7 +342,7 @@ describe('r2fl-quick lifetime picker', () => {
     expect(call!.slice(call!.lastIndexOf('end run') + 1)[0]).toBe('2h');
   });
 
-  it('trims whitespace around the default, which r2fl accepts (" 15m")', () => {
+  it('trims whitespace around the default, which fl accepts (" 15m")', () => {
     run(wrapper, ['a.txt'], { FAKE_PICK: '15 minutes', FAKE_DEFAULT_TTL: '  15m \t' });
     const [call] = pickerCalls();
     expect(call!.slice(call!.lastIndexOf('end run') + 1)[0]).toBe('15 minutes');
@@ -363,20 +363,20 @@ describe('r2fl-quick lifetime picker', () => {
   it('shows which build is running as the last list argument, and where it came from', () => {
     run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', FAKE_VERSION: '1.2.3 (abc1234-dirty)' });
     const [call] = pickerCalls();
-    expect(call![call!.length - 1]).toBe('r2fl 1.2.3 (abc1234-dirty), from PATH');
+    expect(call![call!.length - 1]).toBe('fl 1.2.3 (abc1234-dirty), from PATH');
   });
 
   it('says "standalone" for the installed binary and survives a version that cannot be read', () => {
-    const bin = path.join(dir, 'data', 'bin', 'r2fl');
-    write(bin, FAKE_R2FL);
-    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', R2FL_DATA_DIR: path.join(dir, 'data') });
-    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl 0.0.0 (fake123), standalone');
+    const bin = path.join(dir, 'data', 'bin', 'fl');
+    write(bin, FAKE_FLASHLINK);
+    run(wrapper, ['a.txt'], { FAKE_PICK: '1 hour', FLASHLINK_DATA_DIR: path.join(dir, 'data') });
+    expect(pickerCalls()[0]!.at(-1)).toBe('fl 0.0.0 (fake123), standalone');
     run(wrapper, ['a.txt'], {
       FAKE_PICK: '1 hour',
       FAKE_VERSION: '',
-      R2FL_DATA_DIR: path.join(dir, 'data'),
+      FLASHLINK_DATA_DIR: path.join(dir, 'data'),
     });
-    expect(pickerCalls()[1]!.at(-1)).toBe('r2fl unknown version, standalone');
+    expect(pickerCalls()[1]!.at(-1)).toBe('fl unknown version, standalone');
   });
 
   it('keeps the AppleScript fixed: config text and file names travel only as arguments', () => {
@@ -406,7 +406,7 @@ describe('r2fl-quick lifetime picker', () => {
     expect(notifications()[0]).toContain('Could not show the lifetime picker');
   });
 
-  it('shows what r2fl said when it ran but failed (corrupt config), not a PATH hint', () => {
+  it('shows what fl said when it ran but failed (corrupt config), not a PATH hint', () => {
     const message = 'error: Expected property name or } in JSON at position 2';
     const r = run(wrapper, ['a.txt'], { FAKE_CONFIG_EXIT: '1', FAKE_CONFIG_ERR: message });
     expect(r.status).toBe(1);
@@ -417,26 +417,26 @@ describe('r2fl-quick lifetime picker', () => {
     expect(notifications()[0]!.join(' ')).not.toContain('not found');
   });
 
-  it('reports a missing r2fl before showing any picker', () => {
+  it('reports a missing fl before showing any picker', () => {
     const r = run(wrapper, ['a.txt'], { FAKE_CONFIG_EXIT: '127' });
     expect(r.status).toBe(1);
     expect(pickerCalls()).toEqual([]);
     expect(upCalls()).toEqual([]);
-    expect(notifications()[0]).toContain('Could not run r2fl');
+    expect(notifications()[0]).toContain('Could not run fl');
   });
 });
 
-describe('r2fl-quick with the standalone binary', () => {
-  // A bare PATH (the fake r2fl is not on it) and no recorded directories: only the binary can work.
-  const binPath = () => path.join(dir, 'data', 'bin', 'r2fl');
+describe('fl-quick with the standalone binary', () => {
+  // A bare PATH (the fake fl is not on it) and no recorded directories: only the binary can work.
+  const binPath = () => path.join(dir, 'data', 'bin', 'fl');
   const bareEnv = (extra: Record<string, string> = {}) => ({
     PATH: '/usr/bin:/bin',
-    R2FL_CONFIG_DIR: path.join(dir, 'cfg'),
-    R2FL_DATA_DIR: path.join(dir, 'data'),
+    FLASHLINK_CONFIG_DIR: path.join(dir, 'cfg'),
+    FLASHLINK_DATA_DIR: path.join(dir, 'data'),
     ...extra,
   });
   const shellCalls = () => fs.existsSync(path.join(dir, 'log', 'shell.calls'));
-  const install = (content = FAKE_R2FL) => write(binPath(), content);
+  const install = (content = FAKE_FLASHLINK) => write(binPath(), content);
 
   it('runs the binary directly: no login shell, no PATH, no node', () => {
     install();
@@ -454,12 +454,12 @@ describe('r2fl-quick with the standalone binary', () => {
     expect(shellCalls()).toBe(false);
   });
 
-  it('is found at R2FL_QUICK_BIN too', () => {
-    write(path.join(dir, 'elsewhere', 'r2fl'), FAKE_R2FL);
+  it('is found at FLASHLINK_QUICK_BIN too', () => {
+    write(path.join(dir, 'elsewhere', 'fl'), FAKE_FLASHLINK);
     const r = run(
       wrapper,
       ['--no-prompt', 'a.txt'],
-      bareEnv({ R2FL_QUICK_BIN: path.join(dir, 'elsewhere', 'r2fl') }),
+      bareEnv({ FLASHLINK_QUICK_BIN: path.join(dir, 'elsewhere', 'fl') }),
     );
     expect(r.status).toBe(0);
     expect(upCalls()).toHaveLength(1);
@@ -487,17 +487,17 @@ describe('r2fl-quick with the standalone binary', () => {
     install('#!/bin/sh\nexit 127\n');
     write(path.join(dir, 'cfg', 'quick-action-path'), path.join(dir, 'bin'), 0o644);
     run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 hour', FAKE_VERSION: '9.9.9 (path-copy)' }));
-    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl 9.9.9 (path-copy), from PATH');
+    expect(pickerCalls()[0]!.at(-1)).toBe('fl 9.9.9 (path-copy), from PATH');
   });
 
   it('keeps "standalone" when the binary runs but cannot say its version', () => {
     install('#!/bin/sh\n[ "$1" = --version ] && exit 1\n[ "$1" = config ] && echo 1h\nexit 0\n');
     run(wrapper, ['a.txt'], bareEnv({ FAKE_PICK: '1 hour' }));
-    expect(pickerCalls()[0]!.at(-1)).toBe('r2fl unknown version, standalone');
+    expect(pickerCalls()[0]!.at(-1)).toBe('fl unknown version, standalone');
   });
 
   it('ignores a binary that is not executable', () => {
-    write(binPath(), FAKE_R2FL, 0o644);
+    write(binPath(), FAKE_FLASHLINK, 0o644);
     const r = run(wrapper, ['--no-prompt', 'a.txt'], bareEnv());
     expect(r.status).toBe(127);
     expect(upCalls()).toEqual([]);
@@ -540,31 +540,31 @@ describe('install.sh and uninstall.sh', () => {
     write(path.join(home, 'Library', 'Services', 'Other.workflow', 'Contents', 'Info.plist'), 'x');
     const before = files(home);
 
-    const i = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    const i = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(i.status).toBe(0);
     const added = files(home).filter((f) => !before.includes(f));
     expect(added).toEqual(
       [
-        '.local/bin/r2fl-quick',
-        '.config/r2fl/quick-action-path',
+        '.local/bin/fl-quick',
+        '.config/flashlink/quick-action-path',
         ...WORKFLOWS.flatMap((w) => [
           `Library/Services/${w}.workflow/Contents/Info.plist`,
           `Library/Services/${w}.workflow/Contents/document.wflow`,
         ]),
       ].sort(),
     );
-    const installed = path.join(home, '.local', 'bin', 'r2fl-quick');
+    const installed = path.join(home, '.local', 'bin', 'fl-quick');
     expect(fs.statSync(installed).mode & 0o111).not.toBe(0);
     expect(fs.readFileSync(installed, 'utf8')).toBe(fs.readFileSync(wrapper, 'utf8'));
-    // Where r2fl and node were found in the installing terminal is recorded for the wrapper.
-    expect(fs.readFileSync(path.join(home, '.config', 'r2fl', 'quick-action-path'), 'utf8')).toBe(
-      `${path.join(dir, 'bin')}\n`,
-    );
+    // Where fl and node were found in the installing terminal is recorded for the wrapper.
+    expect(
+      fs.readFileSync(path.join(home, '.config', 'flashlink', 'quick-action-path'), 'utf8'),
+    ).toBe(`${path.join(dir, 'bin')}\n`);
     expect(i.stderr).not.toContain('WARNING');
     expect(i.stdout).toContain('found the way a Quick Action will look for them');
 
     // Installing again over an existing install works (an upgrade).
-    expect(run(install, [], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(0);
+    expect(run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' }).status).toBe(0);
 
     const u = run(uninstall, []);
     expect(u.status).toBe(0);
@@ -573,32 +573,41 @@ describe('install.sh and uninstall.sh', () => {
     expect(run(uninstall, []).status).toBe(0);
   });
 
-  it('--binary installs the standalone r2fl under the data dir; uninstall removes only it', () => {
+  it('--binary installs the standalone fl under the data dir; uninstall removes only it', () => {
     const home = path.join(dir, 'home');
-    write(path.join(dir, 'built', 'r2fl-darwin-arm64'), FAKE_R2FL);
-    write(path.join(home, '.local', 'share', 'r2fl', 'history.json'), '[]', 0o644);
+    write(path.join(dir, 'built', 'flashlink-darwin-arm64'), FAKE_FLASHLINK);
+    write(path.join(home, '.local', 'share', 'flashlink', 'history.json'), '[]', 0o644);
     const before = files(home);
 
-    const i = run(install, ['--binary', path.join(dir, 'built', 'r2fl-darwin-arm64')], {
-      R2FL_INSTALL_ANY_OS: '1',
+    const i = run(install, ['--binary', path.join(dir, 'built', 'flashlink-darwin-arm64')], {
+      FLASHLINK_INSTALL_ANY_OS: '1',
     });
     expect(i.status).toBe(0);
-    const bin = path.join(home, '.local', 'share', 'r2fl', 'bin', 'r2fl');
+    const bin = path.join(home, '.local', 'share', 'flashlink', 'bin', 'fl');
     expect(fs.statSync(bin).mode & 0o111).not.toBe(0);
     expect(i.stdout).toContain(`installed: ${bin}`);
     expect(i.stderr).not.toContain('WARNING');
+    // The alias is a relative symlink to fl, and it runs the same binary.
+    const alias = path.join(path.dirname(bin), 'flashlink');
+    expect(fs.lstatSync(alias).isSymbolicLink()).toBe(true);
+    expect(fs.readlinkSync(alias)).toBe('fl');
+    expect(spawnSync(alias, ['--version'], { encoding: 'utf8' }).stdout).toBe(
+      spawnSync(bin, ['--version'], { encoding: 'utf8' }).stdout,
+    );
+    expect(i.stdout).toContain(`installed: ${alias} -> fl`);
 
     const u = run(uninstall, []);
     expect(u.status).toBe(0);
     expect(u.stdout).toContain(`removed: ${bin}`);
+    expect(u.stdout).toContain(`removed: ${alias}`);
     expect(files(home)).toEqual(before); // history.json is still there
     expect(fs.existsSync(path.dirname(bin))).toBe(false);
   });
 
-  it('--binary alone is enough: no node or r2fl needed in the terminal', () => {
-    write(path.join(dir, 'built', 'r2fl'), FAKE_R2FL);
-    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
-      R2FL_INSTALL_ANY_OS: '1',
+  it('--binary alone is enough: no node or fl needed in the terminal', () => {
+    write(path.join(dir, 'built', 'fl'), FAKE_FLASHLINK);
+    const r = run(install, ['--binary', path.join(dir, 'built', 'fl')], {
+      FLASHLINK_INSTALL_ANY_OS: '1',
       PATH: '/usr/bin:/bin',
     });
     expect(r.status).toBe(0);
@@ -607,29 +616,30 @@ describe('install.sh and uninstall.sh', () => {
   });
 
   it('does not install a binary that does not start, warns, and exits non-zero', () => {
-    write(path.join(dir, 'built', 'r2fl'), '#!/bin/sh\nexit 1\n');
-    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
-      R2FL_INSTALL_ANY_OS: '1',
+    write(path.join(dir, 'built', 'fl'), '#!/bin/sh\nexit 1\n');
+    const r = run(install, ['--binary', path.join(dir, 'built', 'fl')], {
+      FLASHLINK_INSTALL_ANY_OS: '1',
     });
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('does not start');
-    const bin = path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin');
-    expect(fs.existsSync(path.join(bin, 'r2fl'))).toBe(false);
-    expect(fs.existsSync(path.join(bin, 'r2fl.new'))).toBe(false);
+    const bin = path.join(dir, 'home', '.local', 'share', 'flashlink', 'bin');
+    expect(fs.existsSync(path.join(bin, 'fl'))).toBe(false);
+    expect(fs.existsSync(path.join(bin, 'fl.new'))).toBe(false);
+    expect(fs.existsSync(path.join(bin, 'flashlink'))).toBe(false);
     // The Quick Actions are still installed and use the login-shell fallback.
-    expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'r2fl-quick'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'fl-quick'))).toBe(true);
   });
 
   it('a failed update keeps the working binary and says so', () => {
     const good = path.join(dir, 'built', 'good');
     write(good, "#!/bin/sh\necho '1.0.0 (old)'\n");
-    const bin = path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl');
-    expect(run(install, ['--binary', good], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(0);
+    const bin = path.join(dir, 'home', '.local', 'share', 'flashlink', 'bin', 'fl');
+    expect(run(install, ['--binary', good], { FLASHLINK_INSTALL_ANY_OS: '1' }).status).toBe(0);
     expect(fs.readFileSync(bin, 'utf8')).toContain('1.0.0 (old)');
 
     const bad = path.join(dir, 'built', 'bad');
     write(bad, '#!/bin/sh\nexit 126\n');
-    const r = run(install, ['--binary', bad], { R2FL_INSTALL_ANY_OS: '1' });
+    const r = run(install, ['--binary', bad], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('previous binary was kept');
     expect(fs.readFileSync(bin, 'utf8')).toContain('1.0.0 (old)');
@@ -643,44 +653,47 @@ describe('install.sh and uninstall.sh', () => {
     const v2 = path.join(dir, 'built', 'v2');
     write(v1, "#!/bin/sh\necho '1.0.0'\n");
     write(v2, "#!/bin/sh\necho '2.0.0'\n");
-    const bin = path.join(dir, 'home', '.local', 'share', 'r2fl', 'bin', 'r2fl');
-    run(install, ['--binary', v1], { R2FL_INSTALL_ANY_OS: '1' });
-    const r = run(install, ['--binary', v2], { R2FL_INSTALL_ANY_OS: '1' });
+    const bin = path.join(dir, 'home', '.local', 'share', 'flashlink', 'bin', 'fl');
+    run(install, ['--binary', v1], { FLASHLINK_INSTALL_ANY_OS: '1' });
+    const r = run(install, ['--binary', v2], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
     expect(fs.readFileSync(bin, 'utf8')).toContain('2.0.0');
+    // The alias follows the update, because it points at fl.
+    const alias = path.join(path.dirname(bin), 'flashlink');
+    expect(spawnSync(alias, ['--version'], { encoding: 'utf8' }).stdout).toContain('2.0.0');
   });
 
   it('says Quick Actions will not find a binary installed under a custom data directory', () => {
-    write(path.join(dir, 'built', 'r2fl'), FAKE_R2FL);
-    const r = run(install, ['--binary', path.join(dir, 'built', 'r2fl')], {
-      R2FL_INSTALL_ANY_OS: '1',
-      R2FL_DATA_DIR: path.join(dir, 'elsewhere'),
+    write(path.join(dir, 'built', 'fl'), FAKE_FLASHLINK);
+    const r = run(install, ['--binary', path.join(dir, 'built', 'fl')], {
+      FLASHLINK_INSTALL_ANY_OS: '1',
+      FLASHLINK_DATA_DIR: path.join(dir, 'elsewhere'),
     });
     expect(r.status).toBe(0);
     expect(r.stderr).toContain('Quick Actions do not see shell variables');
     // ... and the default location raises no such note.
-    const plain = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    const plain = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(plain.stderr).not.toContain('do not see shell variables');
   });
 
   it('rejects a missing --binary file and unknown options without installing anything', () => {
     const missing = run(install, ['--binary', path.join(dir, 'nope')], {
-      R2FL_INSTALL_ANY_OS: '1',
+      FLASHLINK_INSTALL_ANY_OS: '1',
     });
     expect(missing.status).toBe(2);
-    expect(run(install, ['--bogus'], { R2FL_INSTALL_ANY_OS: '1' }).status).toBe(2);
+    expect(run(install, ['--bogus'], { FLASHLINK_INSTALL_ANY_OS: '1' }).status).toBe(2);
     expect(files(path.join(dir, 'home'))).toEqual([]);
   });
 
   it('builds and installs the notifier applet when osacompile exists; uninstall removes it', () => {
     const home = path.join(dir, 'home');
-    const applet = path.join(home, '.local', 'share', 'r2fl', 'notify', 'r2-fastlink.app');
+    const applet = path.join(home, '.local', 'share', 'flashlink', 'notify', 'flashlink.app');
     // A fake osacompile: `osacompile -o OUT SOURCE` creates the bundle and keeps the source.
     write(
       path.join(dir, 'bin', 'osacompile'),
       '#!/bin/sh\nmkdir -p "$2/Contents" && cp "$3" "$2/Contents/source.applescript"\n',
     );
-    const i = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    const i = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(i.status).toBe(0);
     expect(i.stdout).toContain(`installed: ${applet}`);
     expect(fs.readFileSync(path.join(applet, 'Contents', 'source.applescript'), 'utf8')).toBe(
@@ -694,28 +707,28 @@ describe('install.sh and uninstall.sh', () => {
 
   it('says so, but still installs, when the notifier cannot be built', () => {
     write(path.join(dir, 'bin', 'osacompile'), '#!/bin/sh\nexit 1\n');
-    const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    const r = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
     expect(r.stderr).toContain('open Script Editor');
   });
 
   it('works even though a Quick Action has a bare PATH (the terminal PATH is recorded)', () => {
-    const r = run(install, [], { R2FL_INSTALL_ANY_OS: '1' });
+    const r = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
     expect(r.stderr).not.toContain('WARNING');
     expect(r.stdout).toContain('recorded:');
   });
 
-  it('warns, records nothing, but still installs, when r2fl is not found in the terminal', () => {
+  it('warns, records nothing, but still installs, when fl is not found in the terminal', () => {
     const r = run(install, [], {
-      R2FL_INSTALL_ANY_OS: '1',
-      // No fake r2fl on PATH: the login shell cannot resolve it.
+      FLASHLINK_INSTALL_ANY_OS: '1',
+      // No fake fl on PATH: the login shell cannot resolve it.
       PATH: '/usr/bin:/bin',
     });
     expect(r.status).toBe(0);
     expect(r.stderr).toContain('WARNING');
-    expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'r2fl-quick'))).toBe(true);
-    expect(fs.existsSync(path.join(dir, 'home', '.config', 'r2fl', 'quick-action-path'))).toBe(
+    expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'fl-quick'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'home', '.config', 'flashlink', 'quick-action-path'))).toBe(
       false,
     );
   });
@@ -724,7 +737,7 @@ describe('install.sh and uninstall.sh', () => {
 describe('install.sh --latest / --version', () => {
   const install = path.join(macosDir, 'install.sh');
   const home = () => path.join(dir, 'home');
-  const installed = () => path.join(home(), '.local', 'share', 'r2fl', 'bin', 'r2fl');
+  const installed = () => path.join(home(), '.local', 'share', 'flashlink', 'bin', 'fl');
   const release = () => path.join(dir, 'release');
   const sha = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
@@ -734,20 +747,24 @@ describe('install.sh --latest / --version', () => {
     opts: { version?: string; skip?: string[]; corrupt?: string; supportRoot?: string } = {},
   ) {
     const version = opts.version ?? '9.9.9 (rel1234)';
-    write(path.join(release(), 'r2fl-darwin-arm64'), `#!/bin/sh\necho '${version}'\n`);
-    write(path.join(release(), 'r2fl-darwin-x64'), `#!/bin/sh\necho '${version}'\n`);
+    write(path.join(release(), 'flashlink-darwin-arm64'), `#!/bin/sh\necho '${version}'\n`);
+    write(path.join(release(), 'flashlink-darwin-x64'), `#!/bin/sh\necho '${version}'\n`);
     spawnSync(
       'tar',
       [
         '-czf',
-        path.join(release(), 'r2fl-macos-support.tar.gz'),
+        path.join(release(), 'flashlink-macos-support.tar.gz'),
         '-C',
         opts.supportRoot ?? path.dirname(macosDir),
         'macos',
       ],
       { stdio: 'ignore' },
     );
-    const names = ['r2fl-darwin-arm64', 'r2fl-darwin-x64', 'r2fl-macos-support.tar.gz'];
+    const names = [
+      'flashlink-darwin-arm64',
+      'flashlink-darwin-x64',
+      'flashlink-macos-support.tar.gz',
+    ];
     const sums = names
       .filter((n) => !opts.skip?.includes(n))
       .map((n) => `${sha(path.join(release(), n))}  ${n}\n`);
@@ -764,48 +781,51 @@ describe('install.sh --latest / --version', () => {
   }
 
   const dlEnv = (extra: Record<string, string> = {}) => ({
-    R2FL_INSTALL_ANY_OS: '1',
-    R2FL_RELEASE_BASE: `file://${release()}`,
+    FLASHLINK_INSTALL_ANY_OS: '1',
+    FLASHLINK_RELEASE_BASE: `file://${release()}`,
     ...extra,
   });
 
   it('--latest installs the binary for this architecture and shows its version', () => {
     makeRelease();
     fakeUname('arm64');
-    fs.writeFileSync(path.join(release(), 'r2fl-darwin-x64'), '#!/bin/sh\necho wrong-arch\n');
+    fs.writeFileSync(path.join(release(), 'flashlink-darwin-x64'), '#!/bin/sh\necho wrong-arch\n');
     // The x64 file is not what arm64 must pick, whatever its checksum says.
     const r = run(install, ['--latest'], dlEnv());
     expect(r.status).toBe(0);
     expect(r.stdout).toContain(`installed: ${installed()} (9.9.9 (rel1234))`);
     expect(fs.readFileSync(installed(), 'utf8')).toContain('9.9.9 (rel1234)');
-    expect(fs.existsSync(path.join(home(), '.local', 'bin', 'r2fl-quick'))).toBe(true);
+    expect(fs.existsSync(path.join(home(), '.local', 'bin', 'fl-quick'))).toBe(true);
   });
 
   it('picks the x64 binary on an Intel Mac', () => {
     makeRelease();
     fakeUname('x86_64');
-    fs.writeFileSync(path.join(release(), 'r2fl-darwin-arm64'), '#!/bin/sh\necho wrong-arch\n');
+    fs.writeFileSync(
+      path.join(release(), 'flashlink-darwin-arm64'),
+      '#!/bin/sh\necho wrong-arch\n',
+    );
     const r = run(install, ['--latest'], dlEnv());
     expect(r.status).toBe(0);
     expect(fs.readFileSync(installed(), 'utf8')).toContain('9.9.9');
   });
 
   it('refuses a download whose checksum does not match, and installs nothing', () => {
-    makeRelease({ corrupt: 'r2fl-darwin-x64' });
+    makeRelease({ corrupt: 'flashlink-darwin-x64' });
     fakeUname('x86_64');
     const r = run(install, ['--latest'], dlEnv());
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('checksum of r2fl-darwin-x64 does not match');
+    expect(r.stderr).toContain('checksum of flashlink-darwin-x64 does not match');
     expect(fs.existsSync(installed())).toBe(false);
-    expect(fs.existsSync(path.join(home(), '.local', 'bin', 'r2fl-quick'))).toBe(false);
+    expect(fs.existsSync(path.join(home(), '.local', 'bin', 'fl-quick'))).toBe(false);
   });
 
   it('refuses a binary that SHA256SUMS does not list', () => {
-    makeRelease({ skip: ['r2fl-darwin-x64'] });
+    makeRelease({ skip: ['flashlink-darwin-x64'] });
     fakeUname('x86_64');
     const r = run(install, ['--latest'], dlEnv());
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('no entry for r2fl-darwin-x64');
+    expect(r.stderr).toContain('no entry for flashlink-darwin-x64');
     expect(fs.existsSync(installed())).toBe(false);
   });
 
@@ -833,14 +853,14 @@ describe('install.sh --latest / --version', () => {
           home(),
           'Library',
           'Services',
-          'Share via r2-fastlink.workflow',
+          'Share via flashlink.workflow',
           'Contents',
           'Info.plist',
         ),
       ),
     ).toBe(true);
-    expect(fs.readFileSync(path.join(home(), '.local', 'bin', 'r2fl-quick'), 'utf8')).toBe(
-      fs.readFileSync(path.join(macosDir, 'r2fl-quick.sh'), 'utf8'),
+    expect(fs.readFileSync(path.join(home(), '.local', 'bin', 'fl-quick'), 'utf8')).toBe(
+      fs.readFileSync(path.join(macosDir, 'fl-quick.sh'), 'utf8'),
     );
   });
 
@@ -848,28 +868,28 @@ describe('install.sh --latest / --version', () => {
     // The release was cut from other support files than the checkout this installer sits in.
     const other = path.join(dir, 'other');
     fs.cpSync(macosDir, path.join(other, 'macos'), { recursive: true });
-    fs.appendFileSync(path.join(other, 'macos', 'r2fl-quick.sh'), '\n# from the release\n');
+    fs.appendFileSync(path.join(other, 'macos', 'fl-quick.sh'), '\n# from the release\n');
     makeRelease({ supportRoot: other });
     fakeUname('arm64');
     // The real macos/ folder, which is complete: it must not be used.
     const r = run(install, ['--version', 'v9.9.9'], dlEnv());
     expect(r.status).toBe(0);
-    const wrapperText = fs.readFileSync(path.join(home(), '.local', 'bin', 'r2fl-quick'), 'utf8');
+    const wrapperText = fs.readFileSync(path.join(home(), '.local', 'bin', 'fl-quick'), 'utf8');
     expect(wrapperText).toContain('# from the release');
-    expect(fs.readFileSync(path.join(macosDir, 'r2fl-quick.sh'), 'utf8')).not.toContain(
+    expect(fs.readFileSync(path.join(macosDir, 'fl-quick.sh'), 'utf8')).not.toContain(
       '# from the release',
     );
   });
 
   it('on its own, refuses support files that fail the checksum', () => {
-    makeRelease({ corrupt: 'r2fl-macos-support.tar.gz' });
+    makeRelease({ corrupt: 'flashlink-macos-support.tar.gz' });
     fakeUname('arm64');
     const alone = path.join(dir, 'alone');
     fs.mkdirSync(alone);
     fs.copyFileSync(install, path.join(alone, 'install.sh'));
     const r = run(path.join(alone, 'install.sh'), ['--latest'], dlEnv());
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('checksum of r2fl-macos-support.tar.gz does not match');
+    expect(r.stderr).toContain('checksum of flashlink-macos-support.tar.gz does not match');
     expect(fs.existsSync(path.join(home(), 'Library'))).toBe(false);
   });
 
@@ -877,7 +897,7 @@ describe('install.sh --latest / --version', () => {
     const alone = path.join(dir, 'alone');
     fs.mkdirSync(alone);
     fs.copyFileSync(install, path.join(alone, 'install.sh'));
-    const r = run(path.join(alone, 'install.sh'), [], { R2FL_INSTALL_ANY_OS: '1' });
+    const r = run(path.join(alone, 'install.sh'), [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('not next to this script');
   });
@@ -903,8 +923,11 @@ describe('install.sh --latest / --version', () => {
 
     it('asks GitHub for the latest release, then for a given version', () => {
       fakeTools(false);
-      run(install, ['--latest'], { R2FL_INSTALL_ANY_OS: '1', R2FL_REPO: 'me/fork' });
-      run(install, ['--version', '0.1.0'], { R2FL_INSTALL_ANY_OS: '1', R2FL_REPO: 'me/fork' });
+      run(install, ['--latest'], { FLASHLINK_INSTALL_ANY_OS: '1', FLASHLINK_REPO: 'me/fork' });
+      run(install, ['--version', '0.1.0'], {
+        FLASHLINK_INSTALL_ANY_OS: '1',
+        FLASHLINK_REPO: 'me/fork',
+      });
       const urls = fs.readFileSync(path.join(dir, 'log', 'curl.calls'), 'utf8');
       expect(urls).toContain('https://github.com/me/fork/releases/latest/download/SHA256SUMS');
       expect(urls).toContain('https://github.com/me/fork/releases/download/v0.1.0/SHA256SUMS');
@@ -914,12 +937,12 @@ describe('install.sh --latest / --version', () => {
       makeRelease();
       fakeTools(true);
       const r = run(install, ['--version', 'v9.9.9'], {
-        R2FL_INSTALL_ANY_OS: '1',
+        FLASHLINK_INSTALL_ANY_OS: '1',
         FAKE_RELEASE: release(),
       });
       expect(r.status).toBe(0);
       expect(ghCalls()[0]).toBe(
-        'release download v9.9.9 --repo crcatala/r2-fastlink --pattern SHA256SUMS --output ' +
+        'release download v9.9.9 --repo crcatala/flashlink --pattern SHA256SUMS --output ' +
           ghCalls()[0]!.split('--output ')[1],
       );
       expect(fs.existsSync(installed())).toBe(true);
@@ -927,7 +950,7 @@ describe('install.sh --latest / --version', () => {
 
     it('says what to do when neither curl nor gh can download', () => {
       fakeTools(false);
-      const r = run(install, ['--latest'], { R2FL_INSTALL_ANY_OS: '1' });
+      const r = run(install, ['--latest'], { FLASHLINK_INSTALL_ANY_OS: '1' });
       expect(r.status).toBe(1);
       expect(r.stderr).toContain('gh auth login');
     });
@@ -994,8 +1017,8 @@ describe('workflow bundles', () => {
   });
 
   it('runs the installed wrapper without hardcoding a home directory, token or endpoint', () => {
-    expect(commandOf(WORKFLOWS[0]!)).toBe('"$HOME/.local/bin/r2fl-quick" "$@"');
-    expect(commandOf(WORKFLOWS[1]!)).toBe('"$HOME/.local/bin/r2fl-quick" --no-prompt "$@"');
+    expect(commandOf(WORKFLOWS[0]!)).toBe('"$HOME/.local/bin/fl-quick" "$@"');
+    expect(commandOf(WORKFLOWS[1]!)).toBe('"$HOME/.local/bin/fl-quick" --no-prompt "$@"');
     for (const name of WORKFLOWS) {
       const wflow = read(name, 'document.wflow');
       expect(wflow).not.toMatch(/\/Users\/|\/home\/|https?:\/\/(?!www\.apple\.com)|token/i);

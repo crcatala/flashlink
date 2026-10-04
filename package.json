@@ -1,5 +1,5 @@
 {
-  "name": "r2-fastlink",
+  "name": "flashlink-monorepo",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -9,7 +9,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "pnpm --filter r2fl build",
+    "build": "pnpm --filter flashlink build",
     "setup:cloudflare": "node scripts/setup.mjs",
     "build:binary": "sh scripts/build-binary.sh",
     "install:macos": "sh scripts/install-macos.sh",

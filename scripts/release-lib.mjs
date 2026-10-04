@@ -79,7 +79,7 @@ export function publishProblems(state) {
       );
     }
   }
-  if (state.publishedOnNpm === true) problems.push(`r2fl ${state.cliVersion} is already on npm.`);
+  if (state.publishedOnNpm === true) problems.push(`fl ${state.cliVersion} is already on npm.`);
   if (state.publishedOnNpm === null)
     problems.push('Could not check whether this version is already on npm.');
   if (!state.npmUser) problems.push('You are not logged in to npm (`npm login`).');

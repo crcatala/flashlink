@@ -12,8 +12,8 @@ halves with different homes:
 
 ## Prerequisites
 
-- Push access to `crcatala/r2-fastlink` and a clean checkout of `main` (`git pull --ff-only`).
-- Logged in to npm as a maintainer of `r2fl` (`npm whoami`; `npm login` otherwise).
+- Push access to `crcatala/flashlink` and a clean checkout of `main` (`git pull --ff-only`).
+- Logged in to npm as a maintainer of `flashlink` (`npm whoami`; `npm login` otherwise).
 - Node `^22.22.2`, `^24.15.0` or 26+ (what release-it 21 and its changelog plugin declare in `engines`; the project itself only needs 22.12+), pnpm, and `pnpm install` done.
 
 ## Every release
@@ -35,10 +35,10 @@ halves with different homes:
       is on `origin` and points at `HEAD`, the version is not on npm and you are logged in, then runs `npm publish --access public`
       in `packages/cli` (which builds and tests first, and asks for your one-time password if you use 2FA).
 4. **Check.**
-   - CI: the Release workflow is green and the release page lists `r2fl-darwin-arm64`, `r2fl-darwin-x64`,
-     `r2fl-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, with the changelog as notes.
-   - npm: `npm view r2fl version`, then `npx -y r2fl@latest --help` from a clean directory.
-   - Mac: `curl -fsSL https://github.com/crcatala/r2-fastlink/releases/latest/download/install.sh | sh -s -- --latest`.
+   - CI: the Release workflow is green and the release page lists `flashlink-darwin-arm64`, `flashlink-darwin-x64`,
+     `flashlink-macos-support.tar.gz`, `install.sh`, `uninstall.sh` and `SHA256SUMS`, with the changelog as notes.
+   - npm: `npm view flashlink version`, then `npx -y flashlink@latest --help` from a clean directory.
+   - Mac: `curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest`.
 
 ## The first release (0.1.0)
 

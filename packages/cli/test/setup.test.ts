@@ -20,7 +20,7 @@ import {
 
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const TOKEN = 'a'.repeat(32) + 'b'.repeat(32);
-const URL = 'https://r2-fastlink.someone.workers.dev';
+const URL = 'https://flashlink.someone.workers.dev';
 const opts = (o: Partial<SetupOptions> = {}): SetupOptions => ({
   dryRun: false,
   rotateToken: false,
@@ -69,7 +69,7 @@ function fakeAccount(
       }
       if (args[0] === 'deploy') {
         state.deploys++;
-        return out(`Uploaded r2-fastlink\nDeployed r2-fastlink triggers\n  ${URL}\n`);
+        return out(`Uploaded flashlink\nDeployed flashlink triggers\n  ${URL}\n`);
       }
       if (args[0] === 'secret' && args[1] === 'list')
         return out(
@@ -83,8 +83,8 @@ function fakeAccount(
       if (cmd === 'r2 bucket lifecycle' && args[3] === 'list')
         return out(
           state.rule
-            ? `Listing lifecycle rules for bucket 'r2-fastlink'...\nname:  ${LIFECYCLE_RULE}\nprefix: objects/`
-            : "Listing lifecycle rules for bucket 'r2-fastlink'...\nThere are no lifecycle rules for bucket 'r2-fastlink'.",
+            ? `Listing lifecycle rules for bucket 'flashlink'...\nname:  ${LIFECYCLE_RULE}\nprefix: objects/`
+            : "Listing lifecycle rules for bucket 'flashlink'...\nThere are no lifecycle rules for bucket 'flashlink'.",
         );
       if (cmd === 'r2 bucket lifecycle' && args[3] === 'add') {
         state.rule = true;
@@ -109,7 +109,7 @@ describe('setup: pure helpers', () => {
 
   it('reads the Worker and bucket names from the real wrangler.jsonc, ignoring comments', () => {
     const real = fs.readFileSync(path.join(root, 'packages', 'worker', 'wrangler.jsonc'), 'utf8');
-    expect(parseWranglerNames(real)).toEqual({ worker: 'r2-fastlink', bucket: 'r2-fastlink' });
+    expect(parseWranglerNames(real)).toEqual({ worker: 'flashlink', bucket: 'flashlink' });
     expect(
       parseWranglerNames(
         '{\n// "name": "wrong",\n"name": "w", "r2_buckets": [{"bucket_name": "b"}]}',
@@ -126,8 +126,8 @@ describe('setup: pure helpers', () => {
   });
 
   it('reads secret names from wrangler JSON, and returns null for anything else', () => {
-    expect(parseSecretNames('[{"name":"R2FL_TOKEN","type":"secret_text"}]')).toEqual([
-      'R2FL_TOKEN',
+    expect(parseSecretNames('[{"name":"FLASHLINK_TOKEN","type":"secret_text"}]')).toEqual([
+      'FLASHLINK_TOKEN',
     ]);
     expect(parseSecretNames('banner\n[]\n')).toEqual([]);
     expect(parseSecretNames('Error: boom')).toBeNull();
@@ -143,8 +143,8 @@ describe('setup: pure helpers', () => {
   });
 
   it('finds the workers.dev URL in deploy output', () => {
-    expect(findWorkerUrl(`Deployed\n  ${URL}\nVersion ID: 1`, 'r2-fastlink')).toBe(URL);
-    expect(findWorkerUrl('no url here', 'r2-fastlink')).toBeNull();
+    expect(findWorkerUrl(`Deployed\n  ${URL}\nVersion ID: 1`, 'flashlink')).toBe(URL);
+    expect(findWorkerUrl('no url here', 'flashlink')).toBeNull();
   });
 
   it('prints the token only when one was generated, and says when it was kept', () => {
@@ -152,7 +152,7 @@ describe('setup: pure helpers', () => {
     const kept = summary({ url: URL, token: null, keptToken: true });
     expect(kept).not.toContain(TOKEN);
     expect(kept).toContain('unchanged');
-    expect(kept).toContain(`r2fl init --endpoint ${URL}`);
+    expect(kept).toContain(`fl init --endpoint ${URL}`);
     // The init command never carries the token (shell history, process list).
     expect(summary({ url: URL, token: TOKEN, keptToken: false })).not.toMatch(/--token/);
   });
@@ -165,13 +165,13 @@ describe('runSetup', () => {
     expect(acct.state).toMatchObject({
       bucket: true,
       rule: true,
-      secrets: ['R2FL_TOKEN'],
+      secrets: ['FLASHLINK_TOKEN'],
       deploys: 1,
     });
     expect(result).toMatchObject({ url: URL, token: TOKEN });
     const order = acct.calls.map((c) => c.args.slice(0, 3).join(' '));
-    expect(order.indexOf('deploy')).toBeLessThan(order.indexOf('secret put R2FL_TOKEN'));
-    expect(acct.logs.join('\n')).toContain(`r2fl init --endpoint ${URL}`);
+    expect(order.indexOf('deploy')).toBeLessThan(order.indexOf('secret put FLASHLINK_TOKEN'));
+    expect(acct.logs.join('\n')).toContain(`fl init --endpoint ${URL}`);
   });
 
   it('never puts the token in an argument or anywhere but stdin and the final summary', async () => {
@@ -194,17 +194,17 @@ describe('runSetup', () => {
     const second = await runSetup(opts(), acct.io);
     const names = acct.calls.map((c) => c.args.slice(0, 3).join(' '));
     expect(names).not.toContain('r2 bucket create');
-    expect(names).not.toContain('secret put R2FL_TOKEN');
+    expect(names).not.toContain('secret put FLASHLINK_TOKEN');
     expect(names.some((n) => n === 'r2 bucket lifecycle')).toBe(true);
     expect(acct.calls.some((c) => c.args[3] === 'add')).toBe(false);
     expect(second.token).toBeNull();
     expect(acct.logs.join('\n')).not.toContain(TOKEN);
     expect(acct.logs.join('\n')).toContain('unchanged');
-    expect(acct.state.secrets).toEqual(['R2FL_TOKEN']);
+    expect(acct.state.secrets).toEqual(['FLASHLINK_TOKEN']);
   });
 
   it('--rotate-token replaces an existing secret and shows the new token', async () => {
-    const acct = fakeAccount({ bucket: true, rule: true, secrets: ['R2FL_TOKEN'] });
+    const acct = fakeAccount({ bucket: true, rule: true, secrets: ['FLASHLINK_TOKEN'] });
     const result = await runSetup(opts({ rotateToken: true }), acct.io);
     expect(result.token).toBe(TOKEN);
     expect(acct.calls.some((c) => c.args[1] === 'put')).toBe(true);
@@ -219,7 +219,7 @@ describe('runSetup', () => {
   it('never replaces a token it could not read: an unreadable secret list stops setup', async () => {
     const acct = fakeAccount({
       bucket: true,
-      secrets: ['R2FL_TOKEN'],
+      secrets: ['FLASHLINK_TOKEN'],
       secretListOutput: 'Error: boom',
     });
     await expect(runSetup(opts(), acct.io)).rejects.toThrow(/secret list/);

@@ -1,6 +1,6 @@
 import type { Context } from '../context.ts';
 import { formatBytes } from '../format.ts';
-import { formatDuration } from '@r2-fastlink/core';
+import { formatDuration } from '@flashlink/core';
 import { configPath, historyPath } from '../paths.ts';
 
 export async function status(opts: { json?: boolean }, ctx: Context): Promise<void> {

@@ -1,5 +1,5 @@
 {
-  "name": "@r2-fastlink/worker",
+  "name": "@flashlink/worker",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@r2-fastlink/core": "workspace:*",
+    "@flashlink/core": "workspace:*",
     "hono": "^4.13.12"
   },
   "devDependencies": {

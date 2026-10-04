@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the standalone r2fl for this Mac and install the Finder Quick Actions with it:
+# Build the standalone fl for this Mac and install the Finder Quick Actions with it:
 # scripts/build-binary.sh for this machine's architecture, then macos/install.sh --binary.
 # Needs Bun and `pnpm install` once. Run it again after pulling to refresh everything.
 
@@ -22,4 +22,4 @@ case $(uname -m) in
 esac
 
 sh "$root/scripts/build-binary.sh" "$target"
-sh "$root/macos/install.sh" --binary "$root/dist/bin/r2fl-$target"
+sh "$root/macos/install.sh" --binary "$root/dist/bin/flashlink-$target"

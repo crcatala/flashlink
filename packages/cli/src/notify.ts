@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir } from './paths.ts';
 
-export const NOTIFICATION_TITLE = 'r2-fastlink';
+export const NOTIFICATION_TITLE = 'flashlink';
 
 /** Absolute path: Finder Quick Actions run with a minimal PATH. */
 const OSASCRIPT = '/usr/bin/osascript';
@@ -45,7 +45,7 @@ export function notificationScript(subtitle: string, body: string): string {
 const OPEN = '/usr/bin/open';
 
 /**
- * Where macos/install.sh builds the notifier applet: `<data dir>/notify/r2-fastlink.app`, with a
+ * Where macos/install.sh builds the notifier applet: `<data dir>/notify/flashlink.app`, with a
  * `pending` folder beside it (the applet finds that folder from its own location).
  */
 export function notifyDir(env: Record<string, string | undefined> = process.env): string {
@@ -65,7 +65,7 @@ async function viaApplet(
   body: string,
   run: Runner,
 ): Promise<boolean> {
-  const app = path.join(dir, 'r2-fastlink.app');
+  const app = path.join(dir, 'flashlink.app');
   if (!fs.existsSync(app)) return false;
   // One line each: the applet splits on line breaks. Control characters have no useful rendering.
   const oneLine = (text: string) => text.replace(/[\u0000-\u001f\u007f]+/g, ' ');

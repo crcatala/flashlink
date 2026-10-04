@@ -22,7 +22,7 @@ cat <<'PROMPT'
 === Changelog prompt (copy everything below this line) ===
 
 Draft Keep a Changelog entries (https://keepachangelog.com/en/1.1.0/) from the commits below.
-This project ships a CLI (`r2fl`), a Cloudflare Worker and a macOS Quick Action; write for the people
+This project ships a CLI (`fl`), a Cloudflare Worker and a macOS Quick Action; write for the people
 who use or deploy them. Commits use conventional prefixes: `feat` becomes Added or Changed, `fix`
 becomes Fixed, and `!` or BREAKING marks a breaking change (put it first, say what to do). Group under
 Added, Changed, Fixed, Removed or Security and omit empty groups. One line per user-visible change,

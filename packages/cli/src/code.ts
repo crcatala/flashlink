@@ -1,4 +1,4 @@
-import { CODE_REGEX } from '@r2-fastlink/core';
+import { CODE_REGEX } from '@flashlink/core';
 import { CliError } from './errors.ts';
 
 /** Accept a bare code or any link URL (`https://host/<code>[/name]`) and return the code. */

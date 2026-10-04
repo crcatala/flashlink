@@ -46,7 +46,7 @@ function uploadedZip(code = 'AAAAAAA1') {
   return readZip(h.server.links.get(code)!.body);
 }
 
-describe('r2fl up <folder>', () => {
+describe('fl up <folder>', () => {
   it('uploads <name>.zip as application/zip with the folder contents under <name>/', async () => {
     h.file('proj/readme.md', '# hi\n'.repeat(50));
     h.file('proj/src/a.ts', 'export const a = 1;\n');

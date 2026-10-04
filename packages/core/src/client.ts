@@ -21,7 +21,7 @@ export interface UploadOptions {
   code?: string;
 }
 
-/** Thin typed client for the r2-fastlink Worker API. */
+/** Thin typed client for the flashlink Worker API. */
 export class FastlinkClient {
   readonly endpoint: string;
 

@@ -1,10 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "r2-fastlink",
+  "name": "flashlink",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
 
-  // Public URL: https://r2-fastlink.<your-subdomain>.workers.dev. Set both explicitly so
+  // Public URL: https://flashlink.<your-subdomain>.workers.dev. Set both explicitly so
   // `wrangler deploy` does not warn. Preview URLs would expose every uploaded version of
   // this Worker (same bucket, same secret) on extra hostnames, which this tool never needs.
   "workers_dev": true,
@@ -15,7 +15,7 @@
   "assets": { "directory": "./public" },
 
   // Private bucket: objects are only reachable through the Worker.
-  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "r2-fastlink" }],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "flashlink" }],
 
   // Exactly one Registry instance is ever used (see src/stub.ts). SQLite-backed, which is
   // also the only kind available on the free plan.
@@ -41,5 +41,5 @@
     // "PUBLIC_BASE_URL": "https://fl.example.com"  // optional; defaults to the request origin
   },
 
-  // Secret (not stored here):  wrangler secret put R2FL_TOKEN
+  // Secret (not stored here):  wrangler secret put FLASHLINK_TOKEN
 }

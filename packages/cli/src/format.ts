@@ -1,4 +1,4 @@
-import { formatDuration } from '@r2-fastlink/core';
+import { formatDuration } from '@flashlink/core';
 import { CliError } from './errors.ts';
 
 export function formatBytes(bytes: number): string {

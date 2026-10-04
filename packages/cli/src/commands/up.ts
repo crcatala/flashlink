@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import mime from 'mime';
-import { parseDuration, type UploadResult } from '@r2-fastlink/core';
+import { parseDuration, type UploadResult } from '@flashlink/core';
 import type { Context } from '../context.ts';
 import { CliError, ReportedError, errorJson, errorText } from '../errors.ts';
 import { clock, formatBytes } from '../format.ts';
@@ -93,7 +93,7 @@ function readSource(file: string, opts: UpOptions, ctx: Context): Source {
   if (stat.size > maxBytes) {
     throw new CliError(
       `${formatBytes(stat.size)} exceeds the ${formatBytes(maxBytes)} limit.`,
-      'Raise it with `r2fl config set maxFileBytes <size>` (the server enforces its own cap too).',
+      'Raise it with `fl config set maxFileBytes <size>` (the server enforces its own cap too).',
     );
   }
   return {
@@ -140,7 +140,7 @@ async function uploadAll(files: string[], opts: UpOptions, ctx: Context): Promis
   if (useStdin && ctx.stdinIsTTY) {
     throw new CliError(
       'No files given.',
-      'Usage: r2fl up <file...>   or   cmd | r2fl up --name out.txt',
+      'Usage: fl up <file...>   or   cmd | fl up --name out.txt',
     );
   }
   if (opts.name && !useStdin && files.length > 1) {
@@ -272,7 +272,7 @@ async function confirmSecrets(source: Source, opts: UpOptions, ctx: Context): Pr
     if (findings.length > 0) flagged.push({ file: null, reasons: findings.map(describeFinding) });
   }
   if (flagged.length === 0) return;
-  const override = 'Pass --allow-secrets to upload anyway, or `r2fl config set warnSecrets false`.';
+  const override = 'Pass --allow-secrets to upload anyway, or `fl config set warnSecrets false`.';
   const shown = flagged.slice(0, MAX_FLAGGED_SHOWN);
   const more = flagged.length - shown.length;
   const summary = (f: (typeof flagged)[number]) =>

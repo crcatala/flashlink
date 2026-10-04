@@ -1,4 +1,4 @@
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 
 /** A problem the user can fix; printed as a one-line message without a stack trace. */
 export class CliError extends Error {

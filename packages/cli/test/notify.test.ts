@@ -8,7 +8,7 @@ let dir: string;
 // An applet folder that does not exist: the tests below must not depend on this machine's install.
 let none: string;
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-notify-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-notify-'));
   none = path.join(dir, 'no-applet');
 });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -37,11 +37,11 @@ describe('escapeAppleScript', () => {
 describe('notificationScript', () => {
   it('builds a display notification command with escaped parts', () => {
     expect(notificationScript('Link copied', 'https://fl.test/AAAAAAA1')).toBe(
-      'display notification "https://fl.test/AAAAAAA1" with title "r2-fastlink" subtitle "Link copied"',
+      'display notification "https://fl.test/AAAAAAA1" with title "flashlink" subtitle "Link copied"',
     );
     const script = notificationScript('x"y', 'a\\"b\nc');
     expect(script).toBe(
-      'display notification "a\\\\\\"b\\nc" with title "r2-fastlink" subtitle "x\\"y"',
+      'display notification "a\\\\\\"b\\nc" with title "flashlink" subtitle "x\\"y"',
     );
     expect(script).not.toContain('\n');
   });
@@ -90,7 +90,7 @@ describe('sendNotification', () => {
 });
 
 describe('sendNotification through the notifier applet', () => {
-  const app = () => path.join(dir, 'r2-fastlink.app');
+  const app = () => path.join(dir, 'flashlink.app');
   const pending = () => path.join(dir, 'pending');
   const pendingFiles = () => (fs.existsSync(pending()) ? fs.readdirSync(pending()) : []);
 

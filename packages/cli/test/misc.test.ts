@@ -71,12 +71,12 @@ describe('format helpers', () => {
 
 describe('paths', () => {
   it('honors overrides then XDG then home', () => {
-    expect(configDir({ R2FL_CONFIG_DIR: '/c' })).toBe('/c');
-    expect(configDir({ XDG_CONFIG_HOME: '/x' })).toBe('/x/r2fl');
-    expect(dataDir({ R2FL_DATA_DIR: '/d' })).toBe('/d');
-    expect(dataDir({ XDG_DATA_HOME: '/x' })).toBe('/x/r2fl');
-    expect(configDir({})).toMatch(/\.config\/r2fl$/);
-    expect(dataDir({})).toMatch(/\.local\/share\/r2fl$/);
+    expect(configDir({ FLASHLINK_CONFIG_DIR: '/c' })).toBe('/c');
+    expect(configDir({ XDG_CONFIG_HOME: '/x' })).toBe('/x/flashlink');
+    expect(dataDir({ FLASHLINK_DATA_DIR: '/d' })).toBe('/d');
+    expect(dataDir({ XDG_DATA_HOME: '/x' })).toBe('/x/flashlink');
+    expect(configDir({})).toMatch(/\.config\/flashlink$/);
+    expect(dataDir({})).toMatch(/\.local\/share\/flashlink$/);
   });
 });
 
@@ -90,19 +90,21 @@ describe('config', () => {
   it('saves with owner-only permissions and layers env overrides on top', () => {
     const env = h.ctx.env;
     saveConfig({ endpoint: 'https://a.example', token: 'tok-from-file', defaultTtl: '2h' }, env);
-    const file = path.join(env.R2FL_CONFIG_DIR!, 'config.json');
+    const file = path.join(env.FLASHLINK_CONFIG_DIR!, 'config.json');
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
     expect(loadConfig(env)).toMatchObject({
       endpoint: 'https://a.example',
       defaultTtl: '2h',
       copy: true,
     });
-    expect(loadConfig({ ...env, R2FL_TOKEN: 'tok-from-env', R2FL_TTL: '5m' })).toMatchObject({
+    expect(
+      loadConfig({ ...env, FLASHLINK_TOKEN: 'tok-from-env', FLASHLINK_TTL: '5m' }),
+    ).toMatchObject({
       token: 'tok-from-env',
       defaultTtl: '5m',
     });
     // Env overrides are never written back to the file.
-    saveConfig({ copy: false }, { ...env, R2FL_TOKEN: 'tok-from-env' });
+    saveConfig({ copy: false }, { ...env, FLASHLINK_TOKEN: 'tok-from-env' });
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).token).toBe('tok-from-file');
   });
 
@@ -186,7 +188,7 @@ describe('init and status', () => {
     } finally {
       globalThis.fetch = realFetch;
     }
-    expect(fs.existsSync(path.join(h.ctx.env.R2FL_CONFIG_DIR!, 'config.json'))).toBe(false);
+    expect(fs.existsSync(path.join(h.ctx.env.FLASHLINK_CONFIG_DIR!, 'config.json'))).toBe(false);
   });
 
   it('--no-verify saves without a network call; missing input fails when not a TTY', async () => {

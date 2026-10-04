@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
-const SKILL = path.join(root, 'skills', 'r2-fastlink', 'SKILL.md');
+const SKILL = path.join(root, 'skills', 'flashlink', 'SKILL.md');
 const ENTRY = fileURLToPath(new URL('../src/index.ts', import.meta.url));
 
 const text = fs.readFileSync(SKILL, 'utf8');
@@ -14,14 +14,14 @@ const text = fs.readFileSync(SKILL, 'utf8');
 function help(...args: string[]): string {
   const res = spawnSync(process.execPath, ['--import', 'tsx', ENTRY, ...args, '--help'], {
     encoding: 'utf8',
-    env: { ...process.env, R2FL_CONFIG_DIR: path.join(root, 'no-such-config-dir') },
+    env: { ...process.env, FLASHLINK_CONFIG_DIR: path.join(root, 'no-such-config-dir') },
   });
   expect(res.status).toBe(0);
   return res.stdout;
 }
 
 /**
- * Every `r2fl <word> ...` inside a fenced block or an inline code span (prose such as "r2fl is
+ * Every `fl <word> ...` inside a fenced block or an inline code span (prose such as "fl is
  * not configured" is not a command), with the short and long options that follow it. A snippet
  * ends at a pipe, `;`, `)`, a backtick, a `#` comment or a `--` terminator.
  */
@@ -33,7 +33,7 @@ function invocations(markdown: string): { command: string; options: string[]; sn
     ),
   ].join('\n');
   const found: { command: string; options: string[]; snippet: string }[] = [];
-  for (const m of code.matchAll(/(?<![\w-])r2fl ([a-z][\w-]*)([^\n|;)`]*)/g)) {
+  for (const m of code.matchAll(/(?<![\w-])fl ([a-z][\w-]*)([^\n|;)`]*)/g)) {
     const rest = m[2]!.split(/ # | -- /)[0]!;
     const options = [...rest.matchAll(/(?<=\s)(--?[a-zA-Z][\w-]*)(?=[\s=]|$)/g)].map((o) => o[1]!);
     found.push({ command: m[1]!, options, snippet: m[0]!.trim() });
@@ -41,7 +41,7 @@ function invocations(markdown: string): { command: string; options: string[]; sn
   return found;
 }
 
-describe('skills/r2-fastlink/SKILL.md', () => {
+describe('skills/flashlink/SKILL.md', () => {
   it('has the frontmatter a skill loader needs, and the name matches its folder', () => {
     const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
     expect(match).not.toBeNull();
@@ -54,12 +54,12 @@ describe('skills/r2-fastlink/SKILL.md', () => {
         ]),
     );
     expect(fields.name).toBe(path.basename(path.dirname(SKILL)));
-    expect(fields.name).toBe('r2-fastlink');
+    expect(fields.name).toBe('flashlink');
     expect(fields.description!.length).toBeGreaterThan(40);
     expect(fields.description!.length).toBeLessThanOrEqual(1024);
   });
 
-  it('only shows r2fl commands and options that exist', () => {
+  it('only shows fl commands and options that exist', () => {
     // Command names (with aliases) as the real program lists them, whatever they are called.
     const commands = new Set<string>();
     for (const m of help()
@@ -92,6 +92,6 @@ describe('skills/r2-fastlink/SKILL.md', () => {
     expect(text).toMatch(/Do not pass `--allow-secrets`/);
     expect(text).toMatch(/token is not scoped/i);
     expect(text).toMatch(/stdout is the URL and nothing else/);
-    expect(text).toMatch(/R2FL_TOKEN/);
+    expect(text).toMatch(/FLASHLINK_TOKEN/);
   });
 });

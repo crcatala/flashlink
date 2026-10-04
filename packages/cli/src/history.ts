@@ -1,4 +1,4 @@
-import type { LinkInfo } from '@r2-fastlink/core';
+import type { LinkInfo } from '@flashlink/core';
 import { readJson, writeJsonAtomic } from './fsutil.ts';
 import { historyPath } from './paths.ts';
 

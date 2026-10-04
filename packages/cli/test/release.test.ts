@@ -49,9 +49,9 @@ describe('scripts/check-release-tag.mjs', () => {
 });
 
 describe('npm package', () => {
-  it('ships only dist and the LICENSE (plus the README npm adds) and keeps the r2fl bin', () => {
+  it('ships only dist and the LICENSE (plus the README npm adds) and keeps the fl and flashlink bins', () => {
     expect(pkg.files).toEqual(['dist', 'LICENSE']);
-    expect(pkg.bin).toEqual({ r2fl: './dist/index.js' });
+    expect(pkg.bin).toEqual({ fl: './dist/index.js', flashlink: './dist/index.js' });
     expect(pkg.engines.node).toBe('>=22.12');
   });
 
@@ -61,7 +61,7 @@ describe('npm package', () => {
   });
 
   it('points at the repository, for the npm page', () => {
-    expect(pkg.repository.url).toBe('git+https://github.com/crcatala/r2-fastlink.git');
+    expect(pkg.repository.url).toBe('git+https://github.com/crcatala/flashlink.git');
     expect(pkg.repository.directory).toBe('packages/cli');
   });
 });
@@ -79,7 +79,7 @@ describe('release tooling', () => {
 
   it('check-release-tag also refuses when the root and the CLI versions differ', () => {
     // Run the script against a copy of the repo layout with a mismatched root version.
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-tag-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-tag-'));
     try {
       fs.mkdirSync(path.join(dir, 'scripts'));
       fs.mkdirSync(path.join(dir, 'packages', 'cli'), { recursive: true });
@@ -144,7 +144,7 @@ describe('release tooling', () => {
   describe('scripts/check-changelog.sh and prep-release.sh', () => {
     const sh = (script: string, cwd: string, ...args: string[]) =>
       spawnSync('bash', [path.join(root, 'scripts', script), ...args], { cwd, encoding: 'utf8' });
-    const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-rel-'));
+    const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-rel-'));
 
     it('check-changelog accepts an Unreleased section with an item', () => {
       const dir = tmp();
@@ -294,7 +294,7 @@ describe('release tooling', () => {
       return r.stdout.trim();
     };
     function setup() {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-remote-'));
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-remote-'));
       const origin = path.join(dir, 'origin.git');
       const work = path.join(dir, 'work');
       fs.mkdirSync(work);
@@ -450,7 +450,7 @@ describe('scripts/package-release.sh', () => {
   it.skipIf(!hasBun || !hasDeps)(
     'produces both darwin binaries, the support archive, the scripts and matching checksums',
     () => {
-      const out = fs.mkdtempSync(path.join(os.tmpdir(), 'r2fl-release-'));
+      const out = fs.mkdtempSync(path.join(os.tmpdir(), 'flashlink-release-'));
       try {
         const r = spawnSync('sh', [path.join(root, 'scripts', 'package-release.sh'), out], {
           encoding: 'utf8',
@@ -458,9 +458,9 @@ describe('scripts/package-release.sh', () => {
         expect(r.status, r.stderr).toBe(0);
         const names = [
           'install.sh',
-          'r2fl-darwin-arm64',
-          'r2fl-darwin-x64',
-          'r2fl-macos-support.tar.gz',
+          'flashlink-darwin-arm64',
+          'flashlink-darwin-x64',
+          'flashlink-macos-support.tar.gz',
           'uninstall.sh',
         ];
         expect(fs.readdirSync(out).sort()).toEqual([...names, 'SHA256SUMS'].sort());
@@ -476,7 +476,7 @@ describe('scripts/package-release.sh', () => {
               return [name, hash];
             }),
         );
-        expect(Object.keys(sums).sort()).toEqual(names);
+        expect(Object.keys(sums).sort()).toEqual([...names].sort());
         for (const name of names) {
           const actual = createHash('sha256')
             .update(fs.readFileSync(path.join(out, name)))
@@ -488,11 +488,11 @@ describe('scripts/package-release.sh', () => {
         expect(fs.readFileSync(path.join(out, 'install.sh'), 'utf8')).toBe(
           fs.readFileSync(path.join(root, 'macos', 'install.sh'), 'utf8'),
         );
-        const list = spawnSync('tar', ['-tzf', path.join(out, 'r2fl-macos-support.tar.gz')], {
+        const list = spawnSync('tar', ['-tzf', path.join(out, 'flashlink-macos-support.tar.gz')], {
           encoding: 'utf8',
         }).stdout;
-        expect(list).toContain('macos/r2fl-quick.sh');
-        expect(list).toContain('macos/Share via r2-fastlink.workflow/Contents/Info.plist');
+        expect(list).toContain('macos/fl-quick.sh');
+        expect(list).toContain('macos/Share via flashlink.workflow/Contents/Info.plist');
       } finally {
         fs.rmSync(out, { recursive: true, force: true });
       }

@@ -36,7 +36,7 @@ jobs:
 
       # No credentials needed: proves the Worker bundle and bindings resolve.
       - name: Dry-run Worker deploy
-        run: pnpm --filter @r2-fastlink/worker exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/dryrun"
+        run: pnpm --filter @flashlink/worker exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/dryrun"
 
   # Catches a broken release build before a tag does: the same packaging script the release
   # workflow runs, with the checksums verified and the linux binary actually started.
@@ -62,5 +62,5 @@ jobs:
       - name: The linux binary starts (same code, same build script)
         run: |
           sh scripts/build-binary.sh linux-x64
-          dist/bin/r2fl-linux-x64 --version
-          env -i HOME="$RUNNER_TEMP" PATH=/usr/bin:/bin dist/bin/r2fl-linux-x64 config get endpoint
+          dist/bin/flashlink-linux-x64 --version
+          env -i HOME="$RUNNER_TEMP" PATH=/usr/bin:/bin dist/bin/flashlink-linux-x64 config get endpoint

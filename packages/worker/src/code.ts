@@ -1,4 +1,4 @@
-import { CODE_ALPHABET, CODE_LENGTH } from '@r2-fastlink/core';
+import { CODE_ALPHABET, CODE_LENGTH } from '@flashlink/core';
 
 // Largest multiple of the alphabet size that fits in a byte; bytes at or above it
 // are discarded so every character is equally likely (no modulo bias).

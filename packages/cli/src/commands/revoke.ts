@@ -1,4 +1,4 @@
-import { ApiError } from '@r2-fastlink/core';
+import { ApiError } from '@flashlink/core';
 import { extractCode } from '../code.ts';
 import type { Context } from '../context.ts';
 import { CliError } from '../errors.ts';
@@ -20,7 +20,7 @@ export async function revoke(
       ctx.history.update(code, { state: 'revoked', expiresAt: info.expiresAt });
       ctx.err(
         `${ctx.style.green('✓')} ${code} is closed. ` +
-          ctx.style.dim(`Re-open with \`r2fl refresh ${code}\`.`),
+          ctx.style.dim(`Re-open with \`fl refresh ${code}\`.`),
       );
     }
   } catch (err) {

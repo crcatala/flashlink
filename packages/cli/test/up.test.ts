@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 afterEach(() => h.cleanup());
 
-describe('r2fl up', () => {
+describe('fl up', () => {
   it('uploads a file, prints only the URL on stdout, and records history', async () => {
     const file = h.file('notes.txt', 'hello');
     await up([file], {}, h.ctx);
@@ -205,7 +205,7 @@ describe('r2fl up', () => {
   });
 });
 
-describe('r2fl up --notify when the context cannot be built', () => {
+describe('fl up --notify when the context cannot be built', () => {
   const broken = () => {
     throw new Error('Unexpected token } in config.json');
   };
@@ -232,7 +232,7 @@ describe('r2fl up --notify when the context cannot be built', () => {
   });
 });
 
-describe('r2fl up --notify', () => {
+describe('fl up --notify', () => {
   it('notifies once with the URL, copies it, and keeps stdout URL-only', async () => {
     const file = h.file('notes.txt', 'hello');
     await up([file], { notify: true }, h.ctx);
@@ -303,7 +303,7 @@ describe('r2fl up --notify', () => {
   });
 });
 
-describe('r2fl up secret warning', () => {
+describe('fl up secret warning', () => {
   const AWS = 'AKIAIOSFODNN7EXAMPLE';
   const refusal = /Looks like it contains secrets: AWS access key ID \(line 1\)/;
 

@@ -28,7 +28,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # The npm package, the binaries and `r2fl --version` must agree on one version.
+      # The npm package, the binaries and `fl --version` must agree on one version.
       - name: Tag matches the CLI version
         run: node scripts/check-release-tag.mjs "$GITHUB_REF_NAME"
 
@@ -69,9 +69,9 @@ jobs:
           node scripts/release.mjs notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" \
             --verify-tag --notes-file "$RUNNER_TEMP/notes.md" --title "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP"/release/r2fl-darwin-arm64 \
-            "$RUNNER_TEMP"/release/r2fl-darwin-x64 \
-            "$RUNNER_TEMP"/release/r2fl-macos-support.tar.gz \
+            "$RUNNER_TEMP"/release/flashlink-darwin-arm64 \
+            "$RUNNER_TEMP"/release/flashlink-darwin-x64 \
+            "$RUNNER_TEMP"/release/flashlink-macos-support.tar.gz \
             "$RUNNER_TEMP"/release/install.sh \
             "$RUNNER_TEMP"/release/uninstall.sh \
             "$RUNNER_TEMP"/release/SHA256SUMS

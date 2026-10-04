@@ -1,4 +1,4 @@
-import { FastlinkClient } from '@r2-fastlink/core';
+import { FastlinkClient } from '@flashlink/core';
 import { copyToClipboard } from './clipboard.ts';
 import { loadConfig, type Config } from './config.ts';
 import { CliError } from './errors.ts';
@@ -52,7 +52,7 @@ export function createContext(env: NodeJS.ProcessEnv = process.env): Context {
 
 export function clientFromConfig(config: Config): FastlinkClient {
   if (!config.endpoint || !config.token) {
-    throw new CliError('r2fl is not configured yet.', 'Run `r2fl init` first.');
+    throw new CliError('fl is not configured yet.', 'Run `fl init` first.');
   }
   return new FastlinkClient(config.endpoint, config.token);
 }
