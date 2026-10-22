@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Release helpers. See RELEASING.md.
 //
-//   node scripts/release.mjs release [release-it args]   release-it, then publish to npm (`pnpm release`)
+//   node scripts/release.mjs release [release-it args]   check npm login, release-it, then publish to npm (`pnpm release`)
 //   node scripts/release.mjs publish [--dry-run]         publish packages/cli to npm from this machine
 //   node scripts/release.mjs check-version <version>     refuse anything but a plain X.Y.Z (release-it hook, before the bump)
 //   node scripts/release.mjs sync-version <version>      copy the version into packages/cli (release-it hook)
@@ -15,6 +15,7 @@ import {
   gitState,
   isReleaseVersion,
   publishProblems,
+  releaseProblems,
   setPackageVersion,
 } from './release-lib.mjs';
 
@@ -38,7 +39,11 @@ function out(cmd, args) {
   }
 }
 
-function publish(dryRun) {
+// `afterRelease`: called by `pnpm release`, so the release commit and tag are already pushed.
+function publish(dryRun, afterRelease = false) {
+  const retry = afterRelease
+    ? 'The release commit and tag are pushed (CI builds the GitHub Release); only the npm publish is left. Fix this, then run `pnpm release:publish`.'
+    : 'Fix this, then run `pnpm release:publish` again.';
   const cliVersion = JSON.parse(read('packages', 'cli', 'package.json')).version;
   const tag = `v${cliVersion}`;
   const state = {
@@ -58,7 +63,9 @@ function publish(dryRun) {
   };
   const problems = publishProblems(state);
   if (problems.length > 0) {
-    fail(`Not publishing fl ${cliVersion}:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+    fail(
+      `Not publishing fl ${cliVersion}:\n${problems.map((p) => `  - ${p}`).join('\n')}\n${retry}`,
+    );
   }
   console.error(
     `Publishing fl ${cliVersion} to npm as ${state.npmUser}${dryRun ? ' (dry run)' : ''}...`,
@@ -68,19 +75,30 @@ function publish(dryRun) {
     cwd: cliDir,
     stdio: 'inherit',
   });
-  if (r.status !== 0)
-    fail('npm publish failed. Fix the cause and run `pnpm release:publish` again.');
+  if (r.status !== 0) fail(`npm publish failed. ${retry}`);
   if (!dryRun) console.error(`Published. Check: npm view flashlink@${cliVersion}`);
 }
 
 const [command, ...rest] = process.argv.slice(2);
 switch (command) {
   case 'release': {
+    const help = rest.some((a) => a === '--help' || a === '-h');
+    const dryRun = rest.some((a) => a === '--dry-run' || a === '-d');
+    if (!help) {
+      const cliVersion = JSON.parse(read('packages', 'cli', 'package.json')).version;
+      const problems = releaseProblems({
+        cliVersion,
+        tagsAtHead: gitState(root, `v${cliVersion}`).tagsAtHead,
+        npmUser: out('npm', ['whoami']),
+      });
+      if (problems.length > 0)
+        fail(`Not releasing:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+    }
     const r = spawnSync('pnpm', ['exec', 'release-it', ...rest], { cwd: root, stdio: 'inherit' });
     if (r.status !== 0) process.exit(r.status ?? 1);
     // A dry run or a help request has nothing to publish.
-    if (rest.some((a) => a === '--dry-run' || a === '-d' || a === '--help' || a === '-h')) break;
-    publish(false);
+    if (help || dryRun) break;
+    publish(false, true);
     break;
   }
   case 'publish':

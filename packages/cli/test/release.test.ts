@@ -11,6 +11,7 @@ import {
   isReleaseVersion,
   parseRemoteTagCommit,
   publishProblems,
+  releaseProblems,
   setPackageVersion,
   type PublishState,
 } from '../../../scripts/release-lib.mjs';
@@ -125,7 +126,7 @@ describe('release tooling', () => {
   it('wires the maintainer commands', () => {
     expect(rootPkg.scripts).toMatchObject({
       release: 'node scripts/release.mjs release',
-      'release:dry': 'release-it --dry-run',
+      'release:dry': 'node scripts/release.mjs release --dry-run',
       'release:publish': 'node scripts/release.mjs publish',
       'release:prep': 'bash scripts/prep-release.sh',
     });
@@ -365,6 +366,22 @@ describe('release tooling', () => {
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe('releaseProblems (before release-it changes anything)', () => {
+    const ok = { cliVersion: '0.1.0', tagsAtHead: [], npmUser: 'someone' };
+    it('has nothing to say when logged in and HEAD is not a release yet', () => {
+      expect(releaseProblems(ok)).toEqual([]);
+      expect(releaseProblems({ ...ok, tagsAtHead: ['v0.0.9'] })).toEqual([]);
+    });
+    it('refuses without an npm login, since the publish only runs after the tag is pushed', () => {
+      expect(releaseProblems({ ...ok, npmUser: null }).join('\n')).toMatch(/npm login/);
+    });
+    it('points a rerun after a half-finished release at `pnpm release:publish`', () => {
+      const problems = releaseProblems({ ...ok, tagsAtHead: ['v0.1.0'], npmUser: null });
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toMatch(/already the v0\.1\.0 release.*pnpm release:publish/);
     });
   });
 
