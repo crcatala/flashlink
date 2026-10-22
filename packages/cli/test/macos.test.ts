@@ -737,6 +737,9 @@ describe('install.sh and uninstall.sh', () => {
       fs.symlinkSync('fl', path.join(path.dirname(bin()), 'flashlink'));
       const r = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
       expect(r.status).toBe(0);
+      expect(r.stdout).toContain(
+        'kept           fl 0.0.0 (fake123), ~/.local/share/flashlink/bin/fl',
+      );
       expect(fs.readlinkSync(path.join(localBin(), 'fl'))).toBe(bin());
       expect(fs.readlinkSync(path.join(localBin(), 'flashlink'))).toBe(bin());
       expect(fs.existsSync(path.join(path.dirname(bin()), 'flashlink'))).toBe(false);

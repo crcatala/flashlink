@@ -241,7 +241,8 @@ fi
 have_binary=""
 if [ -x "$bin_file" ] && env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version >/dev/null 2>&1; then
   have_binary=1
-  ok "installed" "fl $(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version 2>/dev/null | tail -n 1), $(short "$bin_file")"
+  # Without --binary/--latest/--version the binary already there is used as it is.
+  ok "$([ -n "$binary_src" ] && echo installed || echo kept)" "fl $(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version 2>/dev/null | tail -n 1), $(short "$bin_file")"
 
   # Link it into ~/.local/bin, but never over something this installer did not put there.
   linked="" foreign=""
