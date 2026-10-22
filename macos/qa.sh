@@ -39,9 +39,8 @@ sw_vers
 echo "zsh: $(/bin/zsh --version)"
 plutil -lint macos/*.workflow/Contents/Info.plist macos/*.workflow/Contents/document.wflow
 
-step "1. Setup" "fl found in this Terminal; a hand-made ~/.local/bin/fl symlink is removed so the recorded path is what gets tested"
-if [ -L "$HOME/.local/bin/fl" ]; then rm "$HOME/.local/bin/fl"; echo "removed old symlink ~/.local/bin/fl"; fi
-command -v fl node || { echo "fl or node not found in this Terminal: fix that first."; exit 1; }
+step "1. Setup" "fl found in this Terminal (the standalone one from the installer, or your own fl and node)"
+command -v fl || { echo "fl not found in this Terminal: run the installer (docs/MACOS.md) first."; exit 1; }
 fl --version
 orig_ttl=$(fl config get defaultTtl)
 mkdir -p "$files" && cd "$files" || exit 1
@@ -52,9 +51,9 @@ printf 'dash' >-dashfile.txt
 mkfile 60m big.bin
 cd - >/dev/null || exit 1
 
-step "2. Install" "'recorded: ...', then 'fl and node are found the way a Quick Action will look for them.' and NO warning"
+step "2. Install" "'✓ checked  a Quick Action can run fl', no '!' line about fl or PATH, and 'Next steps' at the end"
 sh macos/install.sh
-step "2b. Wrapper check in a bare environment" "two paths (fl and node), exit 0"
+step "2b. Wrapper check in a bare environment" "the standalone fl's path (or, without one, the paths of fl and node), exit 0"
 if bare "$wrapper" --check; then pass "found"; else fail "--check failed"; fi
 
 step "3. One file with the lifetime picker" "a 'Link lifetime' dialog IN FRONT of other windows with '1 hour' highlighted: press OK/Return. Then a notification with the link."
@@ -99,20 +98,24 @@ bare FLASHLINK_ENDPOINT=http://127.0.0.1:9 "$wrapper" --no-prompt "$files/one.tx
 echo "    exit=$? (expect 1)"
 pause
 
-step "10. Stale record, then recovery" "with a bogus recorded folder the interactive retry still finds fl (via ~/.zshrc); if not, you get the 'Run macos/install.sh again' hint"
-cp "$HOME/.config/flashlink/quick-action-path" "$HOME/.config/flashlink/quick-action-path.bak"
-echo /nonexistent >"$HOME/.config/flashlink/quick-action-path"
-bare "$wrapper" --check && pass "found via the interactive retry" || echo "    NOTE: not found without the record (acceptable only if ~/.zshrc does not set PATH)"
-mv "$HOME/.config/flashlink/quick-action-path.bak" "$HOME/.config/flashlink/quick-action-path"
+step "10. Stale record, then recovery (only without a standalone fl)" "with a bogus recorded folder the interactive retry still finds fl (via ~/.zshrc); if not, you get the 'Run macos/install.sh again' hint"
+if [ -f "$HOME/.config/flashlink/quick-action-path" ]; then
+  cp "$HOME/.config/flashlink/quick-action-path" "$HOME/.config/flashlink/quick-action-path.bak"
+  echo /nonexistent >"$HOME/.config/flashlink/quick-action-path"
+  bare "$wrapper" --check && pass "found via the interactive retry" || echo "    NOTE: not found without the record (acceptable only if ~/.zshrc does not set PATH)"
+  mv "$HOME/.config/flashlink/quick-action-path.bak" "$HOME/.config/flashlink/quick-action-path"
+else
+  echo "    skipped: the Quick Actions run the standalone fl, which needs no record"
+fi
 
 step "11. Finder wiring (do this by hand)" "enable both actions in System Settings -> Keyboard -> Keyboard Shortcuts -> Services -> Files and Folders; right-click ~/flashlink-qa-files/one.txt -> Quick Actions -> 'Share via flashlink' shows the picker IN FRONT of Finder; then 'Share via flashlink (default lifetime)' uploads with no dialog"
 pause
 
-step "12. Uninstall" "all three paths below are gone"
+step "12. Uninstall" "all the paths below are gone"
 sh macos/uninstall.sh
 for leftover in "$HOME/Library/Services/Share via flashlink.workflow" \
   "$HOME/Library/Services/Share via flashlink (default lifetime).workflow" \
-  "$wrapper" "$HOME/.config/flashlink/quick-action-path"; do
+  "$wrapper" "$HOME/.config/flashlink/quick-action-path" "$HOME/.local/share/flashlink/bin/fl"; do
   if [ -e "$leftover" ]; then fail "still there: $leftover"; else pass "gone: $leftover"; fi
 done
 printf '    Reinstall now so the actions stay available? [y/N] '
