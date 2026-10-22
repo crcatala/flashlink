@@ -7,6 +7,8 @@ the Worker is deployed from the same tag.
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-22
+
 ### Changed
 
 - The macOS installer now installs the `fl` command too: it links `fl` and `flashlink` in
