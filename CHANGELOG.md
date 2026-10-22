@@ -7,6 +7,18 @@ the Worker is deployed from the same tag.
 
 ## [Unreleased]
 
+### Security
+
+- The standalone macOS binaries (`flashlink-darwin-arm64`, `flashlink-darwin-x64`) are now built with
+  Bun 1.4.4. The 0.0.1 binaries embed Bun 1.4.2, whose Brotli decoder has an out-of-bounds write
+  (CVE-2026-111497) reachable when decompressing a `br`-encoded HTTP response. Reinstall with the
+  installer to update. The npm package runs on your own Node.js and is not affected by this change.
+
+### Changed
+
+- The macOS support archive no longer includes `macos/qa.sh`, a maintainer-only QA script the installer
+  never used.
+
 ## [0.0.1] - 2026-10-04
 
 ### Added
