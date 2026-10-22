@@ -43,6 +43,27 @@ export function changelogSection(markdown, version) {
 }
 
 /**
+ * What stops `pnpm release` from starting, checked before release-it changes anything. `state`:
+ *   { cliVersion, tagsAtHead: string[], npmUser: string|null }
+ * The npm login is checked here because the publish runs only after the commit and tag are pushed.
+ */
+export function releaseProblems(state) {
+  const tag = `v${state.cliVersion}`;
+  if (state.tagsAtHead.includes(tag)) {
+    // A rerun after a release that stopped at the npm step: release-it would only fail on the
+    // (now empty) Unreleased section, which hides what is actually left to do.
+    return [
+      `HEAD is already the ${tag} release (the commit and tag are pushed). If its npm publish failed, run \`pnpm release:publish\`.`,
+    ];
+  }
+  return state.npmUser
+    ? []
+    : [
+        'You are not logged in to npm: run `npm login` first (the release ends with `npm publish`).',
+      ];
+}
+
+/**
  * What is wrong with publishing to npm right now. `state`:
  *   { cliVersion, rootVersion, branch, clean, tagsAtHead: string[], headCommit: string|null,
  *     remoteTagCommit: string|null|undefined, publishedOnNpm: boolean|null, npmUser: string|null,

@@ -16,6 +16,9 @@ export interface PublishState {
   dryRun: boolean;
 }
 export function publishProblems(state: PublishState): string[];
+export function releaseProblems(
+  state: Pick<PublishState, 'cliVersion' | 'tagsAtHead' | 'npmUser'>,
+): string[];
 export function parseRemoteTagCommit(lsRemoteOutput: string, tag: string): string | null;
 export function gitState(
   cwd: string,

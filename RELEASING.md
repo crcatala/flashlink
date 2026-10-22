@@ -17,8 +17,9 @@ GitHub Release with its own token.
 ## Prerequisites
 
 - Push access to `crcatala/flashlink` and a clean checkout on `main` (`git pull --ff-only`).
-- An npm account with publish access to `flashlink` (`npm whoami`; `npm login` otherwise). If the account
-  uses 2FA, npm asks for a one-time password during the publish.
+- An npm account with publish access to `flashlink` (`npm whoami`; `npm login` otherwise). `pnpm release`
+  and `pnpm release:dry` refuse to start without a login, since the publish only runs after the tag is
+  pushed. If the account uses 2FA, npm asks for a one-time password during the publish.
 - Node `^22.22.2`, `^24.15.0` or 26+ (what release-it 21 and its changelog plugin declare in `engines`;
   the project itself only needs 22.12+), pnpm, and `pnpm install` done.
 
@@ -58,7 +59,7 @@ pnpm release:dry
 ```
 
 A dry run changes nothing and, by release-it's design, does not run the hooks (the changelog check and
-`pnpm verify`). It does require a clean working tree on `main`, since that is a rule of the real release.
+`pnpm verify`). It does check your npm login first, like the real release. It does require a clean working tree on `main`, since that is a rule of the real release.
 
 Then release:
 
@@ -68,7 +69,8 @@ pnpm release              # asks for the version; or: pnpm release patch|minor|m
 
 It does these steps, stopping at the first failure:
 
-1. checks that the Unreleased section has entries, and runs `pnpm verify`;
+1. checks that you are logged in to npm and that `HEAD` is not already a release, then that the
+   Unreleased section has entries, and runs `pnpm verify`;
 2. asks for the version (plain `X.Y.Z` only: prereleases are refused before anything changes, because CI
    would reject their tag) and shows the changelog;
 3. bumps `version` in the root `package.json` and copies it into `packages/cli/package.json` (one version
@@ -111,8 +113,10 @@ From here on, `pnpm release patch|minor|major` is all a release needs. Before th
 ## Recovery
 
 - **The checks fail before the bump:** nothing changed; fix and re-run.
-- **`npm publish` fails** (wrong one-time password, network): the tag and commit are already pushed and
-  CI is running. Fix the cause and run `pnpm release:publish`. It refuses if the version is already on npm.
+- **`npm publish` fails or is refused** (not logged in, wrong one-time password, network): the tag and
+  commit are already pushed and CI is running. Fix the cause and run `pnpm release:publish`; do not run
+  `pnpm release` again (it would refuse, since `HEAD` is already the release). `release:publish` refuses
+  if the version is already on npm.
 - **Published to npm but the GitHub Release failed:** re-run the failed workflow run from the Actions tab
   (the tag is unchanged), or fix the problem on `main` and let a new patch release replace it.
 - **Wrong changelog text after a release:** edit `CHANGELOG.md` on `main`; edit the release notes on
