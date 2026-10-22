@@ -7,6 +7,16 @@ the Worker is deployed from the same tag.
 
 ## [Unreleased]
 
+### Changed
+
+- The macOS installer now installs the `fl` command too: it links `fl` and `flashlink` in
+  `~/.local/bin` to the standalone binary the Finder menu uses, so Terminal and Finder run the same
+  version and nothing depends on Node. It never overwrites an `fl` installed some other way, says
+  when `~/.local/bin` is not on your `PATH` (with the line to add), and when another `fl` comes first.
+  Already installed? Run the install command again.
+- The installer's output is clearer: grouped steps, colors on a terminal (not with `NO_COLOR`), and a
+  "Next steps" list that only includes connecting to your Worker when that is still needed.
+
 ## [0.0.2] - 2026-10-22
 
 ### Security

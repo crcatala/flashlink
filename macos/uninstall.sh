@@ -20,7 +20,20 @@ if [ -e "$bin_dir/fl-quick" ]; then
 fi
 
 data_dir=${FLASHLINK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flashlink}
-# `flashlink` is a symlink to `fl`, so test with -L: -e is false for a dangling link.
+# The `fl` and `flashlink` commands install.sh linked into ~/.local/bin; an fl installed some other
+# way (a regular file, or a link elsewhere) is not ours to remove.
+for name in fl flashlink; do
+  if [ -L "$bin_dir/$name" ]; then
+    case $(readlink "$bin_dir/$name") in
+      "$data_dir"/bin/*)
+        rm -f "$bin_dir/$name"
+        echo "removed: $bin_dir/$name"
+        ;;
+    esac
+  fi
+done
+# Before 0.0.3, `flashlink` was a symlink to `fl` next to it. Test with -L: -e is false for a
+# dangling link.
 if [ -L "$data_dir/bin/flashlink" ]; then
   rm -f "$data_dir/bin/flashlink"
   echo "removed: $data_dir/bin/flashlink"

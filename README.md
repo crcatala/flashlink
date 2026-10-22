@@ -40,10 +40,15 @@ pnpm setup:cloudflare
 
 It prints your Worker's URL and your upload token (shown once, so save it). More options: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-**2. Install the CLI** (macOS or Linux, Node 22.12+):
+**2. Install the CLI.** On a Mac, one command installs `fl` and the [Finder menu](#finder-quick-action-macos), with no Node needed:
 
 ```sh
-npm i -g flashlink
+curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest
+```
+
+On Linux (or if you prefer npm on a Mac), with Node 22.12+: `npm i -g flashlink`. Then connect it to your Worker:
+
+```sh
 fl init --endpoint https://flashlink.<you>.workers.dev   # prompts for your token
 ```
 
@@ -77,12 +82,7 @@ Only the URL goes to stdout, so it composes: `curl -s "$(fl up shot.png --no-cop
 
 Right-click a file in Finder → **Quick Actions → Share via flashlink**, pick a lifetime, and a notification shows the link (also on your clipboard). Multiple files get one link each; folders are zipped.
 
-```sh
-curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest
-~/.local/share/flashlink/bin/fl init --endpoint https://flashlink.<you>.workers.dev
-```
-
-Then enable the actions once in System Settings → Keyboard → Keyboard Shortcuts → Services → Files and Folders. No Node needed. Details, update, uninstall and troubleshooting: [`docs/MACOS.md`](docs/MACOS.md).
+The Mac install command in step 2 sets this up too. Turn the menu on once in System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders (the installer's last lines say the same). Details, update, uninstall and troubleshooting: [`docs/MACOS.md`](docs/MACOS.md).
 
 ## Use it with coding agents
 

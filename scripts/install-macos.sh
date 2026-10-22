@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the standalone fl for this Mac and install the Finder Quick Actions with it:
+# Build the standalone fl for this Mac and install it (the fl command and the Finder Quick Actions):
 # scripts/build-binary.sh for this machine's architecture, then macos/install.sh --binary.
 # Needs Bun and `pnpm install` once. Run it again after pulling to refresh everything.
 

@@ -563,8 +563,11 @@ describe('install.sh and uninstall.sh', () => {
     expect(
       fs.readFileSync(path.join(home, '.config', 'flashlink', 'quick-action-path'), 'utf8'),
     ).toBe(`${path.join(dir, 'bin')}\n`);
-    expect(i.stderr).not.toContain('WARNING');
-    expect(i.stdout).toContain('found the way a Quick Action will look for them');
+    expect(i.stderr).not.toContain('cannot run fl');
+    expect(i.stdout).toContain('a Quick Action can run fl');
+    expect(i.stdout).toContain('your own fl');
+    // Piped output (not a terminal) has no color codes.
+    expect(i.stdout).not.toContain('\x1b[');
 
     // Installing again over an existing install works (an upgrade).
     expect(run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' }).status).toBe(0);
@@ -576,7 +579,7 @@ describe('install.sh and uninstall.sh', () => {
     expect(run(uninstall, []).status).toBe(0);
   });
 
-  it('--binary installs the standalone fl under the data dir; uninstall removes only it', () => {
+  it('--binary installs the standalone fl, links fl and flashlink into ~/.local/bin; uninstall removes only those', () => {
     const home = path.join(dir, 'home');
     write(path.join(dir, 'built', 'flashlink-darwin-arm64'), FAKE_FLASHLINK);
     write(path.join(home, '.local', 'share', 'flashlink', 'history.json'), '[]', 0o644);
@@ -588,21 +591,22 @@ describe('install.sh and uninstall.sh', () => {
     expect(i.status).toBe(0);
     const bin = path.join(home, '.local', 'share', 'flashlink', 'bin', 'fl');
     expect(fs.statSync(bin).mode & 0o111).not.toBe(0);
-    expect(i.stdout).toContain(`installed: ${bin}`);
-    expect(i.stderr).not.toContain('WARNING');
-    // The alias is a relative symlink to fl, and it runs the same binary.
-    const alias = path.join(path.dirname(bin), 'flashlink');
-    expect(fs.lstatSync(alias).isSymbolicLink()).toBe(true);
-    expect(fs.readlinkSync(alias)).toBe('fl');
-    expect(spawnSync(alias, ['--version'], { encoding: 'utf8' }).stdout).toBe(
-      spawnSync(bin, ['--version'], { encoding: 'utf8' }).stdout,
-    );
-    expect(i.stdout).toContain(`installed: ${alias} -> fl`);
+    expect(i.stdout).toContain('fl 0.0.0 (fake123), ~/.local/share/flashlink/bin/fl');
+    expect(i.stdout).toContain('linked         ~/.local/bin/fl, ~/.local/bin/flashlink');
+    // Both commands are absolute symlinks to the binary and run it.
+    for (const name of ['fl', 'flashlink']) {
+      const link = path.join(home, '.local', 'bin', name);
+      expect(fs.readlinkSync(link)).toBe(bin);
+      expect(spawnSync(link, ['--version'], { encoding: 'utf8' }).stdout).toBe('0.0.0 (fake123)\n');
+    }
+    // No alias next to the binary any more (~/.local/bin has it).
+    expect(fs.existsSync(path.join(path.dirname(bin), 'flashlink'))).toBe(false);
 
     const u = run(uninstall, []);
     expect(u.status).toBe(0);
     expect(u.stdout).toContain(`removed: ${bin}`);
-    expect(u.stdout).toContain(`removed: ${alias}`);
+    expect(u.stdout).toContain(`removed: ${path.join(home, '.local', 'bin', 'fl')}`);
+    expect(u.stdout).toContain(`removed: ${path.join(home, '.local', 'bin', 'flashlink')}`);
     expect(files(home)).toEqual(before); // history.json is still there
     expect(fs.existsSync(path.dirname(bin))).toBe(false);
   });
@@ -614,8 +618,12 @@ describe('install.sh and uninstall.sh', () => {
       PATH: '/usr/bin:/bin',
     });
     expect(r.status).toBe(0);
-    expect(r.stderr).not.toContain('WARNING');
-    expect(r.stdout).toContain('found the way a Quick Action will look for them');
+    expect(r.stderr).not.toContain('cannot run fl');
+    expect(r.stdout).toContain('a Quick Action can run fl');
+    // A standalone fl needs no record of where the terminal's fl and node are.
+    expect(fs.existsSync(path.join(dir, 'home', '.config', 'flashlink', 'quick-action-path'))).toBe(
+      false,
+    );
   });
 
   it('does not install a binary that does not start, warns, and exits non-zero', () => {
@@ -661,9 +669,95 @@ describe('install.sh and uninstall.sh', () => {
     const r = run(install, ['--binary', v2], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
     expect(fs.readFileSync(bin, 'utf8')).toContain('2.0.0');
-    // The alias follows the update, because it points at fl.
-    const alias = path.join(path.dirname(bin), 'flashlink');
+    // The commands follow the update, because they point at the binary.
+    const alias = path.join(dir, 'home', '.local', 'bin', 'flashlink');
     expect(spawnSync(alias, ['--version'], { encoding: 'utf8' }).stdout).toContain('2.0.0');
+  });
+
+  describe('the fl command in your terminal', () => {
+    const home = () => path.join(dir, 'home');
+    const localBin = () => path.join(home(), '.local', 'bin');
+    const bin = () => path.join(home(), '.local', 'share', 'flashlink', 'bin', 'fl');
+    const installBinary = (env: Record<string, string> = {}) => {
+      write(path.join(dir, 'built', 'fl'), FAKE_FLASHLINK);
+      return run(install, ['--binary', path.join(dir, 'built', 'fl')], {
+        FLASHLINK_INSTALL_ANY_OS: '1',
+        ...env,
+      });
+    };
+
+    it('says typing fl works when ~/.local/bin is on PATH', () => {
+      const r = installBinary({ PATH: `${localBin()}:/usr/bin:/bin` });
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('on your PATH');
+      expect(r.stdout).toContain('Terminal: fl up FILE');
+      expect(r.stderr).not.toMatch(/PATH|different fl|left alone/);
+    });
+
+    it('shows the line to add when ~/.local/bin is not on PATH (zsh, or bash)', () => {
+      const zsh = installBinary({ PATH: '/usr/bin:/bin', SHELL: '/bin/zsh' });
+      expect(zsh.status).toBe(0);
+      expect(zsh.stderr).toContain('~/.local/bin is not on your PATH');
+      expect(zsh.stderr).toContain(`echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc`);
+      // Until then, the next steps spell out the full path.
+      expect(zsh.stdout).toContain('Terminal: ~/.local/share/flashlink/bin/fl up FILE');
+      const bash = installBinary({ PATH: '/usr/bin:/bin', SHELL: '/bin/bash' });
+      expect(bash.stderr).toContain('>> ~/.bash_profile');
+    });
+
+    it('names another fl that the terminal finds first, and keeps the links', () => {
+      // The default test PATH has a fake fl (as if from npm) before anything else.
+      const r = installBinary({ PATH: `${path.join(dir, 'bin')}:${localBin()}:/usr/bin:/bin` });
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain(
+        `this terminal runs a different fl first: ${path.join(dir, 'bin', 'fl')} (0.0.0 (fake123))`,
+      );
+      expect(r.stderr).toContain('npm uninstall -g flashlink');
+      expect(fs.readlinkSync(path.join(localBin(), 'fl'))).toBe(bin());
+    });
+
+    it('never replaces an fl it did not put in ~/.local/bin, and uninstall leaves it too', () => {
+      write(path.join(localBin(), 'fl'), '#!/bin/sh\necho mine\n');
+      fs.symlinkSync('/somewhere/else/flashlink', path.join(localBin(), 'flashlink'));
+      const r = installBinary();
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain(
+        'left alone (not from this installer): ~/.local/bin/fl ~/.local/bin/flashlink',
+      );
+      expect(fs.readFileSync(path.join(localBin(), 'fl'), 'utf8')).toContain('mine');
+      expect(fs.readlinkSync(path.join(localBin(), 'flashlink'))).toBe('/somewhere/else/flashlink');
+      expect(run(uninstall, []).status).toBe(0);
+      expect(fs.readFileSync(path.join(localBin(), 'fl'), 'utf8')).toContain('mine');
+      expect(fs.lstatSync(path.join(localBin(), 'flashlink')).isSymbolicLink()).toBe(true);
+    });
+
+    it('links an already installed binary when run again without options (the 0.0.2 layout)', () => {
+      // 0.0.2 installed the binary and a `flashlink` alias next to it, but nothing on PATH.
+      write(bin(), FAKE_FLASHLINK);
+      fs.symlinkSync('fl', path.join(path.dirname(bin()), 'flashlink'));
+      const r = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
+      expect(r.status).toBe(0);
+      expect(fs.readlinkSync(path.join(localBin(), 'fl'))).toBe(bin());
+      expect(fs.readlinkSync(path.join(localBin(), 'flashlink'))).toBe(bin());
+      expect(fs.existsSync(path.join(path.dirname(bin()), 'flashlink'))).toBe(false);
+    });
+
+    it('lists connecting to a Worker as the first step only while no endpoint is set', () => {
+      const fresh = installBinary();
+      expect(fresh.stdout).toMatch(/1\. Connect fl to your Worker/);
+      expect(fresh.stdout).toContain('init --endpoint https://<your worker>');
+      expect(fresh.stdout).toMatch(/2\. Turn on the Finder menu/);
+
+      write(
+        path.join(dir, 'built', 'configured'),
+        `#!/bin/sh\n[ "$1" = --version ] && { echo 1.0.0; exit 0; }\n[ "$3" = endpoint ] && echo https://fl.example.com\nexit 0\n`,
+      );
+      const configured = run(install, ['--binary', path.join(dir, 'built', 'configured')], {
+        FLASHLINK_INSTALL_ANY_OS: '1',
+      });
+      expect(configured.stdout).not.toContain('Connect fl to your Worker');
+      expect(configured.stdout).toMatch(/1\. Turn on the Finder menu/);
+    });
   });
 
   it('says Quick Actions will not find a binary installed under a custom data directory', () => {
@@ -698,7 +792,7 @@ describe('install.sh and uninstall.sh', () => {
     );
     const i = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(i.status).toBe(0);
-    expect(i.stdout).toContain(`installed: ${applet}`);
+    expect(i.stdout).toContain('notifier       ~/.local/share/flashlink/notify/flashlink.app');
     expect(fs.readFileSync(path.join(applet, 'Contents', 'source.applescript'), 'utf8')).toBe(
       fs.readFileSync(path.join(macosDir, 'notify-applet.applescript'), 'utf8'),
     );
@@ -718,8 +812,8 @@ describe('install.sh and uninstall.sh', () => {
   it('works even though a Quick Action has a bare PATH (the terminal PATH is recorded)', () => {
     const r = run(install, [], { FLASHLINK_INSTALL_ANY_OS: '1' });
     expect(r.status).toBe(0);
-    expect(r.stderr).not.toContain('WARNING');
-    expect(r.stdout).toContain('recorded:');
+    expect(r.stderr).not.toContain('cannot run fl');
+    expect(r.stdout).toContain('recorded       where fl and node are');
   });
 
   it('warns, records nothing, but still installs, when fl is not found in the terminal', () => {
@@ -729,7 +823,9 @@ describe('install.sh and uninstall.sh', () => {
       PATH: '/usr/bin:/bin',
     });
     expect(r.status).toBe(0);
-    expect(r.stderr).toContain('WARNING');
+    expect(r.stderr).toContain('no fl found');
+    expect(r.stderr).toContain('a Quick Action cannot run fl');
+    expect(r.stderr).toContain('sh -s -- --latest'); // and how to fix it
     expect(fs.existsSync(path.join(dir, 'home', '.local', 'bin', 'fl-quick'))).toBe(true);
     expect(fs.existsSync(path.join(dir, 'home', '.config', 'flashlink', 'quick-action-path'))).toBe(
       false,
@@ -796,7 +892,8 @@ describe('install.sh --latest / --version', () => {
     // The x64 file is not what arm64 must pick, whatever its checksum says.
     const r = run(install, ['--latest'], dlEnv());
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain(`installed: ${installed()} (9.9.9 (rel1234))`);
+    expect(r.stdout).toContain('fl 9.9.9 (rel1234), ~/.local/share/flashlink/bin/fl');
+    expect(r.stdout).toContain('verified');
     expect(fs.readFileSync(installed(), 'utf8')).toContain('9.9.9 (rel1234)');
     expect(fs.existsSync(path.join(home(), '.local', 'bin', 'fl-quick'))).toBe(true);
   });
