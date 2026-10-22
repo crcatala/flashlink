@@ -1,48 +1,77 @@
-# Finder integration (macOS)
+# flashlink on macOS
 
-Right-click a file in Finder, choose **Quick Actions → Share via flashlink**, pick how long the link should live, and a notification shows the short link, which is also on your clipboard. Select several files and you get one link each and one summarizing notification. A folder is uploaded as a zip (see [Folders](CLI.md#folders)).
+One install gives you both ways to share a file:
+
+- **In Terminal:** `fl up report.pdf` prints a short link and copies it.
+- **In Finder:** right-click a file, choose **Quick Actions → Share via flashlink**, pick how long the link should live, and a notification shows the link (also on your clipboard). Select several files and you get one link each and one summarizing notification. A folder is uploaded as a zip (see [Folders](CLI.md#folders)).
+
+Nothing else is needed: no Node, no Homebrew, no clone. You do need a deployed Worker (see the [README quick start](../README.md#quick-start)).
 
 > Status: the wrapper and installer have automated tests (run on Linux in CI) and the whole flow was verified by hand on macOS 26.6.2 (Apple Silicon). The [QA checklist](#manual-qa-checklist) is how to repeat that.
 
 ## Install
 
-No clone, no Bun, no Node needed:
-
 ```sh
 curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest
 ```
 
-That downloads the latest release's standalone `fl` for your Mac (Apple Silicon or Intel), the Quick Actions and the notifier, checks each download against the release's `SHA256SUMS`, and installs them. To pin a version use `--version v0.0.1`. A fork sets `FLASHLINK_REPO=<you>/<fork>` for the installer.
+The installer downloads the latest release for your Mac (Apple Silicon or Intel), checks every file against the release's `SHA256SUMS`, installs it and tells you what it did, step by step:
 
-If the repository is private, `curl` cannot read the release; use the GitHub CLI (`gh auth login` once), which the installer falls back to by itself:
+| What                                   | Where                                                             |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| The `fl` command (a standalone binary) | `~/.local/share/flashlink/bin/fl`                                 |
+| `fl` and `flashlink` in your terminal  | `~/.local/bin/fl`, `~/.local/bin/flashlink` (links to the binary) |
+| The two Quick Actions                  | `~/Library/Services/Share via flashlink*.workflow`                |
+| The wrapper the Quick Actions run      | `~/.local/bin/fl-quick`                                           |
+| The notifier (posts the notifications) | `~/.local/share/flashlink/notify/flashlink.app`                   |
+
+Terminal and Finder use the same binary, so they are always the same version. It is the CLI compiled with Bun into one file, so it does not need Node and keeps working when you upgrade or switch Node versions.
+
+It ends with a short **Next steps** list, which is what the next section walks through.
+
+To pin a version use `--version v0.0.2` instead of `--latest`. A fork sets `FLASHLINK_REPO=<you>/<fork>` for the installer. If the repository is private, `curl` cannot read the release; install the GitHub CLI and run `gh auth login` once, and the installer falls back to it by itself, or start it with:
 
 ```sh
 cd "$(mktemp -d)" && gh release download --repo crcatala/flashlink --pattern install.sh && sh install.sh --latest
 ```
 
-Then point the binary at your Worker (it is not on your `PATH`, and it uses the same config file as any other `fl`):
+## After installing
+
+**1. Connect fl to your Worker** (once; it asks for your upload token):
 
 ```sh
-~/.local/share/flashlink/bin/fl init --endpoint https://fl.example.com
+fl init --endpoint https://flashlink.<you>.workers.dev
 ```
 
-Finally, enable the Quick Actions once in **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders**.
+**2. Turn on the Finder menu** (once): open **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders** and tick **Share via flashlink** (and **Share via flashlink (default lifetime)** if you want it, see [below](#the-two-quick-actions)).
 
-**Update:** run the install command again; it replaces the binary, the Quick Actions and the notifier and keeps your config and history. The new binary is tested before it replaces the old one: if it does not start on your Mac, the installer says so, keeps the binary you had and exits with an error.
+**3. Share a file:** `fl up FILE` in Terminal, or right-click a file in Finder → **Quick Actions → Share via flashlink**. The first notification may ask for permission (System Settings → Notifications → flashlink).
 
-**Uninstall:** `curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/uninstall.sh | sh` (or `sh macos/uninstall.sh` from a clone). It removes both Quick Actions, the wrapper, the notifier and the standalone binary; your config and history are left alone.
+### If Terminal says `fl: command not found`
 
-### From a clone
-
-For development, or when there is no release yet. With the CLI installed and configured as in the [CLI install](CLI.md#install),
+The installer links `fl` into `~/.local/bin`, which most setups already have on `PATH`. If yours does not, the installer says so and prints the line to add. For zsh (the macOS default):
 
 ```sh
-fl init --endpoint https://fl.example.com
-sh macos/install.sh                 # uses your own fl and node, found in your login shell
-pnpm install:macos                  # or: build the standalone binary for this Mac (needs Bun) and install it
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 ```
 
-The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to `~/.local/bin/fl-quick`, checks that a login shell can find `fl` and `node`, and refreshes the Services menu. The notification names a file in a folder if the [secret warning](CLI.md#secret-warning) refuses it.
+Then open a new Terminal window. The Finder menu works either way: it does not use your `PATH`.
+
+### If you also installed fl with npm
+
+The installer never overwrites an `fl` it did not create. If your terminal finds a different `fl` first (for example `npm i -g flashlink`), the installer names it: Terminal keeps running that one, and Finder runs the installed binary. To have just one, remove the other (`npm uninstall -g flashlink`) or put `~/.local/bin` earlier on your `PATH`. Both use the same config file and history.
+
+## Update and uninstall
+
+**Update:** run the install command again. It replaces the binary, the Quick Actions and the notifier, and keeps your config and history. The new binary is tested before it replaces the old one: if it does not start on your Mac, the installer says so, keeps the binary you had and exits with an error.
+
+**Uninstall:**
+
+```sh
+curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/uninstall.sh | sh
+```
+
+(or `sh macos/uninstall.sh` from a clone). It removes the binary and its links, both Quick Actions, the wrapper and the notifier. Your config and history stay (see `fl config path`), and so does any `fl` the installer did not create.
 
 ## The two Quick Actions
 
@@ -53,33 +82,41 @@ The installer copies two Quick Actions to `~/Library/Services/` and a wrapper to
 
 The server still enforces the maximum lifetime (7 days by default); if it refuses the choice the notification shows the error.
 
-## The standalone binary (no node or PATH needed)
+## How it works
 
-The release's `flashlink-darwin-arm64` / `flashlink-darwin-x64` is the CLI compiled with [Bun](https://bun.sh) into one file (about 60 to 70 MB). The installer copies it to `~/.local/share/flashlink/bin/fl` (with `flashlink` next to it, a symlink to `fl`, the same alias the npm package has), ad hoc signs it (`codesign -s -`, no developer account; it is not notarized, which is why the installer fetches it with `curl`, which sets no quarantine flag) and runs it with an empty environment to prove it starts.
+The release's `flashlink-darwin-arm64` / `flashlink-darwin-x64` is the CLI compiled with [Bun](https://bun.sh) into one file (about 60 to 70 MB). The installer signs it ad hoc (`codesign -s -`, no developer account; it is not notarized, which is why the installer fetches it with `curl`, which sets no quarantine flag) and runs it with an empty environment to prove it starts.
 
-The Quick Actions then run that file directly. If it is missing, or cannot start (exit 126/127), they fall back to the login-shell lookup described below. It is a second copy of `fl`, used only by the Quick Actions: your own `fl` is untouched.
+Finder starts Quick Actions with a bare `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`) and none of your shell setup, which is why the Quick Actions run that binary by its full path instead of looking for `fl`. The work itself is `fl up --notify --ttl <choice> -- <files>`; the token and endpoint come from the normal fl config file, never from the Quick Action.
 
-`fl --version` prints the release and the git commit it was built from (for example `0.0.1 (a1b2c3d)`; `-dirty` for a local build with uncommitted changes), and the lifetime dialog shows the same line under "Link lifetime", so you can tell a stale install from a fresh one.
+`fl --version` prints the release and the git commit it was built from (for example `0.0.2 (f04c5b9)`; `-dirty` for a local build with uncommitted changes), and the lifetime dialog shows the same line under "Link lifetime", so you can tell a stale install from a fresh one.
 
-To build one yourself, `pnpm build:binary` (or `sh scripts/build-binary.sh darwin-arm64`; it cross-compiles, so Linux works too) and `sh macos/install.sh --binary dist/bin/flashlink-darwin-arm64`; `pnpm install:macos` does both for your architecture.
+## From a clone (development)
 
-## How it works without the standalone binary
+To build the binary from your checkout and install it (needs Bun and `pnpm install`):
 
-Quick Actions run with a minimal `PATH` that has neither `fl` nor `node`. `install.sh` therefore records the folders where **your Terminal** finds them in `~/.config/flashlink/quick-action-path` (one line of colon-separated folders; edit it by hand if you like), and the wrapper puts them in front of `PATH`.
+```sh
+pnpm install:macos     # scripts/build-binary.sh for this Mac, then macos/install.sh --binary
+```
 
-Everything runs in your login shell (`/bin/zsh -l`); if `fl` is still not found, for example after mise or nvm moved to a new Node version, it retries once in an interactive login shell, which also reads `~/.zshrc`. The actual work is `fl up --notify --ttl <choice> -- <files>`; the token and endpoint come from the normal fl config file, never from the Quick Action. Run `macos/install.sh` from a Terminal where `fl --version` works, and run it again after changing how `fl` is installed.
+Or keep using your own `fl` (for example `npm link` of your working copy) and only install the Quick Actions:
+
+```sh
+sh macos/install.sh    # no option: Quick Actions from this folder, your own fl and node
+```
+
+Without a standalone binary, a Quick Action has to find your `fl` and `node` itself. The installer records the folders where **this Terminal** finds them in `~/.config/flashlink/quick-action-path` (one line of colon-separated folders; edit it by hand if you like), and the wrapper runs `fl` in your login shell (`/bin/zsh -l`) with those folders in front of `PATH`. If `fl` is still not found, for example after mise or nvm moved to a new Node version, it retries once in an interactive login shell, which also reads `~/.zshrc`. Run `sh macos/install.sh` from a Terminal where `fl --version` works, and again after changing how `fl` is installed. If a standalone binary is installed, the Quick Actions use it instead and ignore all of this.
 
 ## Troubleshooting
 
-- _"Could not run fl" notification, or the installer's WARNING._ A Quick Action could not find `fl` or `node`. Run `fl --version` in your Terminal; if that works, run `sh macos/install.sh` from that same Terminal so it records the right folders. To test the way a Quick Action starts: `env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin ~/.local/bin/fl-quick --check` prints the two paths it found. If you use a version manager, check that the recorded folder still exists (`cat ~/.config/flashlink/quick-action-path`); you can also write the folders in that file yourself.
+- _"Could not run fl" notification, or the installer's "a Quick Action cannot run fl"._ Run the install command again: the standalone binary needs nothing else. To test the way a Quick Action starts: `env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin ~/.local/bin/fl-quick --check` prints the `fl` it found. Without a standalone binary (a clone setup), see [From a clone](#from-a-clone-development).
 - _The action is missing from the Quick Actions menu._ Enable it in System Settings → Keyboard → Keyboard Shortcuts → Services → Files and Folders. Then run `/System/Library/CoreServices/pbs -flush`, or log out and back in. It only appears when you right-click a file or folder in Finder.
 - _No notification appears._ Allow notifications for **flashlink** in System Settings → Notifications (for **Script Editor** if `macos/install.sh` could not build the notifier and printed a note). The first notification may ask for permission. The link is still copied to the clipboard.
-- _Clicking a notification opens Script Editor._ The notifier app is missing: run `sh macos/install.sh` again (it needs `osacompile`, which ships with macOS). It lives in `~/.local/share/flashlink/notify/flashlink.app`.
+- _Clicking a notification opens Script Editor._ The notifier app is missing: run the install command again (it needs `osacompile`, which ships with macOS). It lives in `~/.local/share/flashlink/notify/flashlink.app`.
 - _macOS asks to access your Downloads (or Desktop, Documents) folder._ That is macOS's privacy protection, asked once per folder the first time a Quick Action reads a file from there. Choose Allow.
 - _macOS blocks the workflow as downloaded or from an unidentified developer._ Remove the quarantine flag: `xattr -dr com.apple.quarantine ~/Library/Services/Share\ via\ flashlink*.workflow` (the installer already does this for what it copies).
 - _"Looks like it contains secrets"._ The [secret warning](CLI.md#secret-warning) refuses files such as `.env` or private keys because a Quick Action has no terminal to ask in. Upload it from a terminal with `fl up --allow-secrets -- file` if you really mean to share it.
 - _Errors._ The notification carries the message (wrong token, file over the size cap, offline). Run the same upload in a terminal to see more: `fl up --notify -- file`.
-- _Where things live._ Config: `~/.config/flashlink/config.json`; history: `~/.local/share/flashlink/history.json` (see `fl config path`); Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/fl-quick`; standalone binary (if installed): `~/.local/share/flashlink/bin/fl` and the `flashlink` symlink beside it; notifier: `~/.local/share/flashlink/notify/`.
+- _Where things live._ Config: `~/.config/flashlink/config.json`; history: `~/.local/share/flashlink/history.json` (see `fl config path`); binary: `~/.local/share/flashlink/bin/fl`, linked as `~/.local/bin/fl` and `~/.local/bin/flashlink`; Quick Actions: `~/Library/Services/`; wrapper: `~/.local/bin/fl-quick`; notifier: `~/.local/share/flashlink/notify/`.
 
 ## Manual QA checklist
 

@@ -4,19 +4,30 @@ The `fl` command (also installed as `flashlink`). For a short introduction see t
 
 ## Install
 
+On a Mac, the [macOS installer](MACOS.md#install) installs a standalone `fl` (no Node needed) together with the Finder menu:
+
+```sh
+curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest
+```
+
+With npm, on macOS or Linux (Node 22.12+):
+
 ```sh
 npm i -g flashlink                  # or run it without installing: npx flashlink --help
+```
+
+Either way, then:
+
+```sh
 fl init --endpoint https://fl.example.com      # prompts for your upload token
 ```
 
-Works on macOS and Linux (Node 22.12+). From a clone of the repository instead:
+From a clone of the repository instead:
 
 ```sh
 pnpm install && pnpm build
 ln -s "$PWD/packages/cli/dist/index.js" ~/.local/bin/fl   # or anywhere on your PATH
 ```
-
-On a Mac without Node, the [Finder integration](MACOS.md) installs a standalone `fl` that needs no Node at all.
 
 ## Commands
 
