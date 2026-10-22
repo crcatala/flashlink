@@ -7,6 +7,8 @@ the Worker is deployed from the same tag.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-22
+
 ### Security
 
 - The standalone macOS binaries (`flashlink-darwin-arm64`, `flashlink-darwin-x64`) are now built with
