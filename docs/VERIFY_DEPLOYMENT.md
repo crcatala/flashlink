@@ -82,7 +82,7 @@ node scripts/verify-deployment.mjs --endpoint https://<your-worker> --sweeper --
 cd packages/worker && pnpm exec wrangler deploy      # back to the committed value (7 days)
 ```
 
-The `sweeper purges an expired link` check should PASS (the alarm fires within seconds of the grace period passing). Confirm `curl -s https://<your-worker>/api/status -H "Authorization: Bearer $FLASHLINK_TOKEN"` reports `purgeGraceSeconds` 604800 again after the restore.
+The `sweeper purges an expired link` check should PASS (the alarm fires within about a minute of the grace period passing: sweeps are at least a minute apart, see [ARCHITECTURE.md](ARCHITECTURE.md#alarm-backstops)). Confirm `curl -s https://<your-worker>/api/status -H "Authorization: Bearer $FLASHLINK_TOKEN"` reports `purgeGraceSeconds` 604800 again after the restore.
 
 **Lifecycle rule.**
 

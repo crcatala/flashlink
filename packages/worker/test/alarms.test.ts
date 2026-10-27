@@ -1,13 +1,15 @@
 // The sweeper's alarm backstop (docs/ARCHITECTURE.md, "Alarm backstops"): runs at least MIN_ALARM_GAP_MS (a minute)
 // apart, whatever is due. Time is faked inside the Durable Object (same isolate) and set a year ahead, so the alarms
 // these tests schedule never fire for real while they run.
+import { env } from 'cloudflare:workers';
 import { runInDurableObject } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseLimits } from '../src/config.ts';
 import type { Registry } from '../src/registry.ts';
 import { registry, resetState, setExpiry, uploadOk } from './helpers.ts';
 
 const MINUTE = 60_000;
-const GRACE_MS = 7 * 86400_000;
+const GRACE_MS = parseLimits(env).purgeGraceSeconds * 1000;
 
 beforeEach(async () => {
   await resetState();
@@ -96,5 +98,34 @@ describe('sweeper alarm backstop', () => {
     });
 
     expect(alarm).toBe(due);
+  });
+
+  it('keeps an API call that schedules right after a sweep at least a minute after it', async () => {
+    const link = await uploadOk('due soon');
+    const pending = await registry().allocate({
+      filename: 'x',
+      contentType: 'text/plain',
+      size: 10,
+      ttlSeconds: 60,
+    });
+    if (!pending.ok) throw new Error('allocate failed');
+    const result = await runInDurableObject(registry(), async (instance, state) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      const start = Date.now() + 365 * 86400_000;
+      vi.setSystemTime(start);
+      // The link comes due 5 s after a sweep that has just run.
+      state.storage.sql.exec(
+        'UPDATE links SET expires_at = ? WHERE code = ?',
+        start + 5000 - GRACE_MS,
+        link.code,
+      );
+      await instance.alarm();
+      await state.storage.deleteAlarm();
+      // An API call (here an aborted upload) schedules the next sweep.
+      await instance.abort(pending.code);
+      return { start, alarm: await state.storage.getAlarm() };
+    });
+
+    expect(result.alarm).toBe(result.start + MINUTE);
   });
 });
