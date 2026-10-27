@@ -85,9 +85,11 @@ export async function rowCount(): Promise<number> {
   );
 }
 
-/** Clear all registry rows, the alarm, and every R2 object between tests. */
+/** Clear all registry rows, the alarm, the sweeper's last run and every R2 object between tests. */
 export async function resetState(): Promise<void> {
-  await runInDurableObject(registry(), async (_instance, state) => {
+  await runInDurableObject(registry(), async (instance, state) => {
+    // The same instance serves every test: forget its last sweep, so the alarm gap starts fresh.
+    (instance as unknown as { lastWakeAt: number }).lastWakeAt = 0;
     state.storage.sql.exec('DELETE FROM links');
     state.storage.sql.exec('DELETE FROM uploads');
     await state.storage.deleteAlarm();

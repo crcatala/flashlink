@@ -181,11 +181,20 @@ Design consequences:
 - **Duration is effectively free.** A DO awake for an entire 30-day month at 128 MB uses 0.125 GB × 2,592,000 s ≈ 324,000 GB-s, which is under the 400,000 GB-s included in the paid plan. This only holds with a **single instance** and a design that never keeps extra objects alive.
 - **Requests are the only real exposure**, and they scale linearly and mildly: 100M DO requests in a month ≈ $15 plus Worker request charges. There is no runaway multiplier.
 - **Nothing that keeps a DO awake or multiplies instances:** no WebSockets, no `setInterval`/`setTimeout` loops, no unawaited work, no per-user or per-IP objects, no file bytes through the DO.
-- **The sweeper alarm is scheduled only for the next due cleanup** and reschedules only if rows remain. With no live links, no alarm is pending and the DO sits idle. There is no periodic heartbeat.
+- **The sweeper alarm is scheduled only for the next due cleanup** and reschedules only if rows remain. With no live links, no alarm is pending and the DO sits idle. There is no periodic heartbeat. Runs are at least a minute apart ([Alarm backstops](#alarm-backstops)).
 - **Pre-DO filtering** (regex, per-IP and global limits) keeps most junk traffic away from the DO.
 - **R2:** misses stop at the DO lookup, so only valid live links cause R2 reads. R2 has no egress fees.
 
 Honest caveat: because the rate limiter is per-location and approximate, the global limit is a deterrent. A widely distributed flood could exceed it. The hard backstops are Cloudflare's DDoS protection, an optional WAF rule, and billing alerts ([DEPLOY.md](DEPLOY.md) tells paid-plan users to enable usage notifications).
+
+### Alarm backstops
+
+The sweeper alarm is the one cost that needs no visitor: each run is a billed request plus a few rows written, and a bug that left something due "now" would make the sweeper re-run back to back with nobody using flashlink. That's the kind of loop behind the well-known $10k–$34k Durable Object bills. Two backstops (from the studio playbook's alarm guardrails), each with a test that fails without it:
+
+1. **Runs at least a minute apart** (`MIN_ALARM_GAP_MS` in `packages/worker/src/registry.ts`, tested in `packages/worker/test/alarms.test.ts`). `scheduleAlarm` never sets the alarm within 60 s of the last run, so a looping sweeper costs at most 1,440 runs a day: about 1.5% of the free plan's daily requests and a few thousand rows written, or cents a month on Paid. The last run time is kept in memory. That's enough because a loop can only come from the sweeper rescheduling itself, which happens in the same run that records the time; an object evicted between runs only lets an API call (rate-limited) schedule the next run sooner.
+2. **Only `scheduleAlarm` sets the alarm.** `packages/worker/test/tooling/alarmCalls.test.ts` parses `src/` and fails CI on a direct `setAlarm`/`deleteAlarm` call anywhere else. It reads names, not types, so `storage['setAlarm']` would slip past; don't write that. It runs in node (`vitest.tooling.config.ts`, `tsconfig.node.json`) as part of `pnpm test`, because it reads files from disk.
+
+**Decision: a one-minute gap, and no kill switch (2026-10-27).** The gap has to stay below the delay the fastest legitimate deadline can tolerate. Here nothing is user-facing: expiry and the download cap are enforced on every read (`resolve`), so the sweeper only reclaims storage, by default 7 days after expiry (`PURGE_GRACE_SECONDS`), or 15 minutes after an abandoned upload. A purge up to a minute late is never noticed (tested: a link due 10 s after a run is purged at the next run, a minute later, and a lone link's purge is scheduled exactly on time). The playbook's 2 s default would allow 43,000 runs a day for no benefit. flashlink has no kill switch like the games' `ONLINE_ENABLED`; with the ceiling this low, one isn't worth adding. If the sweeper ever loops, deploy a fix: alarms survive deploys, but the next run uses the new code. Revisit if a feature needs the sweeper sooner (lower the gap and update the ceiling here).
 
 ## 6. Defaults and configuration
 
