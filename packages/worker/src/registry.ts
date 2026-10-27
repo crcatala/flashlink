@@ -15,6 +15,15 @@ import { parseRange } from './http.ts';
 const PENDING_TTL_MS = 15 * 60 * 1000;
 const MAX_CODE_ATTEMPTS = 5;
 const MAX_LOOKUP_CODES = 100;
+/**
+ * Backstop against an alarm loop: the sweeper never runs within this long of its last run, whatever is due. A bug
+ * that kept something due "now" would otherwise re-run it back to back, each run a billed request and a few rows
+ * written, with nobody using flashlink. At one run a minute that is at most 1,440 a day. Nothing needs it sooner:
+ * expiry is enforced on every read (`resolve`), so the sweeper only reclaims storage, days after expiry by default
+ * (PURGE_GRACE_SECONDS) or 15 minutes after an abandoned upload. A minute late is never noticed
+ * (docs/ARCHITECTURE.md, "Alarm backstops").
+ */
+const MIN_ALARM_GAP_MS = 60_000;
 
 export interface AllocateInput {
   filename: string;
@@ -72,6 +81,12 @@ const iso = (ms: number) => new Date(ms).toISOString();
  */
 export class Registry extends DurableObject<Env> {
   private readonly sql: SqlStorage;
+  /**
+   * When the sweeper last ran, for MIN_ALARM_GAP_MS. Memory is enough: a loop can only come from the sweeper
+   * rescheduling itself, and it does that in the same run that sets this. An object evicted between runs starts from
+   * 0, which only lets an API call schedule the next run sooner, and API calls are rate-limited.
+   */
+  private lastWakeAt = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -171,7 +186,7 @@ export class Registry extends DurableObject<Env> {
        ON CONFLICT(day) DO UPDATE SET count = count + 1`,
       today,
     );
-    await this.ensureAlarm();
+    await this.scheduleAlarm();
     return { ok: true, code, r2Key };
   }
 
@@ -185,14 +200,14 @@ export class Registry extends DurableObject<Env> {
       now + row.ttl_seconds * 1000,
       code,
     );
-    await this.ensureAlarm();
+    await this.scheduleAlarm();
     return this.info(this.row(code, 'active')!, now);
   }
 
   /** Drop a pending row after a failed upload (the Worker deletes any partial object). */
   async abort(code: string): Promise<void> {
     this.sql.exec(`DELETE FROM links WHERE code = ? AND state = 'pending'`, code);
-    await this.ensureAlarm();
+    await this.scheduleAlarm();
   }
 
   // ---- reads ------------------------------------------------------------------------
@@ -287,7 +302,7 @@ export class Registry extends DurableObject<Env> {
       ttl,
       code,
     );
-    await this.ensureAlarm();
+    await this.scheduleAlarm();
     return { ok: true, link: this.info(this.row(code, 'active')!, now) };
   }
 
@@ -296,7 +311,7 @@ export class Registry extends DurableObject<Env> {
     const now = Date.now();
     if (!this.row(code, 'active')) return fail('not_found', 'No such link.');
     this.sql.exec(`UPDATE links SET expires_at = ? WHERE code = ?`, now, code);
-    await this.ensureAlarm();
+    await this.scheduleAlarm();
     return { ok: true, link: this.info(this.row(code, 'active')!, now) };
   }
 
@@ -308,7 +323,7 @@ export class Registry extends DurableObject<Env> {
     this.sql.exec(`UPDATE links SET state = 'purging' WHERE code = ?`, code);
     await this.env.BUCKET.delete(row.r2_key);
     this.sql.exec(`DELETE FROM links WHERE code = ? AND state = 'purging'`, code);
-    await this.ensureAlarm();
+    await this.scheduleAlarm();
     return true;
   }
 
@@ -324,6 +339,7 @@ export class Registry extends DurableObject<Env> {
    */
   override async alarm(): Promise<void> {
     const now = Date.now();
+    this.lastWakeAt = now;
     const graceMs = parseLimits(this.env).purgeGraceSeconds * 1000;
     this.sql.exec(
       `UPDATE links SET state = 'purging'
@@ -347,15 +363,19 @@ export class Registry extends DurableObject<Env> {
       }
     }
     // Alarms don't repeat on their own: reschedule only if something is still pending.
-    const next = this.nextDue();
-    if (next !== null) await this.ctx.storage.setAlarm(next);
+    await this.scheduleAlarm(true);
   }
 
-  /** Make sure an alarm exists at or before the next due cleanup; none if nothing is due. */
-  private async ensureAlarm(): Promise<void> {
-    const next = this.nextDue();
-    if (next === null) return;
-    const current = await this.ctx.storage.getAlarm();
+  /**
+   * Make sure an alarm exists at or before the next due cleanup, but never within MIN_ALARM_GAP_MS of the last run;
+   * none if nothing is due. `fired`: called by the sweeper, whose alarm has just been used up. The only place that
+   * sets the alarm (test/tooling/alarmCalls.test.ts keeps it that way).
+   */
+  private async scheduleAlarm(fired = false): Promise<void> {
+    const due = this.nextDue();
+    if (due === null) return;
+    const next = Math.max(due, this.lastWakeAt + MIN_ALARM_GAP_MS);
+    const current = fired ? null : await this.ctx.storage.getAlarm();
     if (current === null || next < current) await this.ctx.storage.setAlarm(next);
   }
 

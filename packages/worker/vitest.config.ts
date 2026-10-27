@@ -16,5 +16,6 @@ export default defineConfig({
       },
     }),
   ],
-  test: { include: ['test/**/*.test.ts'] },
+  // test/tooling reads source files from disk, so it runs in node (vitest.tooling.config.ts).
+  test: { include: ['test/**/*.test.ts'], exclude: ['test/tooling/**'] },
 });

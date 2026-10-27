@@ -582,8 +582,9 @@ if (!opts.sweeper) {
   await check('sweeper purges an expired link after the grace period', async () => {
     const link = await uploadOk(Buffer.from('sweep me\n'), { type: 'text/plain', ttl: 1 });
     const due = new Date(link.expiresAt).getTime() + S.limits.purgeGraceSeconds * 1000;
-    const deadline = due + 90_000;
-    console.log(`      waiting until ${new Date(due).toISOString()} (+ up to 90 s for the alarm)`);
+    // Sweeps are at least a minute apart (MIN_ALARM_GAP_MS), so one may be due up to 60 s after the grace period.
+    const deadline = due + 150_000;
+    console.log(`      waiting until ${new Date(due).toISOString()} (+ up to 150 s for the alarm)`);
     await sleep(Math.max(0, due - Date.now()));
     while (Date.now() < deadline) {
       if ((await api('GET', `/links/${link.code}`)).status === 404) {
@@ -606,7 +607,7 @@ if (!opts.sweeper) {
       }
       await sleep(5000);
     }
-    throw new Error('link still present 90 s after the grace period');
+    throw new Error('link still present 150 s after the grace period');
   });
 }
 
