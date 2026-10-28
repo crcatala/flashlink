@@ -168,7 +168,8 @@ build_label() {
   if [ "$src" != "standalone" ]; then
     out=$(login_run 'fl "$@"' --version 2>/dev/null) || out=""
   fi
-  ver=$(printf '%s\n' "$out" | tail -n 1 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  # `fl --version` prints "fl X.Y.Z (sha7 date)"; the label below adds the name itself.
+  ver=$(printf '%s\n' "$out" | tail -n 1 | sed 's/^[[:space:]]*//; s/^fl //; s/[[:space:]]*$//')
   [ -n "$ver" ] || ver="unknown version"
   echo "fl $ver, $src"
 }

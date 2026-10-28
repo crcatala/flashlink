@@ -42,8 +42,10 @@ MSG
 fi
 
 # The git commit goes into `fl --version` (and the Quick Action's lifetime dialog), so you can
-# tell which build is installed. "-dirty" marks uncommitted changes.
+# tell which build is installed. "-dirty" marks uncommitted changes, and the date is the commit's
+# date (not the build date), so the same commit always prints the same version line.
 build_id=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || true)
+build_date=$(git -C "$root" show -s --format=%cs HEAD 2>/dev/null || true)
 if [ -n "$build_id" ] && [ -n "$(git -C "$root" status --porcelain 2>/dev/null)" ]; then
   build_id="$build_id-dirty"
 fi
@@ -60,6 +62,7 @@ for target in "$@"; do
       ;;
   esac
   bun build --compile "--target=bun-$target" "$root/packages/cli/src/index.ts" \
-    --define "__FLASHLINK_BUILD__=\"${build_id:-unknown}\"" --outfile "$out/flashlink-$target"
+    --define "__FLASHLINK_BUILD__=\"${build_id:-unknown}\"" \
+    --define "__FLASHLINK_BUILD_DATE__=\"${build_date:-}\"" --outfile "$out/flashlink-$target"
   echo "built: dist/bin/flashlink-$target"
 done

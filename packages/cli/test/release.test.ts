@@ -49,21 +49,56 @@ describe('scripts/check-release-tag.mjs', () => {
   });
 });
 
+/** The published npm package is the repository root; packages/cli is the build package inside it. */
+const npmPkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+  name: string;
+  files: string[];
+  bin: Record<string, string>;
+  engines: { node: string };
+  scripts: Record<string, string>;
+  publishConfig: Record<string, unknown>;
+  repository: { url: string };
+  dependencies: Record<string, string>;
+};
+
 describe('npm package', () => {
-  it('ships only dist and the LICENSE (plus the README npm adds) and keeps the fl and flashlink bins', () => {
-    expect(pkg.files).toEqual(['dist', 'LICENSE']);
-    expect(pkg.bin).toEqual({ fl: './dist/index.js', flashlink: './dist/index.js' });
-    expect(pkg.engines.node).toBe('>=22.12');
+  it('is published from the repository root as flashlink, with the fl and flashlink bins', () => {
+    expect(npmPkg.name).toBe('flashlink');
+    expect(npmPkg.bin).toEqual({
+      fl: './packages/cli/dist/index.js',
+      flashlink: './packages/cli/dist/index.js',
+    });
+    expect(npmPkg.engines.node).toBe('>=22.12');
+    expect(npmPkg.dependencies).toEqual({ commander: '^15.0.0', mime: '^4.1.0' });
   });
 
-  it('builds and tests before any publish, and publishes publicly (from a maintainer machine, so no provenance)', () => {
-    expect(pkg.scripts.prepublishOnly).toBe('pnpm run build && pnpm run test');
-    expect(pkg.publishConfig).toEqual({ access: 'public' });
+  it('ships only the built CLI, its build stamp and the LICENSE (never dist/bin or dist/release)', () => {
+    expect(npmPkg.files).toEqual([
+      'dist/build-info.json',
+      'packages/cli/dist',
+      'README.md',
+      'LICENSE',
+    ]);
+  });
+
+  it('checks and builds before any publish, and publishes publicly (from a maintainer machine, so no provenance)', () => {
+    expect(npmPkg.scripts.prepublishOnly).toBe(
+      'node scripts/release-local.mjs publish-check && pnpm run verify',
+    );
+    expect(npmPkg.scripts.prepack).toBe('pnpm run build');
+    expect(npmPkg.publishConfig).toEqual({ access: 'public' });
   });
 
   it('points at the repository, for the npm page', () => {
-    expect(pkg.repository.url).toBe('git+https://github.com/crcatala/flashlink.git');
-    expect(pkg.repository.directory).toBe('packages/cli');
+    expect(npmPkg.repository.url).toBe('git+https://github.com/crcatala/flashlink.git');
+  });
+
+  it('keeps the CLI package private: only the root package is published', () => {
+    const cliPkg = JSON.parse(
+      fs.readFileSync(path.join(root, 'packages', 'cli', 'package.json'), 'utf8'),
+    ) as { name: string; private?: boolean };
+    expect(cliPkg.name).toBe('@flashlink/cli');
+    expect(cliPkg.private).toBe(true);
   });
 });
 
@@ -117,10 +152,18 @@ describe('release tooling', () => {
     expect(config.npm.publish).toBe(false);
     expect(config.github.release).toBe(false);
     expect(config.git).toMatchObject({ requireBranch: 'main', tagName: 'v${version}' });
+    // The smoke test runs after the bump, so it packs the version being released.
     expect(config.hooks['after:bump']).toEqual([
-      'node scripts/release.mjs sync-version ${version}',
+      'node scripts/release-local.mjs sync-version ${version}',
+      'pnpm run test:package',
     ]);
     expect(config.hooks['before:init']).toContain('pnpm run verify');
+    expect(config.hooks['before:init']).toContain('bash scripts/check-changelog.sh');
+    // The project preflight (npm login, one version, no half-finished release) runs first.
+    expect(config.hooks['before:init']![0]).toBe('node scripts/release-local.mjs preflight');
+    expect(config.hooks['before:bump']).toEqual([
+      'node scripts/release-local.mjs check-version ${version}',
+    ]);
   });
 
   it('wires the maintainer commands', () => {
@@ -129,15 +172,33 @@ describe('release tooling', () => {
       'release:dry': 'node scripts/release.mjs release --dry-run',
       'release:publish': 'node scripts/release.mjs publish',
       'release:prep': 'bash scripts/prep-release.sh',
+      'test:package': 'bash scripts/test-package.sh',
     });
     expect(rootPkg.scripts.verify).toBe(
       'pnpm format:check && pnpm typecheck && pnpm test && pnpm build',
     );
+    // The build stamps dist/build-info.json, which the published tarball ships.
+    expect(rootPkg.scripts.build).toContain('node scripts/build-info.mjs');
+  });
+
+  it('marks the canonical release scripts and keeps prettier from rewriting them', () => {
+    // These are byte-identical copies from the shared release standard (see RELEASING.md): the
+    // audit compares them, so `pnpm format:check` must not reformat them.
+    for (const file of [
+      'scripts/release.mjs',
+      'scripts/build-info.mjs',
+      'scripts/test-package.sh',
+      'scripts/prep-release.sh',
+      'scripts/check-changelog.sh',
+    ]) {
+      expect(read(file).split('\n').slice(0, 3).join('\n')).toContain(`release-standard: ${file}`);
+      expect(read('.prettierignore')).toMatch(new RegExp(`^${file.replace('.', '\\.')}$`, 'm'));
+    }
   });
 
   it('CI creates the GitHub Release from the changelog and has no npm publishing', () => {
     const workflow = read('.github', 'workflows', 'release.yml');
-    expect(workflow).toContain('node scripts/release.mjs notes "$GITHUB_REF_NAME"');
+    expect(workflow).toContain('node scripts/release-local.mjs notes "$GITHUB_REF_NAME"');
     expect(workflow).toContain('--notes-file');
     expect(workflow).not.toMatch(/npm publish|NPM_TOKEN|id-token|provenance/);
   });
@@ -220,10 +281,10 @@ describe('release tooling', () => {
     });
 
     const run = (...args: string[]) =>
-      spawnSync(process.execPath, [path.join(root, 'scripts', 'release.mjs'), ...args], {
+      spawnSync(process.execPath, [path.join(root, 'scripts', 'release-local.mjs'), ...args], {
         encoding: 'utf8',
       });
-    it('`release.mjs check-version` (the release-it before:bump hook) refuses a prerelease before anything is changed', () => {
+    it('`release-local.mjs check-version` (the release-it before:bump hook) refuses a prerelease before anything is changed', () => {
       expect(run('check-version', '0.2.0').status).toBe(0);
       const r = run('check-version', '0.2.0-rc.1');
       expect(r.status).toBe(1);
@@ -234,7 +295,7 @@ describe('release tooling', () => {
     it('release-it runs that check before it bumps anything', () => {
       const config = JSON.parse(read('.release-it.json')) as { hooks: Record<string, string[]> };
       expect(config.hooks['before:bump']).toEqual([
-        'node scripts/release.mjs check-version ${version}',
+        'node scripts/release-local.mjs check-version ${version}',
       ]);
     });
   });
@@ -353,7 +414,7 @@ describe('release tooling', () => {
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
-    });
+    }, 30_000); // real git processes: slower than the 5 s default on some machines
 
     it('reports a tag that is not on origin, and an origin that cannot be asked', () => {
       const { dir, work } = setup();
@@ -366,7 +427,7 @@ describe('release tooling', () => {
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
-    });
+    }, 30_000); // real git processes: slower than the 5 s default on some machines
   });
 
   describe('releaseProblems (before release-it changes anything)', () => {
@@ -452,11 +513,11 @@ describe('license', () => {
     }
   });
 
-  it('has a LICENSE file naming the holder and year, copied into the npm package unchanged', () => {
+  it('has a LICENSE file naming the holder and year, and the npm package ships it', () => {
     const license = read('LICENSE');
     expect(license).toMatch(/^MIT License\n\nCopyright \(c\) 2026 Christian Catalan\n/);
-    // npm only packs files inside the package directory, so the CLI keeps its own copy.
-    expect(read('packages', 'cli', 'LICENSE')).toBe(license);
+    // The published package is the repository root, so its LICENSE is the one npm packs.
+    expect(npmPkg.files).toContain('LICENSE');
   });
 });
 

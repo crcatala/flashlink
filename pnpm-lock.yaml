@@ -7,6 +7,13 @@ settings:
 importers:
 
   .:
+    dependencies:
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      mime:
+        specifier: ^4.1.0
+        version: 4.1.0
     devDependencies:
       '@release-it/keep-a-changelog':
         specifier: ^8.0.1
@@ -22,13 +29,6 @@ importers:
         version: 5.9.3
 
   packages/cli:
-    dependencies:
-      commander:
-        specifier: ^15.0.0
-        version: 15.0.0
-      mime:
-        specifier: ^4.1.0
-        version: 4.1.0
     devDependencies:
       '@flashlink/core':
         specifier: workspace:*
@@ -36,6 +36,12 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.1
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      mime:
+        specifier: ^4.1.0
+        version: 4.1.0
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.15)(typescript@5.9.3)

@@ -12,9 +12,16 @@
   "github": { "release": false },
   "npm": { "publish": false },
   "hooks": {
-    "before:init": ["bash scripts/check-changelog.sh", "pnpm run verify"],
-    "before:bump": ["node scripts/release.mjs check-version ${version}"],
-    "after:bump": ["node scripts/release.mjs sync-version ${version}"]
+    "before:init": [
+      "node scripts/release-local.mjs preflight",
+      "bash scripts/check-changelog.sh",
+      "pnpm run verify"
+    ],
+    "before:bump": ["node scripts/release-local.mjs check-version ${version}"],
+    "after:bump": [
+      "node scripts/release-local.mjs sync-version ${version}",
+      "pnpm run test:package"
+    ]
   },
   "plugins": {
     "@release-it/keep-a-changelog": {

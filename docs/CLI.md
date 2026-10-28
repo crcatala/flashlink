@@ -26,8 +26,12 @@ From a clone of the repository instead:
 
 ```sh
 pnpm install && pnpm build
-ln -s "$PWD/packages/cli/dist/index.js" ~/.local/bin/fl   # or anywhere on your PATH
+npm link                            # puts fl and flashlink on your PATH, pointing at the clone
+fl --version                        # fl X.Y.Z (sha7 YYYY-MM-DD): the commit you built
 ```
+
+Update whatever is installed with `fl update` (and only look with `fl update --check`); it follows
+the install method: a clone is pulled and rebuilt, an npm install is reinstalled from npm.
 
 ## Commands
 
@@ -49,6 +53,9 @@ fl revoke k3F9xQ2m --purge          # also delete the stored file
 
 fl status                           # server limits and usage
 fl config                           # view settings; `config set defaultTtl 2h`
+
+fl update                           # update fl the way it was installed
+fl update --check                   # only report: exit 0 up to date, 1 update available, 2 unknown
 ```
 
 `up` is also `upload`, and `ls` is also `list`. Run `fl <command> --help` for every option (for example `-q/--quiet`, which prints only URLs).

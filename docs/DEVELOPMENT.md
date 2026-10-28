@@ -19,7 +19,8 @@ pnpm install
 pnpm test          # all packages (Worker tests run in workerd via @cloudflare/vitest-pool-workers)
 pnpm typecheck
 pnpm format
-pnpm build         # the fl CLI
+pnpm build         # the fl CLI (packages/cli/dist) and its dist/build-info.json stamp
+pnpm test:package  # packs the npm tarball, installs it and checks --help, --version and update
 pnpm verify        # format check + typecheck + test + build: what CI and a release run
 
 cd packages/worker

@@ -1,27 +1,22 @@
 #!/usr/bin/env node
-// Release helpers. See RELEASING.md.
+// release-standard: scripts/release.mjs r2 (do not edit; see RELEASING.md)
 //
-//   node scripts/release.mjs release [release-it args]   check npm login, release-it, then publish to npm (`pnpm release`)
-//   node scripts/release.mjs publish [--dry-run]         publish packages/cli to npm from this machine
-//   node scripts/release.mjs check-version <version>     refuse anything but a plain X.Y.Z (release-it hook, before the bump)
-//   node scripts/release.mjs sync-version <version>      copy the version into packages/cli (release-it hook)
-//   node scripts/release.mjs notes <version|tag>         print that version's CHANGELOG section (the release notes)
+//   node scripts/release.mjs release [release-it args]   preflight, release-it (bump, changelog, tag, push,
+//                                                         GitHub Release), then publish from the tag
+//   node scripts/release.mjs publish [--dry-run] [--tag <tag>]
+//                                                        publish the tagged HEAD to npm (resume a release)
+//
+// release-it publishes to npm before it commits and tags, so its npm step is turned off in
+// .release-it.json and this script publishes afterwards: the published build is stamped with the
+// release commit and a clean tree. A package with "private": true is never published.
+// A prerelease (1.2.0-beta.1) is published under a dist-tag (`beta`), never as `latest`; npm 11
+// refuses a prerelease without one. `--tag` (publish) or `--npm.tag` (release) chooses another.
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import {
-  changelogSection,
-  gitState,
-  isReleaseVersion,
-  publishProblems,
-  releaseProblems,
-  setPackageVersion,
-} from './release-lib.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const cliDir = path.join(root, 'packages', 'cli');
-const read = (...p) => fs.readFileSync(path.join(root, ...p), 'utf8');
+const root = process.cwd();
+const pkg = () => JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const fail = (msg) => {
   console.error(msg);
   process.exit(1);
@@ -29,106 +24,104 @@ const fail = (msg) => {
 
 function out(cmd, args) {
   try {
-    return execFileSync(cmd, args, {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
+    return execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   } catch {
     return null;
   }
 }
 
-// `afterRelease`: called by `pnpm release`, so the release commit and tag are already pushed.
-function publish(dryRun, afterRelease = false) {
-  const retry = afterRelease
-    ? 'The release commit and tag are pushed (CI builds the GitHub Release); only the npm publish is left. Fix this, then run `pnpm release:publish`.'
-    : 'Fix this, then run `pnpm release:publish` again.';
-  const cliVersion = JSON.parse(read('packages', 'cli', 'package.json')).version;
-  const tag = `v${cliVersion}`;
-  const state = {
-    cliVersion,
-    rootVersion: JSON.parse(read('package.json')).version,
-    ...gitState(root, tag),
-    // `npm view` exits 1 with E404 for an unpublished version; anything else (network) is "unknown".
-    publishedOnNpm: (() => {
-      const r = spawnSync('npm', ['view', `flashlink@${cliVersion}`, 'version'], {
-        encoding: 'utf8',
-      });
-      if (r.status === 0) return r.stdout.trim() === cliVersion;
-      return /E404/.test(r.stderr) ? false : null;
-    })(),
-    npmUser: out('npm', ['whoami']),
-    dryRun,
-  };
-  const problems = publishProblems(state);
-  if (problems.length > 0) {
-    fail(
-      `Not publishing fl ${cliVersion}:\n${problems.map((p) => `  - ${p}`).join('\n')}\n${retry}`,
-    );
+// true: on npm, false: not on npm (E404), null: could not tell (network, auth).
+function publishedOnNpm(name, version) {
+  const r = spawnSync('npm', ['view', `${name}@${version}`, 'version'], { cwd: root, encoding: 'utf8' });
+  if (r.status === 0) return r.stdout.trim() === version;
+  return /E404/.test(r.stderr) ? false : null;
+}
+
+// The dist-tag for a version: none (npm's `latest`) for a release, the first prerelease identifier
+// for a prerelease (`beta` for 1.2.0-beta.1), or `next` when that identifier is numeric (1.2.0-0).
+function distTag(version) {
+  const pre = /^\d+\.\d+\.\d+-([0-9A-Za-z-]+)/.exec(version)?.[1];
+  if (!pre) return undefined;
+  return /^\d+$/.test(pre) ? 'next' : pre;
+}
+
+// The value of `--name <value>` or `--name=<value>` in args: undefined when absent, '' when empty.
+function optionValue(args, name) {
+  const i = args.findIndex((a) => a === name || a.startsWith(`${name}=`));
+  if (i === -1) return undefined;
+  return args[i] === name ? (args[i + 1] ?? '') : args[i].slice(name.length + 1);
+}
+
+function publish({ dryRun, tag: chosenTag, resumeHint }) {
+  const { name, version, private: isPrivate } = pkg();
+  if (isPrivate) {
+    console.error(`${name} is private; nothing to publish.`);
+    return;
   }
-  console.error(
-    `Publishing fl ${cliVersion} to npm as ${state.npmUser}${dryRun ? ' (dry run)' : ''}...`,
-  );
-  // Inherit stdio: npm asks for your one-time password here, if your account uses 2FA for publishing.
-  const r = spawnSync('npm', ['publish', '--access', 'public', ...(dryRun ? ['--dry-run'] : [])], {
-    cwd: cliDir,
+  const gitTag = `v${version}`;
+  const distTagName = chosenTag ?? distTag(version);
+  const problems = [];
+  const tagsAtHead = (out('git', ['tag', '--points-at', 'HEAD']) ?? '').split('\n');
+  if (!tagsAtHead.includes(gitTag)) problems.push(`HEAD is not tagged ${gitTag}; publish only from the release commit.`);
+  if (chosenTag === '') problems.push('--tag needs a value.');
+  if (out('git', ['status', '--porcelain']) !== '') problems.push('the working tree is not clean.');
+  const user = out('npm', ['whoami']);
+  if (!user) problems.push('not logged in to npm (run `npm login`).');
+  const published = publishedOnNpm(name, version);
+  if (published === true) problems.push(`${name}@${version} is already on npm.`);
+  if (published === null) problems.push(`could not check whether ${name}@${version} is on npm (network?).`);
+  if (problems.length > 0) {
+    fail(`Not publishing ${name}@${version}:\n${problems.map((p) => `  - ${p}`).join('\n')}\n${resumeHint}`);
+  }
+  const tagNote = distTagName ? ` under the "${distTagName}" dist-tag` : '';
+  console.error(`Publishing ${name}@${version}${tagNote} as ${user}${dryRun ? ' (dry run)' : ''}...`);
+  // Inherit stdio: npm asks for a one-time password or opens a browser here when the account uses 2FA.
+  // No --access flag: it would override package.json "publishConfig"; scoped packages set
+  // "publishConfig": { "access": "public" } there.
+  const args = ['publish', ...(distTagName ? ['--tag', distTagName] : []), ...(dryRun ? ['--dry-run'] : [])];
+  const r = spawnSync('npm', args, {
+    cwd: root,
     stdio: 'inherit',
   });
-  if (r.status !== 0) fail(`npm publish failed. ${retry}`);
-  if (!dryRun) console.error(`Published. Check: npm view flashlink@${cliVersion}`);
+  if (r.status !== 0) fail(`npm publish failed. ${resumeHint}`);
+  if (!dryRun) console.error(`Published. Check: npm view ${name}@${version}`);
 }
 
 const [command, ...rest] = process.argv.slice(2);
 switch (command) {
   case 'release': {
-    const help = rest.some((a) => a === '--help' || a === '-h');
+    const info = rest.some((a) => ['--help', '-h', '--version', '-v', '--release-version', '--changelog'].includes(a));
     const dryRun = rest.some((a) => a === '--dry-run' || a === '-d');
-    if (!help) {
-      const cliVersion = JSON.parse(read('packages', 'cli', 'package.json')).version;
-      const problems = releaseProblems({
-        cliVersion,
-        tagsAtHead: gitState(root, `v${cliVersion}`).tagsAtHead,
-        npmUser: out('npm', ['whoami']),
-      });
-      if (problems.length > 0)
-        fail(`Not releasing:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+    const { name, version, private: isPrivate } = pkg();
+    if (!info) {
+      const problems = [];
+      if ((out('git', ['tag', '--points-at', 'HEAD']) ?? '').split('\n').includes(`v${version}`)) {
+        problems.push(`HEAD is already the v${version} release. If only the npm publish failed, run \`npm run release:publish\`.`);
+      }
+      if (!isPrivate && !out('npm', ['whoami'])) problems.push('not logged in to npm (run `npm login`); the publish step needs it.');
+      if (problems.length > 0) fail(`Not releasing ${name}:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
     }
-    const r = spawnSync('pnpm', ['exec', 'release-it', ...rest], { cwd: root, stdio: 'inherit' });
+    const bin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'release-it.cmd' : 'release-it');
+    const r = spawnSync(bin, rest, { cwd: root, stdio: 'inherit' });
+    if (r.error) fail(`could not run release-it (${r.error.message}); install dev dependencies first.`);
     if (r.status !== 0) process.exit(r.status ?? 1);
-    // A dry run or a help request has nothing to publish.
-    if (help || dryRun) break;
-    publish(false, true);
+    if (info || dryRun) break;
+    const npmTag = optionValue(rest, '--npm.tag');
+    const resume = `npm run release:publish${npmTag ? ` -- --tag ${npmTag}` : ''}`;
+    publish({
+      dryRun: false,
+      tag: npmTag,
+      resumeHint: `The release commit, tag and GitHub Release are done; only the npm publish is left. Fix this, then run \`${resume}\`.`,
+    });
     break;
   }
   case 'publish':
-    publish(rest.includes('--dry-run'));
+    publish({
+      dryRun: rest.includes('--dry-run'),
+      tag: optionValue(rest, '--tag'),
+      resumeHint: 'Fix this, then run `npm run release:publish` again.',
+    });
     break;
-  case 'check-version': {
-    const version = rest[0] ?? '';
-    if (!isReleaseVersion(version)) {
-      fail(
-        `"${version}" is not a release version. Releases are plain X.Y.Z (CI rejects any other tag), so prereleases are not supported; pick a patch, minor or major version.`,
-      );
-    }
-    break;
-  }
-  case 'sync-version': {
-    const version = rest[0];
-    if (!version) fail('usage: release.mjs sync-version <version>');
-    const file = path.join(cliDir, 'package.json');
-    fs.writeFileSync(file, setPackageVersion(fs.readFileSync(file, 'utf8'), version));
-    console.log(`packages/cli/package.json -> ${version}`);
-    break;
-  }
-  case 'notes': {
-    const version = rest[0];
-    if (!version) fail('usage: release.mjs notes <version|tag>');
-    const section = changelogSection(read('CHANGELOG.md'), version);
-    if (!section) fail(`CHANGELOG.md has no entries under "## [${version.replace(/^v/, '')}]".`);
-    console.log(section);
-    break;
-  }
   default:
-    fail('usage: release.mjs release|publish|check-version|sync-version|notes (see RELEASING.md)');
+    fail('usage: node scripts/release.mjs release [release-it args] | publish [--dry-run] [--tag <tag>]  (see RELEASING.md)');
 }

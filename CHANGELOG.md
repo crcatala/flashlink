@@ -7,6 +7,21 @@ the Worker is deployed from the same tag.
 
 ## [Unreleased]
 
+### Added
+
+- `fl update`: updates `fl` the way it was installed. From a clone it pulls `main`, installs and
+  rebuilds (and refuses a dirty tree or another branch); a global npm, pnpm or bun install is
+  reinstalled from npm; `fl update --check` only reports (exit 0 up to date, 1 update available,
+  2 unknown) and `fl update --force` updates even when nothing is newer.
+
+### Changed
+
+- `fl --version` (and `-V`) now prints `fl X.Y.Z (sha7 YYYY-MM-DD)` for every install: the commit and
+  its date, with `-dirty` when the build came from uncommitted changes. A build without commit
+  information prints `fl X.Y.Z`. Previously a standalone binary printed `X.Y.Z (sha)` and an npm
+  install printed the bare version, so a stale install was harder to spot. The Finder menu shows the
+  new line too.
+
 ## [0.0.3] - 2026-10-22
 
 ### Changed

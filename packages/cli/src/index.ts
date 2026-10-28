@@ -1,5 +1,6 @@
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
+import { runUpdate, versionLine, type BuildInfo } from '../../../src/cli-meta.ts';
 import { configGet, configSet, configShow } from './commands/config.ts';
 import { init } from './commands/init.ts';
 import { ls } from './commands/ls.ts';
@@ -13,14 +14,26 @@ import { sendNotification } from './notify.ts';
 import { configPath } from './paths.ts';
 import { reportFailure } from './report.ts';
 
-/** Set by scripts/build-binary.sh (the git commit); absent when running from source or npm. */
+/** Set by scripts/build-binary.sh (the git commit and its date); absent when running from source or npm. */
 declare const __FLASHLINK_BUILD__: string | undefined;
+declare const __FLASHLINK_BUILD_DATE__: string | undefined;
 
-/** `0.0.0`, or `0.0.0 (a1b2c3d)` for a standalone build, so a stale install is easy to spot. */
-const VERSION =
+/**
+ * A standalone (Bun-compiled) build has no package.json and no git: its version and commit come from
+ * the build. Everything else asks cli-meta, which uses the build stamp or the checkout's git.
+ */
+const STANDALONE: BuildInfo | undefined =
   typeof __FLASHLINK_BUILD__ === 'string' && __FLASHLINK_BUILD__
-    ? `${pkg.version} (${__FLASHLINK_BUILD__})`
-    : pkg.version;
+    ? {
+        version: pkg.version,
+        commit: __FLASHLINK_BUILD__,
+        date: typeof __FLASHLINK_BUILD_DATE__ === 'string' ? __FLASHLINK_BUILD_DATE__ : undefined,
+        dirty: __FLASHLINK_BUILD__.endsWith('-dirty'),
+      }
+    : undefined;
+
+/** `fl 0.0.3 (a1b2c3d 2026-10-22)`, or `fl 0.0.3` for a build with no commit information. */
+const VERSION = versionLine('fl', STANDALONE);
 
 function positiveInt(value: string): number {
   const n = Number(value);
@@ -41,7 +54,7 @@ function optionArgs(argv: string[]): string[] {
 function buildProgram(ctx: () => Context, quiet: boolean): Command {
   const program = new Command('fl')
     .description('Upload a file and get a short link that expires on its own.')
-    .version(VERSION)
+    .version(VERSION, '-V, --version', 'print the version and commit')
     .showHelpAfterError('(run with --help for usage)')
     .exitOverride();
   // Applies to commands created below, which inherit it. Help and --version use writeOut.
@@ -124,6 +137,15 @@ function buildProgram(ctx: () => Context, quiet: boolean): Command {
     .command('path')
     .description('Print the config file path')
     .action(() => console.log(configPath()));
+
+  program
+    .command('update')
+    .description('Update fl the way it was installed')
+    .option('--check', 'report only: exit 0 up to date, 1 update available, 2 unknown')
+    .option('--force', 'update even when already up to date')
+    .action((opts: { check?: boolean; force?: boolean }) => {
+      process.exitCode = runUpdate('fl', opts);
+    });
 
   return program;
 }

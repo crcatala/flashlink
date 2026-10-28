@@ -60,6 +60,45 @@ fl up screenshot.png
 
 The link is printed and copied to your clipboard.
 
+## Install
+
+The CLI is published on npm as `flashlink`. It installs two commands that do the same thing: `fl` (short) and `flashlink`.
+
+```sh
+npm install -g flashlink    # or: pnpm add -g flashlink, bun add -g flashlink
+npx flashlink --help        # run without installing
+```
+
+On a Mac, the installer below needs no Node at all and also adds the Finder menu:
+
+```sh
+curl -fsSL https://github.com/crcatala/flashlink/releases/latest/download/install.sh | sh -s -- --latest
+```
+
+Requires Node.js 22.12 or newer (not for the macOS installer, which ships its own runtime).
+
+### From source
+
+```sh
+git clone https://github.com/crcatala/flashlink.git
+cd flashlink
+pnpm install
+pnpm build
+npm link                    # puts `fl` and `flashlink` on your PATH, pointing at this clone
+fl --version                # fl X.Y.Z (sha7 YYYY-MM-DD): the commit you built
+```
+
+Rebuild after pulling (`pnpm build`); the link keeps pointing at the clone. If `fl` is also installed globally, remove that copy so the linked build is the one on `PATH` (`command -v fl` should resolve inside the clone).
+
+### Updating
+
+```sh
+fl update --check           # exit 0: up to date, 1: update available, 2: unknown
+fl update                   # updates the same way it was installed
+```
+
+`fl update` follows the install method: a clone is pulled and rebuilt (`git pull --ff-only`, `pnpm install`, `pnpm build`; it refuses a dirty tree or another branch), a global npm, pnpm or bun install is reinstalled from npm, and a macOS binary install points at the installer's own update command. It never touches a global install when run from a clone.
+
 ## Common usage
 
 ```sh

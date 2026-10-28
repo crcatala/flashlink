@@ -1,15 +1,45 @@
 {
-  "name": "flashlink-monorepo",
+  "name": "flashlink",
   "version": "0.0.3",
-  "private": true,
+  "description": "CLI for flashlink: upload a file, get a short self-expiring link",
   "license": "MIT",
+  "author": "Christian Catalan <crcatala@gmail.com>",
+  "keywords": [
+    "cloudflare",
+    "r2",
+    "file-sharing",
+    "share-link",
+    "expiring-link",
+    "cli"
+  ],
+  "homepage": "https://github.com/crcatala/flashlink#readme",
+  "bugs": {
+    "url": "https://github.com/crcatala/flashlink/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crcatala/flashlink.git"
+  },
   "type": "module",
   "packageManager": "pnpm@10.0.0",
   "engines": {
     "node": ">=22.12"
   },
+  "bin": {
+    "fl": "./packages/cli/dist/index.js",
+    "flashlink": "./packages/cli/dist/index.js"
+  },
+  "files": [
+    "dist/build-info.json",
+    "packages/cli/dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "pnpm --filter flashlink build",
+    "build": "pnpm --filter @flashlink/cli build && node scripts/build-info.mjs",
     "setup:cloudflare": "node scripts/setup.mjs",
     "build:binary": "sh scripts/build-binary.sh",
     "install:macos": "sh scripts/install-macos.sh",
@@ -19,10 +49,17 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "test:package": "bash scripts/test-package.sh",
+    "prepack": "pnpm run build",
+    "prepublishOnly": "node scripts/release-local.mjs publish-check && pnpm run verify",
     "release": "node scripts/release.mjs release",
     "release:dry": "node scripts/release.mjs release --dry-run",
     "release:publish": "node scripts/release.mjs publish",
     "release:prep": "bash scripts/prep-release.sh"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "mime": "^4.1.0"
   },
   "devDependencies": {
     "@release-it/keep-a-changelog": "^8.0.1",

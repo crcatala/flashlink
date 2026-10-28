@@ -1,55 +1,21 @@
 {
-  "name": "flashlink",
+  "name": "@flashlink/cli",
   "version": "0.0.3",
-  "description": "CLI for flashlink: upload a file, get a short self-expiring link",
+  "description": "The fl command: sources for the flashlink CLI (published from the repository root)",
+  "private": true,
   "license": "MIT",
-  "author": "Christian Catalan <crcatala@gmail.com>",
-  "keywords": [
-    "cloudflare",
-    "r2",
-    "file-sharing",
-    "share-link",
-    "expiring-link",
-    "cli"
-  ],
-  "homepage": "https://github.com/crcatala/flashlink#readme",
-  "bugs": {
-    "url": "https://github.com/crcatala/flashlink/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/crcatala/flashlink.git",
-    "directory": "packages/cli"
-  },
   "type": "module",
-  "bin": {
-    "fl": "./dist/index.js",
-    "flashlink": "./dist/index.js"
-  },
-  "files": [
-    "dist",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=22.12"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
-    "prepublishOnly": "pnpm run build && pnpm run test"
-  },
-  "dependencies": {
-    "commander": "^15.0.0",
-    "mime": "^4.1.0"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@flashlink/core": "workspace:*",
     "@types/node": "^24.0.0",
+    "commander": "^15.0.0",
+    "mime": "^4.1.0",
     "tsup": "^8.5.1",
     "tsx": "^4.20.0",
     "vitest": "^4.1.0"
