@@ -1,7 +1,7 @@
 name: Release
 
-# `pnpm release` (release-it, run on the maintainer's machine) bumps the version, updates
-# CHANGELOG.md, commits, tags `vX.Y.Z` and pushes. The tag triggers this workflow:
+# `pnpm release` (scripts/release.mjs, run on the maintainer's machine) bumps the version, updates
+# CHANGELOG.md, commits, tags `vX.Y.Z`, pushes and publishes to npm. The tag triggers this workflow:
 #   - verify:         the tag matches the CLI version, CHANGELOG.md has its section, checks pass
 #   - github-release: GitHub Release (notes = that CHANGELOG section) with the macOS binaries,
 #                     installer and SHA256SUMS
@@ -34,7 +34,7 @@ jobs:
 
       # The GitHub Release uses this section as its notes, so a tag without one is refused here.
       - name: CHANGELOG.md has an entry for this tag
-        run: node scripts/release.mjs notes "$GITHUB_REF_NAME" > /dev/null
+        run: node scripts/release-local.mjs notes "$GITHUB_REF_NAME" > /dev/null
 
       - run: pnpm format:check
       - run: pnpm typecheck
@@ -66,7 +66,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node scripts/release.mjs notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          node scripts/release-local.mjs notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" \
             --verify-tag --notes-file "$RUNNER_TEMP/notes.md" --title "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP"/release/flashlink-darwin-arm64 \

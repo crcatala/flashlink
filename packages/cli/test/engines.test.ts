@@ -22,19 +22,24 @@ const atLeast = (a: [number, number], b: [number, number]) =>
 
 describe('declared Node engines', () => {
   const cliDir = path.join(root, 'packages', 'cli');
+  // The published package is the repository root; packages/cli is its build package.
+  const pkg = read(path.join(root, 'package.json'));
   const cli = read(path.join(cliDir, 'package.json'));
 
   it('is not lower than what the CLI runtime dependencies require', () => {
-    const declared = minNode(cli.engines.node)!;
-    for (const dep of Object.keys(cli.dependencies)) {
-      const manifest = read(path.join(cliDir, 'node_modules', dep, 'package.json'));
+    const declared = minNode(pkg.engines.node)!;
+    for (const dep of Object.keys(pkg.dependencies)) {
+      const manifest = read(path.join(root, 'node_modules', dep, 'package.json'));
       const required = minNode(manifest.engines?.node);
       if (!required) continue;
       expect(atLeast(declared, required), `${dep} needs Node ${required.join('.')}`).toBe(true);
     }
   });
 
-  it('matches the root workspace engines', () => {
-    expect(cli.engines.node).toBe(read(path.join(root, 'package.json')).engines.node);
+  it('is the only one: the private CLI build package adds none, and builds with the same runtime deps', () => {
+    expect(cli.engines).toBeUndefined();
+    for (const dep of Object.keys(pkg.dependencies)) {
+      expect(Object.keys(cli.devDependencies), dep).toContain(dep);
+    }
   });
 });

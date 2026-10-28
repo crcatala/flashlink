@@ -4,3 +4,13 @@ dist
 pnpm-lock.yaml
 docs/screenshots
 .tickets
+
+# Byte-identical copies from the release standard (scripts/release.mjs,
+# scripts/build-info.mjs, scripts/test-package.sh, scripts/prep-release.sh and
+# scripts/check-changelog.sh). Prettier must not reformat them; the audit
+# compares them with the standard's copies and RELEASING.md explains the rule.
+scripts/prep-release.sh
+scripts/check-changelog.sh
+scripts/release.mjs
+scripts/build-info.mjs
+scripts/test-package.sh
