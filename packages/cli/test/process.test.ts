@@ -4,8 +4,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import pkg from '../package.json' with { type: 'json' };
 
 const ENTRY = fileURLToPath(new URL('../src/index.ts', import.meta.url));
+const REPO = path.resolve(import.meta.dirname, '..', '..', '..');
+
+/** What the checkout (not a build stamp) says, for a run from source. */
+function git(...args: string[]): string {
+  const r = spawnSync('git', args, { cwd: REPO, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+  return r.stdout.trim();
+}
+const sha = () => git('rev-parse', '--short', 'HEAD');
+const date = () => git('show', '-s', '--format=%cs', 'HEAD');
+// A test run in a checkout with edits in it builds from a dirty tree.
+const dirty = git('status', '--porcelain') === '' ? '' : '-dirty';
 
 let dir: string;
 beforeEach(() => {
@@ -72,7 +85,21 @@ describe('parse failures without --json', () => {
     expect(help.stdout).toContain('Usage: fl up');
     const version = fl(['--version']);
     expect(version.status).toBe(0);
-    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+/);
+    // The release standard's line: name, version, the commit and that commit's date.
+    expect(version.stdout).toBe(`fl ${pkg.version} (${sha()}${dirty} ${date()})\n`);
+    expect(fl(['-V']).stdout).toBe(version.stdout);
+  });
+
+  it('has an update command that only reports with --check', () => {
+    const help = fl(['update', '--help']);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain('--check');
+    expect(help.stdout).toContain('--force');
+    // 0: up to date, 1: an update is available, 2: could not tell (for example no network).
+    const check = fl(['update', '--check']);
+    expect([0, 1, 2]).toContain(check.status);
+    expect(check.stdout + check.stderr).toMatch(/fl/);
+    expect(check.stderr).not.toContain('Error:');
   });
 });
 

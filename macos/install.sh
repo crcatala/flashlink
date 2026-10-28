@@ -242,7 +242,8 @@ have_binary=""
 if [ -x "$bin_file" ] && env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version >/dev/null 2>&1; then
   have_binary=1
   # Without --binary/--latest/--version the binary already there is used as it is.
-  ok "$([ -n "$binary_src" ] && echo installed || echo kept)" "fl $(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version 2>/dev/null | tail -n 1), $(short "$bin_file")"
+  # `fl --version` prints "fl X.Y.Z (sha7 date)"; strip the name so it is not printed twice.
+  ok "$([ -n "$binary_src" ] && echo installed || echo kept)" "fl $(env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --version 2>/dev/null | tail -n 1 | sed 's/^[[:space:]]*//; s/^fl //'), $(short "$bin_file")"
 
   # Link it into ~/.local/bin, but never over something this installer did not put there.
   linked="" foreign=""
@@ -280,7 +281,7 @@ if [ -x "$bin_file" ] && env -i HOME="$HOME" PATH="$minimal_path" "$bin_file" --
       "echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> $rc" \
       "then open a new terminal window. (The Finder menu works either way.)"
   else
-    other=$("$terminal_fl" --version 2>/dev/null | tail -n 1 || true)
+    other=$("$terminal_fl" --version 2>/dev/null | tail -n 1 | sed 's/^[[:space:]]*//; s/^fl //' || true)
     warn "this terminal runs a different fl first: $(short "$terminal_fl")${other:+ ($other)}" \
       "The Finder menu uses the one installed here. To have only this one, remove the other" \
       "(for example \`npm uninstall -g flashlink\`) or put ~/.local/bin earlier on your PATH."
